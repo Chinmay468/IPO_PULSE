@@ -1194,11 +1194,145 @@
       }
     }
 
+    function resetPortfolioUI(isSignedOut = true) {
+      currentPortfolioHoldings = [];
+      previousHoldingsPrices = {};
+      globalAdvisoryData = null;
+
+      // Summary Strip
+      const investedEl = document.getElementById('pf-invested');
+      if (investedEl) investedEl.textContent = '—';
+
+      const valueEl = document.getElementById('pf-value');
+      if (valueEl) valueEl.textContent = '—';
+
+      const dayChip = document.getElementById('pf-day-chip');
+      if (dayChip) {
+        dayChip.innerHTML = 'Today: —';
+        dayChip.className = 'inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md mt-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tabular-nums';
+      }
+
+      const pnlEl = document.getElementById('pf-pnl');
+      if (pnlEl) {
+        pnlEl.textContent = '—';
+        pnlEl.className = 'text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white tabular-nums';
+      }
+
+      const pnlChip = document.getElementById('pf-pnl-chip');
+      if (pnlChip) {
+        pnlChip.textContent = '—';
+        pnlChip.className = 'inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tabular-nums';
+      }
+
+      const countEl = document.getElementById('pf-count');
+      if (countEl) countEl.textContent = '—';
+
+      const gainersLosersEl = document.getElementById('pf-gainers-losers');
+      if (gainersLosersEl) gainersLosersEl.innerHTML = '<span>●</span> —';
+
+      const unpricedEl = document.getElementById('pf-unpriced-warning');
+      if (unpricedEl) {
+        unpricedEl.textContent = '';
+        unpricedEl.classList.add('hidden');
+      }
+
+      // Holdings Table & Cards
+      const loadingEl = document.getElementById('pf-loading');
+      if (loadingEl) loadingEl.classList.add('hidden');
+
+      const containerEl = document.getElementById('pf-holdings-container');
+      if (containerEl) containerEl.classList.add('hidden');
+
+      const tbody = document.getElementById('pf-tbody');
+      if (tbody) tbody.innerHTML = '';
+
+      const cardsWrap = document.getElementById('pf-cards-wrap');
+      if (cardsWrap) cardsWrap.innerHTML = '';
+
+      const emptyEl = document.getElementById('pf-empty');
+      if (emptyEl) {
+        emptyEl.classList.remove('hidden');
+        if (isSignedOut) {
+          emptyEl.innerHTML = `
+            <div class="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+              <i data-lucide="lock" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <h4 class="font-bold text-slate-800 dark:text-white text-sm">Sign in to view your portfolio</h4>
+              <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm mx-auto">Your holdings, valuations, and real-time P&amp;L are protected. Please sign in to access your portfolio.</p>
+            </div>
+            <div class="flex items-center justify-center pt-2">
+              <button onclick="openLoginModal()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5">
+                <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                <span>Sign In to Portfolio</span>
+              </button>
+            </div>
+          `;
+        } else {
+          emptyEl.innerHTML = `
+            <div class="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+              <i data-lucide="briefcase" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <h4 class="font-bold text-slate-800 dark:text-white text-sm">No holdings yet</h4>
+              <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm mx-auto">Import your broker Excel/CSV statement or add your first stock to begin tracking.</p>
+            </div>
+            <div class="flex items-center justify-center gap-2 pt-2">
+              <label class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer">
+                Import Statement (.xlsx / .csv)
+                <input type="file" accept=".csv, .xlsx, .xls" class="hidden" onchange="importCSV(event)">
+              </label>
+              <button onclick="openAddHoldingModal()" class="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                + Add Manually
+              </button>
+            </div>
+          `;
+        }
+      }
+
+      // Allocation Donut
+      const donutSvg = document.getElementById('donut-svg');
+      if (donutSvg) donutSvg.innerHTML = '<circle cx="18" cy="18" r="14" fill="transparent" stroke="#E2E8F0" stroke-width="4"></circle>';
+
+      const donutVal = document.getElementById('donut-center-val');
+      if (donutVal) donutVal.textContent = '—';
+
+      const donutLegend = document.getElementById('donut-legend');
+      if (donutLegend) donutLegend.innerHTML = `<div class="text-xs text-slate-400 text-center py-2">${isSignedOut ? 'Sign in to view allocation' : 'No holdings allocated'}</div>`;
+
+      // AI Portfolio Doctor
+      const advScore = document.getElementById('adv-health-score');
+      if (advScore) advScore.textContent = '—';
+
+      const gauge = document.getElementById('adv-gauge-path');
+      if (gauge) gauge.setAttribute('stroke-dasharray', '0, 100');
+
+      const verdict = document.getElementById('adv-health-verdict-badge');
+      if (verdict) {
+        verdict.textContent = isSignedOut ? '● Signed Out' : '● No Data';
+        verdict.className = 'inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
+      }
+
+      const summaryText = document.getElementById('adv-summary-text');
+      if (summaryText) summaryText.textContent = isSignedOut ? 'Sign in to run real-time technical diagnosis and portfolio health checks.' : 'Add holdings to analyze technical indicators and momentum.';
+
+      const regimeText = document.getElementById('adv-regime-text');
+      if (regimeText) regimeText.textContent = 'Regime: —';
+
+      // Reset Copilot chat state & close modal if open
+      closeAICopilotModal();
+      const chatMessages = document.getElementById('ai-modal-chat-messages');
+      if (chatMessages) chatMessages.innerHTML = '';
+      aiChatHistory = [];
+
+      refreshLucideIcons();
+    }
+
     function handleAuthButtonClick() {
       if (getAuthToken()) {
         if (confirm('Log out from Admin session?')) {
           setAuthToken(null);
-          loadPortfolio(true);
+          resetPortfolioUI(true);
         }
       } else {
         openLoginModal();
@@ -1338,6 +1472,12 @@
 
     // Load Portfolio Summary & Holdings
     async function loadPortfolio(silent = false) {
+      if (!getAuthToken()) {
+        resetPortfolioUI(true);
+        if (!silent) openLoginModal();
+        return;
+      }
+
       if (!silent) {
         document.getElementById('pf-loading').classList.remove('hidden');
         document.getElementById('pf-empty').classList.add('hidden');
@@ -1347,10 +1487,9 @@
       try {
         const res = await fetch(`${API}/summary`, { headers: getAuthHeaders() });
         if (res.status === 401) {
-          if (!silent) {
-            document.getElementById('pf-loading').classList.add('hidden');
-            openLoginModal();
-          }
+          setAuthToken(null);
+          resetPortfolioUI(true);
+          if (!silent) openLoginModal();
           return;
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2055,11 +2194,16 @@
 
     // AI Portfolio Advisory
     async function loadPortfolioAdvisory(silent = false) {
+      if (!getAuthToken()) {
+        return;
+      }
       const btn = document.getElementById('adv-diag-btn');
       if (btn && !silent) btn.innerHTML = '<i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i><span>Diagnosing...</span>';
       try {
         const res = await fetch('/api/v1/portfolio/advisory', { headers: getAuthHeaders() });
         if (res.status === 401) {
+          setAuthToken(null);
+          resetPortfolioUI(true);
           if (!silent) openLoginModal();
           return;
         }
@@ -2279,6 +2423,10 @@
 
     async function submitAICopilotChat(e) {
       if (e) e.preventDefault();
+      if (!getAuthToken()) {
+        openLoginModal();
+        return;
+      }
       const input = document.getElementById('ai-modal-input');
       const sendBtn = document.getElementById('ai-modal-send-btn');
       const chatContainer = document.getElementById('ai-modal-chat-messages');
@@ -2376,10 +2524,16 @@
     }
 
     async function deleteHolding(id, symbol) {
+      if (!getAuthToken()) { openLoginModal(); return; }
       if (!confirm(`Remove ${symbol} from your portfolio?`)) return;
       try {
         const res = await fetch(`${API}/holdings/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
-        if (res.status === 401) { openLoginModal(); return; }
+        if (res.status === 401) {
+          setAuthToken(null);
+          resetPortfolioUI(true);
+          openLoginModal();
+          return;
+        }
         if (res.ok || res.status === 204) {
           loadPortfolio();
         } else {
@@ -2391,13 +2545,19 @@
     }
 
     async function syncAngelOne() {
+      if (!getAuthToken()) { openLoginModal(); return; }
       const btn = document.getElementById('ao-sync-btn');
       const origHTML = btn.innerHTML;
       btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Syncing...</span>';
       btn.disabled = true;
       try {
         const res = await fetch(`${API}/import/angelone`, { method: 'POST', headers: getAuthHeaders() });
-        if (res.status === 401) { openLoginModal(); return; }
+        if (res.status === 401) {
+          setAuthToken(null);
+          resetPortfolioUI(true);
+          openLoginModal();
+          return;
+        }
         const data = await res.json();
         if (!res.ok) {
           const detail = String(data.detail || '');
@@ -2422,12 +2582,22 @@
     async function importCSV(event) {
       const file = event.target.files[0];
       if (!file) return;
+      if (!getAuthToken()) {
+        event.target.value = '';
+        openLoginModal();
+        return;
+      }
       const formData = new FormData();
       formData.append('file', file);
       event.target.value = '';
       try {
         const res = await fetch(`${API}/import/csv`, { method: 'POST', headers: getAuthHeaders(), body: formData });
-        if (res.status === 401) { openLoginModal(); return; }
+        if (res.status === 401) {
+          setAuthToken(null);
+          resetPortfolioUI(true);
+          openLoginModal();
+          return;
+        }
         const data = await res.json();
         if (!res.ok) {
           if (res.status === 422 && data.detail && data.detail.includes('password-protected')) {
@@ -2437,7 +2607,12 @@
               retryForm.append('file', file);
               retryForm.append('password', pwd.trim());
               const retryRes = await fetch(`${API}/import/csv`, { method: 'POST', headers: getAuthHeaders(), body: retryForm });
-              if (retryRes.status === 401) { openLoginModal(); return; }
+              if (retryRes.status === 401) {
+                setAuthToken(null);
+                resetPortfolioUI(true);
+                openLoginModal();
+                return;
+              }
               const retryData = await retryRes.json();
               if (!retryRes.ok) {
                 alert('⚠️ Decryption/Import failed: ' + (retryData.detail || JSON.stringify(retryData)));
@@ -2460,6 +2635,10 @@
     }
 
     function openAddHoldingModal() {
+      if (!getAuthToken()) {
+        openLoginModal();
+        return;
+      }
       document.getElementById('add-holding-modal').classList.remove('hidden');
       document.getElementById('add-holding-modal').classList.add('flex');
     }
@@ -2492,6 +2671,8 @@
           body: JSON.stringify(body)
         });
         if (res.status === 401) {
+          setAuthToken(null);
+          resetPortfolioUI(true);
           openLoginModal();
           return;
         }
@@ -2515,6 +2696,7 @@
       liveSyncInterval = setInterval(() => {
         if (!liveSyncEnabled) return;
         if (currentActiveTab === 'portfolio') {
+          if (!getAuthToken()) return;
           loadPortfolio(true);
         } else if (currentActiveTab === 'ipos') {
           loadIpos(true);
@@ -2532,8 +2714,11 @@
         if (ping) ping.classList.remove('hidden');
         if (dot) dot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
         if (text) text.textContent = 'Live: 15s';
-        if (currentActiveTab === 'portfolio') loadPortfolio(true);
-        else if (currentActiveTab === 'ipos') loadIpos(true);
+        if (currentActiveTab === 'portfolio') {
+          if (getAuthToken()) loadPortfolio(true);
+        } else if (currentActiveTab === 'ipos') {
+          loadIpos(true);
+        }
       } else {
         if (ping) ping.classList.add('hidden');
         if (dot) dot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-400';
@@ -2542,12 +2727,21 @@
     }
 
     async function syncMarketData() {
+      if (!getAuthToken()) {
+        openLoginModal();
+        return;
+      }
       const btn = document.getElementById('sync-btn');
       const icon = document.getElementById('sync-icon');
       if (icon) icon.classList.add('animate-spin');
       try {
         const res = await fetch('/api/v1/scraper/sync', { method: 'POST', headers: getAuthHeaders() });
-        if (res.status === 401) { openLoginModal(); return; }
+        if (res.status === 401) {
+          setAuthToken(null);
+          resetPortfolioUI(true);
+          openLoginModal();
+          return;
+        }
         await loadIpos();
         if (currentActiveTab === 'portfolio') await loadPortfolio();
       } catch (err) {
@@ -2976,7 +3170,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       initTheme();
       updateAuthUI();
-      loadPortfolio();
+      loadPortfolio(!getAuthToken());
       loadRegistrarCompanies();
       initLiveSync();
       refreshLucideIcons();
