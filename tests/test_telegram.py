@@ -385,3 +385,69 @@ async def test_webhook_start_command(client, db_session, monkeypatch):
         mock_send.assert_called_once()
         assert "Welcome to IPO Pulse AI Bot" in mock_send.call_args[0][0]
 
+
+@pytest.mark.asyncio
+async def test_webhook_shares_command(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_bot_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+
+    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send, \
+         patch.object(TelegramService, "send_chat_action", new_callable=AsyncMock):
+        mock_send.return_value = (True, None)
+
+        payload = {
+            "update_id": 102,
+            "message": {
+                "message_id": 3,
+                "chat": {"id": 123456789},
+                "text": "/shares"
+            }
+        }
+        resp = await client.post("/api/v1/telegram/webhook", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["action"] == "shares_suggested"
+        mock_send.assert_called_once()
+        sent_text = mock_send.call_args[0][0]
+        assert "CURATED SWING PICKS" in sent_text
+        assert "HDFCBANK" in sent_text
+        assert "NTPC" in sent_text
+        assert "Target" in sent_text
+        assert "Stop-Loss" in sent_text
+
+
+@pytest.mark.asyncio
+async def test_webhook_suggest_me_a_share_text(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_bot_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+
+    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send, \
+         patch.object(TelegramService, "send_chat_action", new_callable=AsyncMock):
+        mock_send.return_value = (True, None)
+
+        payload = {
+            "update_id": 103,
+            "message": {
+                "message_id": 4,
+                "chat": {"id": 123456789},
+                "text": "suggest me a share to buy for 2-3 months"
+            }
+        }
+        resp = await client.post("/api/v1/telegram/webhook", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["action"] == "shares_suggested"
+        mock_send.assert_called_once()
+        sent_text = mock_send.call_args[0][0]
+        assert "CURATED SWING PICKS" in sent_text
+
+
+def test_answer_portfolio_query_suggests_market_share():
+    from app.services.portfolio_advisor_service import answer_portfolio_query
+    res = answer_portfolio_query("suggest me a share in the market to buy", {"holdings": []})
+    assert "Curated Swing & Growth Picks (2–3 Months)" in res
+    assert "HDFC Bank (HDFCBANK)" in res
+    assert "NTPC" in res
+    assert "Stop-Loss" in res
+
+

@@ -514,6 +514,9 @@ class TelegramService:
                 "If the user asks specifically about an SME IPO, inform them about the high lot size requirement (₹1L+) and that their preference is set to Mainboard only."
             )
 
+        from app.services.market_shares_service import get_vetted_swing_shares
+        market_shares = await get_vetted_swing_shares()
+
         answer, _source = await groq_answer_query(
             query=query,
             advisory_data=advisory_data,
@@ -521,7 +524,8 @@ class TelegramService:
             active_ipos=ipos_data,
             portfolio_summary=summary,
             db=session,
-            extra_system_instructions=extra_instructions
+            extra_system_instructions=extra_instructions,
+            market_shares=market_shares
         )
         return answer
 
@@ -564,10 +568,12 @@ class TelegramService:
                 "I am your real-time investment copilot and IPO intelligence assistant.\n\n"
                 "⚡ <b>Quick Commands:</b>\n"
                 f"• 🚀 <b>/top</b> or <b>/best</b> - {best_cmd_label}\n"
+                "• 🎯 <b>/shares</b> or <b>/picks</b> - Vetted 2–3 month swing shares with entry, target & SL\n"
                 "• 💼 <b>/portfolio</b> - Live portfolio summary & today's P&L\n"
                 "• 🔍 <b>/ipo &lt;name&gt;</b> - Instant scorecard & GMP for an IPO\n"
                 "• ❓ <b>/help</b> - View this command guide\n\n"
                 "💬 <b>Ask Me Any Question Directly:</b>\n"
+                "• <i>\"Suggest me a share to buy for 2-3 months\"</i>\n"
                 "• <i>\"Which Mainboard IPO should I apply for?\"</i>\n"
                 "• <i>\"How to make my portfolio green?\"</i>\n"
                 "• <i>\"What are the stop-loss levels for my stocks?\"</i>\n"
@@ -577,12 +583,27 @@ class TelegramService:
             await cls.send_message(help_text, chat_id=chat_id)
             return {"ok": True, "action": "help"}
 
-        # 2. /top, /best
+        # 2. /shares, /picks, /stocks, or direct request for share suggestions
+        if (
+            clean_lower in ["/shares", "/picks", "/stocks", "shares", "picks", "stocks"]
+            or any(p in clean_lower for p in [
+                "suggest share", "suggest a share", "suggest me a share", "suggest me the share",
+                "which share to buy", "best share to buy", "best stock to buy", "share in the market",
+                "shares to buy", "stocks to buy", "share for 2-3 month", "share for 2-3 months"
+            ])
+        ):
+            from app.services.market_shares_service import get_vetted_swing_shares, format_shares_summary_card
+            shares = await get_vetted_swing_shares()
+            card = format_shares_summary_card(shares)
+            await cls.send_message(card, chat_id=chat_id)
+            return {"ok": True, "action": "shares_suggested"}
+
+        # 3. /top, /best
         if clean_lower in ["/top", "/best", "top", "best ipo", "best ipos"]:
             digest_res = await cls.send_top_picks_digest(session)
             return {"ok": True, "action": "top_picks", "result": digest_res}
 
-        # 3. /portfolio, /pnl
+        # 4. /portfolio, /pnl
         if clean_lower in ["/portfolio", "/pnl", "portfolio", "pnl", "my portfolio"]:
             from app.services.portfolio_service import portfolio_service as pf_svc
             summary = await pf_svc.get_portfolio_summary(session)
@@ -590,7 +611,7 @@ class TelegramService:
             await cls.send_message(card, chat_id=chat_id)
             return {"ok": True, "action": "portfolio"}
 
-        # 4. /ipo <name or symbol>
+        # 5. /ipo <name or symbol>
         if clean_lower.startswith("/ipo "):
             search_term = text[5:].strip()
             if search_term:
