@@ -217,3 +217,14 @@ async def get_portfolio_summary(db: AsyncSession) -> PortfolioSummary:
         last_updated=datetime.now(timezone.utc),
     )
 
+
+# ── Backwards-Compatibility Namespace ───────────────────────────────────────
+class _PortfolioServiceProxy:
+    get_portfolio_summary = staticmethod(get_portfolio_summary)
+    list_holdings = staticmethod(list_holdings)
+    get_holding = staticmethod(get_holding)
+    get_holding_by_symbol = staticmethod(get_holding_by_symbol)
+
+portfolio_service = _PortfolioServiceProxy()
+
+

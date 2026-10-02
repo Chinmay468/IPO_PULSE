@@ -457,11 +457,11 @@ class TelegramService:
         """
         Uses PortfolioAdvisorService to answer investor questions with live holdings & IPO context.
         """
-        from app.services.portfolio_service import portfolio_service as pf_svc
+        from app.services.portfolio_service import get_portfolio_summary
         from app.services.portfolio_advisor_service import generate_portfolio_advisory, groq_answer_query
 
         # 1. Fetch summary & advisory data
-        summary = await pf_svc.get_portfolio_summary(session)
+        summary = await get_portfolio_summary(session)
         holdings_dict = [h.model_dump() for h in summary.holdings]
         advisory_data = await generate_portfolio_advisory(holdings_dict)
         advisory_data["portfolio_summary"] = summary.model_dump()
@@ -605,8 +605,8 @@ class TelegramService:
 
         # 4. /portfolio, /pnl
         if clean_lower in ["/portfolio", "/pnl", "portfolio", "pnl", "my portfolio"]:
-            from app.services.portfolio_service import portfolio_service as pf_svc
-            summary = await pf_svc.get_portfolio_summary(session)
+            from app.services.portfolio_service import get_portfolio_summary
+            summary = await get_portfolio_summary(session)
             card = cls.format_portfolio_summary_card(summary)
             await cls.send_message(card, chat_id=chat_id)
             return {"ok": True, "action": "portfolio"}

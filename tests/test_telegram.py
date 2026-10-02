@@ -445,7 +445,7 @@ async def test_webhook_suggest_me_a_share_text(client, db_session, monkeypatch):
 def test_answer_portfolio_query_suggests_market_share():
     from app.services.portfolio_advisor_service import answer_portfolio_query
     res = answer_portfolio_query("suggest me a share in the market to buy", {"holdings": []})
-    assert "Curated Swing & Growth Picks (2–3 Months)" in res
+    assert "High-Conviction Market Picks" in res
     assert "HDFC Bank (HDFCBANK)" in res
     assert "NTPC" in res
     assert "Stop-Loss" in res

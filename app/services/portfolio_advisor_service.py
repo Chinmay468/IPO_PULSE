@@ -1470,32 +1470,45 @@ def answer_portfolio_query(query: str, advisory_data: dict, portfolio_summary: O
             f"3. Average oversold stocks only after a confirmed daily green candle."
         )
 
-    # 5. Suggest a share to buy in the market (2-3 Month Growth / Swing)
-    if any(k in q for k in [
+    # 5. Suggest a share to buy in the market (1-Week or 2-3 Month Growth / Swing)
+    is_share_query = any(k in q for k in [
         "suggest share", "suggest a share", "suggest me a share", "suggest me the share",
         "which share to buy", "best share to buy", "best stock to buy", "share in the market",
         "shares in the market", "stock in the market", "new share", "new stock", "2-3 month",
-        "short term share", "swing pick", "swing share", "share to buy"
-    ]):
+        "short term share", "swing pick", "swing share", "share to buy", "shares to buy",
+        "any share", "buy in bulk", "for a week", "1 week", "one week", "buy and sell",
+        "buy cheap", "sell expensive"
+    ])
+    if is_share_query:
+        is_one_week = any(w in q for w in ["week", "bulk", "quick"])
+        horizon_note = (
+            "⚠️ **1-Week / Bulk Trade Notice:**\n"
+            "Buying large quantities ('bulk') for just 1 week carries heightened volatility risk and a 20% flat STCG tax. "
+            "For 1-week horizons, only trade **high-liquidity Large-Caps** with strict stop-losses (1.5–2.5%) to avoid capital erosion.\n\n"
+            if is_one_week else ""
+        )
         return (
-            "🎯 **IPO Pulse · Curated Swing & Growth Picks (2–3 Months)**\n\n"
-            "Here are high-conviction positional shares trading near key institutional support zones:\n\n"
-            "1. **HDFC Bank (HDFCBANK)** — Banking & Financials\n"
-            "• **Buy Zone:** ₹710 - ₹725\n"
-            "• **Target (2–3M):** **₹820.0** (+13.5%)\n"
-            "• **Stop-Loss:** ₹680.0\n"
-            "• **Thesis:** Valuation discount; margin recovery and credit deposit ratio normalization.\n\n"
-            "2. **NTPC Ltd (NTPC)** — Power & Energy Infrastructure\n"
-            "• **Buy Zone:** ₹308 - ₹318\n"
-            "• **Target (2–3M):** **₹365.0** (+15.8%)\n"
-            "• **Stop-Loss:** ₹294.0\n"
-            "• **Thesis:** Thermal power cash generation + aggressive green subsidiary expansion pipeline.\n\n"
-            "3. **ITC Ltd (ITC)** — FMCG & Value Demerger\n"
-            "• **Buy Zone:** ₹250 - ₹258\n"
-            "• **Target (2–3M):** **₹295.0** (+15.2%)\n"
-            "• **Stop-Loss:** ₹240.0\n"
-            "• **Thesis:** Resilient core cash flows and hotels business demerger value unlocking.\n\n"
-            "🛡️ **Discipline Note:** Always enforce strict 5-7% stop-loss limits and allocate no more than 15–20% of capital to any single stock."
+            f"🎯 **IPO Pulse · High-Conviction Market Picks**\n\n"
+            f"{horizon_note}"
+            "Here are top-ranked shares trading near institutional support zones:\n\n"
+            "1. **NTPC Ltd (NTPC)** — Power & Clean Energy\n"
+            "• **CMP / Buy Zone:** ₹310 - ₹318\n"
+            "• **1–2 Wk Pivot:** ₹326 | **2–3M Target:** **₹365.0** (+15.8%)\n"
+            "• **Stop-Loss:** ₹296.0 (High liquidity, minimal slippage for volume trades)\n"
+            "• **Thesis:** Aggressive capacity expansion with heavy institutional support on dips.\n\n"
+            "2. **HDFC Bank (HDFCBANK)** — Banking & Financials\n"
+            "• **CMP / Buy Zone:** ₹715 - ₹725\n"
+            "• **1–2 Wk Pivot:** ₹745 | **2–3M Target:** **₹822.0** (+14.0%)\n"
+            "• **Stop-Loss:** ₹680.0 (Solid base support)\n"
+            "• **Thesis:** Valuation discount; credit deposit ratio normalization and Q3/Q4 earnings tailwinds.\n\n"
+            "3. **Bharti Airtel (BHARTIARTL)** — Telecom & Enterprise\n"
+            "• **CMP / Buy Zone:** ₹1,715 - ₹1,750\n"
+            "• **1–2 Wk Pivot:** ₹1,780 | **2–3M Target:** **₹1,985.0** (+14.0%)\n"
+            "• **Stop-Loss:** ₹1,640.0\n"
+            "• **Thesis:** Strong free cash flow compounding and steady institutional buying.\n\n"
+            "🛡️ **Capital Defense Rules:**\n"
+            "• Never put all capital into a single stock — cap single-stock exposure under 15–20%.\n"
+            "• Strictly honor stop-loss levels to avoid turning a short-term trade into a loss."
         )
 
     # 6. Best stock to buy / accumulate on dip (among existing holdings)
