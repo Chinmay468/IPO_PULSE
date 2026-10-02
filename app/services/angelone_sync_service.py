@@ -1,11 +1,11 @@
 """
 Angel One SmartAPI integration for fetching live portfolio holdings.
 
-Requirements in .env:
-  ANGELONE_API_KEY=your_api_key
-  ANGELONE_CLIENT_ID=your_client_id
-  ANGELONE_PASSWORD=your_mpin
-  ANGELONE_TOTP_SECRET=your_totp_secret   (base32 secret from QR code)
+Required environment variables (optional):
+  - ANGELONE_API_KEY
+  - ANGELONE_CLIENT_ID
+  - ANGELONE_PASSWORD (4-digit MPIN)
+  - ANGELONE_TOTP_SECRET (base32 secret from authenticator QR code)
 
 All fields are optional — if not set, Angel One sync is disabled gracefully.
 """
