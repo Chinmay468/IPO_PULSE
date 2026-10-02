@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     TELEGRAM_NOTIFICATIONS_ENABLED: bool = True
     TELEGRAM_MIN_SCORE: float = 65.0
     TELEGRAM_MIN_GMP_PCT: float = 20.0
+    TELEGRAM_MAINBOARD_ONLY: bool = True
     TELEGRAM_WEBHOOK_URL: Optional[str] = "https://ipopulse-app.duckdns.org/api/v1/telegram/webhook"
 
 

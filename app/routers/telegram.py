@@ -29,6 +29,7 @@ async def get_telegram_status():
         "bot_token_configured": bool(settings.TELEGRAM_BOT_TOKEN),
         "min_score": settings.TELEGRAM_MIN_SCORE,
         "min_gmp_pct": settings.TELEGRAM_MIN_GMP_PCT,
+        "mainboard_only": settings.TELEGRAM_MAINBOARD_ONLY,
         "webhook_url": settings.TELEGRAM_WEBHOOK_URL,
         "webhook_active": bool(webhook_info.get("result", {}).get("url")),
         "webhook_info": webhook_info.get("result", {})

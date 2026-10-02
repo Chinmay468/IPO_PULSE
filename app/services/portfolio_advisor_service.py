@@ -1552,7 +1552,8 @@ async def groq_answer_query(
     active_ipos: Optional[list[dict]] = None,
     portfolio_summary: Optional[Any] = None,
     return_model: bool = False,
-    db: Optional[Any] = None
+    db: Optional[Any] = None,
+    extra_system_instructions: Optional[str] = None
 ) -> tuple[str, str] | tuple[str, str, str]:
     """
     Route a user query through the Groq LLM (LLaMA 3.3 70B) with live portfolio, company facts,
@@ -1619,8 +1620,9 @@ async def groq_answer_query(
     # 3. Build IPO context (live and upcoming issues)
     ipo_lines = []
     for item in (active_ipos or []):
+        cat_str = f" [{item.get('ipo_type')}]" if item.get('ipo_type') else ""
         ipo_lines.append(
-            f"  * {item.get('company_name', item.get('symbol'))} ({item.get('symbol')}): Status={item.get('status')}, "
+            f"  * {item.get('company_name', item.get('symbol'))} ({item.get('symbol')}){cat_str}: Status={item.get('status')}, "
             f"Band={item.get('price_band')}, GMP={item.get('gmp')}, "
             f"Subscription={item.get('subscription')}, Score={item.get('score')} ({item.get('recommendation')})"
         )
@@ -1658,8 +1660,9 @@ async def groq_answer_query(
         + "- IMPORTANT: Always finish your response with a complete sentence. Never stop mid-word or mid-sentence; if running long, wrap up the current point cleanly and end.\n"
         + "- Always use ₹ symbol. No markdown headers (#, ##, ###). No horizontal rules (---).\n"
         "- Tax: STCG = 20% flat for equity held ≤12 months; LTCG = 12.5% for >12 months (₹1.25L exempt).\n"
-        "- LTP = Last Traded Price (latest market price).\n\n"
-        "## Live Portfolio\n"
+        "- LTP = Last Traded Price (latest market price).\n"
+        + (f"- {extra_system_instructions.strip()}\n" if extra_system_instructions else "")
+        + "\n## Live Portfolio\n"
         f"Health: {health_score}/100 — {health_verdict}\n"
         f"Overall P&L: {overall_pnl_str} ({overall_pnl_pct_str}) on {total_invested_str} invested | Current Value: {current_value_str} | Day Change: {day_change_str} ({day_change_pct_str})\n"
         + (f"Note: {ctx['unpriced_note']} ({', '.join(ctx['unpriced_symbols'])}).\n\n" if ctx.get("unpriced_count") else "\n")

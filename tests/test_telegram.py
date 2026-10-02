@@ -117,9 +117,9 @@ async def test_send_best_ipo_alerts_deduplication(db_session: AsyncSession, monk
 
     # 1. Create a top-pick IPO
     top_ipo = IPO(
-        company_name="Solarium Green Energy",
-        symbol="SOLARIUM",
-        ipo_type=IPOType.SME,
+        company_name="Premier Energies Ltd",
+        symbol="PREMIERENE",
+        ipo_type=IPOType.MAINBOARD,
         status=IPOStatus.LIVE,
         open_date=date.today(),
         created_at=datetime.now(timezone.utc)
@@ -179,6 +179,122 @@ async def test_send_best_ipo_alerts_deduplication(db_session: AsyncSession, monk
 
 
 @pytest.mark.asyncio
+async def test_send_best_ipo_alerts_filters_out_sme(db_session: AsyncSession, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "test_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+    monkeypatch.setattr(settings, "TELEGRAM_MIN_SCORE", 65.0)
+    monkeypatch.setattr(settings, "TELEGRAM_MIN_GMP_PCT", 20.0)
+    monkeypatch.setattr(settings, "TELEGRAM_MAINBOARD_ONLY", True)
+
+    sme_ipo = IPO(
+        company_name="Solarium Green SME",
+        symbol="SOLARIUM_SME",
+        ipo_type=IPOType.SME,
+        status=IPOStatus.LIVE,
+        open_date=date.today(),
+        created_at=datetime.now(timezone.utc)
+    )
+    db_session.add(sme_ipo)
+    await db_session.flush()
+
+    sme_score = IPOScore(
+        ipo_id=sme_ipo.id,
+        composite_score=85.0,
+        recommendation=RecommendationType.STRONG_APPLY,
+        calculated_at=datetime.now(timezone.utc)
+    )
+    sme_gmp = IPOGmp(
+        ipo_id=sme_ipo.id,
+        gmp_amount=90.0,
+        gmp_percentage=50.0,
+        recorded_at=datetime.now(timezone.utc)
+    )
+    db_session.add_all([sme_score, sme_gmp])
+    await db_session.commit()
+
+    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = (True, None)
+
+        # With TELEGRAM_MAINBOARD_ONLY=True: SME must be completely excluded
+        res = await TelegramService.send_best_ipo_alerts(db_session)
+        assert res["sent"] == 0
+        mock_send.assert_not_awaited()
+
+        # With TELEGRAM_MAINBOARD_ONLY=False: SME is alerted
+        monkeypatch.setattr(settings, "TELEGRAM_MAINBOARD_ONLY", False)
+        res_all = await TelegramService.send_best_ipo_alerts(db_session)
+        assert res_all["sent"] == 1
+        mock_send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_send_top_picks_digest_mainboard_only(db_session: AsyncSession, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "test_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+    monkeypatch.setattr(settings, "TELEGRAM_MIN_SCORE", 65.0)
+    monkeypatch.setattr(settings, "TELEGRAM_MAINBOARD_ONLY", True)
+
+    main_ipo = IPO(
+        company_name="Bajaj Housing Finance",
+        symbol="BAJAJHFL",
+        ipo_type=IPOType.MAINBOARD,
+        status=IPOStatus.LIVE,
+        created_at=datetime.now(timezone.utc)
+    )
+    sme_ipo = IPO(
+        company_name="Awesome SME Ltd",
+        symbol="AWESOMESME",
+        ipo_type=IPOType.SME,
+        status=IPOStatus.LIVE,
+        created_at=datetime.now(timezone.utc)
+    )
+    db_session.add_all([main_ipo, sme_ipo])
+    await db_session.flush()
+
+    m_score = IPOScore(ipo_id=main_ipo.id, composite_score=88.0, recommendation=RecommendationType.STRONG_APPLY)
+    s_score = IPOScore(ipo_id=sme_ipo.id, composite_score=92.0, recommendation=RecommendationType.STRONG_APPLY)
+    db_session.add_all([m_score, s_score])
+    await db_session.commit()
+
+    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = (True, None)
+
+        res = await TelegramService.send_top_picks_digest(db_session)
+        assert res["success"] is True
+        assert res["picks_count"] == 1
+        mock_send.assert_awaited_once()
+        msg_text = mock_send.call_args[0][0]
+        assert "Bajaj Housing Finance" in msg_text
+        assert "Awesome SME Ltd" not in msg_text
+        assert "MAINBOARD" in msg_text
+
+
+def test_format_ipo_lookup_card_sme_notice(monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_MAINBOARD_ONLY", True)
+
+    sme_ipo = IPO(
+        company_name="KRN Heat Exchanger SME",
+        symbol="KRN",
+        ipo_type=IPOType.SME,
+        status=IPOStatus.LIVE
+    )
+    card_sme = TelegramService.format_ipo_lookup_card(sme_ipo)
+    assert "SME Notice" in card_sme
+    assert "₹1,00,000+" in card_sme
+
+    main_ipo = IPO(
+        company_name="Tata Technologies",
+        symbol="TATATECH",
+        ipo_type=IPOType.MAINBOARD,
+        status=IPOStatus.LIVE
+    )
+    card_main = TelegramService.format_ipo_lookup_card(main_ipo)
+    assert "SME Notice" not in card_main
+
+
+@pytest.mark.asyncio
 async def test_telegram_api_endpoints(client, auth_headers, monkeypatch):
     monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_bot_token")
     monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
@@ -190,6 +306,7 @@ async def test_telegram_api_endpoints(client, auth_headers, monkeypatch):
     status_data = status_resp.json()
     assert status_data["configured"] is True
     assert status_data["chat_id_configured"] is True
+    assert status_data["mainboard_only"] is True
     assert "mock_bot_token" not in status_resp.text  # NEVER leak token
 
     # 2. Test notification endpoint

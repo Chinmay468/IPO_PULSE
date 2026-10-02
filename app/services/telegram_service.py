@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.models.ipo import IPO, IPOScore, IPOGmp, IPOSubscription, IPOStatus, RecommendationType
+from app.models.ipo import IPO, IPOScore, IPOGmp, IPOSubscription, IPOStatus, IPOType, RecommendationType
 
 logger = logging.getLogger(__name__)
 
@@ -225,10 +225,14 @@ class TelegramService:
                 "reason": "Telegram bot token or chat ID is not configured."
             }
 
-        # Query all upcoming, open, or recently active IPOs
+        # Query all upcoming, open, or recently active IPOs (filtered to Mainboard if configured)
+        filters = [IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING])]
+        if settings.TELEGRAM_MAINBOARD_ONLY:
+            filters.append(IPO.ipo_type == IPOType.MAINBOARD)
+
         stmt = (
             select(IPO)
-            .where(IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]))
+            .where(*filters)
             .options(
                 selectinload(IPO.score),
                 selectinload(IPO.gmp_records),
@@ -308,14 +312,17 @@ class TelegramService:
             }
 
         now_str = datetime.now(timezone.utc).strftime("%d %b %Y %H:%M:%S UTC")
+        mode_str = "Mainboard Only (~₹15k lot)" if settings.TELEGRAM_MAINBOARD_ONLY else "All (Mainboard & SME)"
+        target_ipo_type = "Mainboard " if settings.TELEGRAM_MAINBOARD_ONLY else ""
         test_msg = (
             "🤖 <b>IPO Pulse Bot Connected!</b>\n\n"
             "✅ Your Telegram bot is active and configured correctly.\n"
             f"🕒 <b>Connected at:</b> {now_str}\n"
             f"🎯 <b>Min Alert Score:</b> {settings.TELEGRAM_MIN_SCORE}/100\n"
-            f"📈 <b>Min GMP %:</b> {settings.TELEGRAM_MIN_GMP_PCT}%\n\n"
-            "You will now automatically receive real-time alerts whenever a top-tier "
-            "(<b>STRONG_APPLY</b>) IPO is detected in the market!"
+            f"📈 <b>Min GMP %:</b> {settings.TELEGRAM_MIN_GMP_PCT}%\n"
+            f"🏷️ <b>IPO Filter:</b> {mode_str}\n\n"
+            f"You will now automatically receive real-time alerts whenever a top-tier "
+            f"(<b>STRONG_APPLY</b>) {target_ipo_type}IPO is detected in the market!"
         )
 
         success, err = await cls.send_message(test_msg)
@@ -333,9 +340,13 @@ class TelegramService:
         if not cls.is_configured():
             return {"success": False, "error": "Telegram not configured."}
 
+        filters = [IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING])]
+        if settings.TELEGRAM_MAINBOARD_ONLY:
+            filters.append(IPO.ipo_type == IPOType.MAINBOARD)
+
         stmt = (
             select(IPO)
-            .where(IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]))
+            .where(*filters)
             .options(
                 selectinload(IPO.score),
                 selectinload(IPO.gmp_records)
@@ -354,16 +365,19 @@ class TelegramService:
                 picks.append((ipo, score, gmp))
 
         if not picks:
-            msg = "📋 <b>IPO Pulse Daily Digest</b>\n\nNo high-scoring (STRONG_APPLY) IPOs currently active in the market."
+            scope_str = "Mainboard " if settings.TELEGRAM_MAINBOARD_ONLY else ""
+            msg = f"📋 <b>IPO Pulse Daily Digest</b>\n\nNo high-scoring ({scope_str}STRONG_APPLY) IPOs currently active in the market."
             success, err = await cls.send_message(msg)
             return {"success": success, "error": err, "picks_count": 0}
 
         # Sort by score descending
         picks.sort(key=lambda item: getattr(item[1], "composite_score", getattr(item[1], "total_score", 0.0)) or 0.0, reverse=True)
 
+        header_title = "TOP MAINBOARD PICKS" if settings.TELEGRAM_MAINBOARD_ONLY else "CURRENT TOP INVESTMENT PICKS"
+        scope_label = "Mainboard " if settings.TELEGRAM_MAINBOARD_ONLY else ""
         lines = [
-            "🏆 <b>IPO PULSE: CURRENT TOP INVESTMENT PICKS</b>",
-            f"<i>Found {len(picks)} high-potential IPO(s) currently open or upcoming:</i>",
+            f"🏆 <b>IPO PULSE: {header_title}</b>",
+            f"<i>Found {len(picks)} high-potential {scope_label}IPO(s) currently open or upcoming:</i>",
             ""
         ]
 
@@ -433,7 +447,10 @@ class TelegramService:
         score = ipo.score
         gmp = max(ipo.gmp_records, key=lambda g: getattr(g, "recorded_at", getattr(g, "created_at", None))) if ipo.gmp_records else None
         sub = max(ipo.subscriptions, key=lambda s: getattr(s, "recorded_at", getattr(s, "created_at", None))) if ipo.subscriptions else None
-        return TelegramService.format_ipo_alert(ipo, score, gmp, sub)
+        card = TelegramService.format_ipo_alert(ipo, score, gmp, sub)
+        if settings.TELEGRAM_MAINBOARD_ONLY and ipo.ipo_type == IPOType.SME:
+            card += "\n\n⚠️ <b>SME Notice:</b> This is an SME issue with large lot size requirement (typically ₹1,00,000+). Your alerts and recommendations are focused strictly on Mainboard IPOs (~₹15k)."
+        return card
 
     @classmethod
     async def answer_ai_query(cls, query: str, session: AsyncSession) -> str:
@@ -449,10 +466,14 @@ class TelegramService:
         advisory_data = await generate_portfolio_advisory(holdings_dict)
         advisory_data["portfolio_summary"] = summary.model_dump()
 
-        # 2. Fetch active IPOs
+        # 2. Fetch active IPOs (filtered to Mainboard if configured)
+        ipo_filters = [IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING])]
+        if settings.TELEGRAM_MAINBOARD_ONLY:
+            ipo_filters.append(IPO.ipo_type == IPOType.MAINBOARD)
+
         stmt = (
             select(IPO)
-            .where(IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]))
+            .where(*ipo_filters)
             .options(
                 selectinload(IPO.subscriptions),
                 selectinload(IPO.gmp_records),
@@ -475,6 +496,7 @@ class TelegramService:
             ipos_data.append({
                 "symbol": ipo.symbol,
                 "company_name": ipo.company_name,
+                "ipo_type": ipo.ipo_type.value if hasattr(ipo.ipo_type, "value") else str(ipo.ipo_type),
                 "status": ipo.status.value,
                 "price_band": pband,
                 "gmp": gmp_str,
@@ -483,13 +505,23 @@ class TelegramService:
                 "recommendation": rec_str
             })
 
+        extra_instructions = None
+        if settings.TELEGRAM_MAINBOARD_ONLY:
+            extra_instructions = (
+                "STRICT MAINBOARD FILTER: The user's capital budget only allows investing in MAINBOARD IPOs (approx. ₹15,000 per lot), "
+                "NOT SME IPOs (which require ₹1,00,000+ per lot). "
+                "Only suggest and recommend MAINBOARD IPOs. If asked about general recommendations or which IPO to apply for, focus exclusively on Mainboard IPOs. "
+                "If the user asks specifically about an SME IPO, inform them about the high lot size requirement (₹1L+) and that their preference is set to Mainboard only."
+            )
+
         answer, _source = await groq_answer_query(
             query=query,
             advisory_data=advisory_data,
             chat_history=[],
             active_ipos=ipos_data,
             portfolio_summary=summary,
-            db=session
+            db=session,
+            extra_system_instructions=extra_instructions
         )
         return answer
 
@@ -526,16 +558,17 @@ class TelegramService:
 
         # 1. /start, /help, help
         if clean_lower in ["/start", "/help", "help"]:
+            best_cmd_label = "Current best Mainboard IPOs to apply for" if settings.TELEGRAM_MAINBOARD_ONLY else "Current best IPOs to apply for"
             help_text = (
                 "👋 <b>Welcome to IPO Pulse AI Bot!</b>\n\n"
                 "I am your real-time investment copilot and IPO intelligence assistant.\n\n"
                 "⚡ <b>Quick Commands:</b>\n"
-                "• 🚀 <b>/top</b> or <b>/best</b> - Current best IPOs to apply for\n"
+                f"• 🚀 <b>/top</b> or <b>/best</b> - {best_cmd_label}\n"
                 "• 💼 <b>/portfolio</b> - Live portfolio summary & today's P&L\n"
                 "• 🔍 <b>/ipo &lt;name&gt;</b> - Instant scorecard & GMP for an IPO\n"
                 "• ❓ <b>/help</b> - View this command guide\n\n"
                 "💬 <b>Ask Me Any Question Directly:</b>\n"
-                "• <i>\"Should I apply for Solarium Green?\"</i>\n"
+                "• <i>\"Which Mainboard IPO should I apply for?\"</i>\n"
                 "• <i>\"How to make my portfolio green?\"</i>\n"
                 "• <i>\"What are the stop-loss levels for my stocks?\"</i>\n"
                 "• <i>\"Tell me dividends and trailing PE of ITC\"</i>\n\n"
