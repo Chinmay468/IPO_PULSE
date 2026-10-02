@@ -1,0 +1,129 @@
+import pytest
+import hashlib
+from httpx import AsyncClient
+from app.config import settings
+from app.auth import create_access_token
+
+
+@pytest.fixture(autouse=True)
+def setup_auth_env(monkeypatch):
+    """Sets known test admin credentials and JWT secret."""
+    test_user = "admin"
+    test_pass = "supersecretpassword123"
+    test_hash = hashlib.sha256(test_pass.encode("utf-8")).hexdigest()
+
+    monkeypatch.setattr(settings, "ADMIN_USERNAME", test_user)
+    monkeypatch.setattr(settings, "ADMIN_PASSWORD_HASH", test_hash)
+    monkeypatch.setattr(settings, "JWT_SECRET_KEY", "super-secure-jwt-secret-key-32-chars-long!")
+
+
+@pytest.mark.asyncio
+async def test_portfolio_unauthorized_without_token(client: AsyncClient):
+    """Protected /portfolio routes must return 401 when accessed without token."""
+    res_summary = await client.get("/api/v1/portfolio/summary")
+    assert res_summary.status_code == 401
+    assert "detail" in res_summary.json()
+
+    res_holdings = await client.get("/api/v1/portfolio/holdings")
+    assert res_holdings.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_portfolio_unauthorized_with_invalid_token(client: AsyncClient):
+    """Protected routes must return 401 when accessed with an invalid or tampered token."""
+    headers = {"Authorization": "Bearer invalid_gibberish_token_string"}
+    res = await client.get("/api/v1/portfolio/summary", headers=headers)
+    assert res.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_mutating_ipo_unauthorized_without_token(client: AsyncClient):
+    """Mutating IPO routes must return 401 when accessed without token."""
+    res = await client.post("/api/v1/ipos", json={"symbol": "UNAUTH_TEST", "company_name": "Test"})
+    assert res.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_scraper_unauthorized_without_token(client: AsyncClient):
+    """Scraper routes must return 401 when accessed without token."""
+    res = await client.post("/api/v1/scraper/sync")
+    assert res.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_public_routes_accessible_without_token(client: AsyncClient):
+    """Public endpoints (GET /ipos, allotment proxy, /, /health) must be accessible without token."""
+    res_ipos = await client.get("/api/v1/ipos")
+    assert res_ipos.status_code == 200
+
+    res_health = await client.get("/health")
+    assert res_health.status_code == 200
+
+    res_root = await client.get("/")
+    assert res_root.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_login_and_access_with_token(client: AsyncClient):
+    """Logging in with correct credentials returns a JWT which unlocks protected routes."""
+    # 1. Invalid login attempt
+    bad_login = await client.post("/api/v1/auth/login", json={
+        "username": "admin",
+        "password": "wrongpassword"
+    })
+    assert bad_login.status_code == 401
+
+    # 2. Valid login attempt
+    good_login = await client.post("/api/v1/auth/login", json={
+        "username": "admin",
+        "password": "supersecretpassword123"
+    })
+    assert good_login.status_code == 200
+    login_data = good_login.json()
+    assert "access_token" in login_data
+    assert login_data["token_type"] == "bearer"
+
+    token = login_data["access_token"]
+    auth_headers = {"Authorization": f"Bearer {token}"}
+
+    # 3. Access protected portfolio route with token -> 200 OK
+    res_summary = await client.get("/api/v1/portfolio/summary", headers=auth_headers)
+    assert res_summary.status_code == 200
+
+    res_holdings = await client.get("/api/v1/portfolio/holdings", headers=auth_headers)
+    assert res_holdings.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_login_rate_limiting(client: AsyncClient):
+    """POST /auth/login is rate limited to 5 requests per minute per IP."""
+    # Reset limiter storage if available or make rapid requests
+    responses = []
+    for _ in range(7):
+        r = await client.post("/api/v1/auth/login", json={
+            "username": "admin",
+            "password": "supersecretpassword123"
+        })
+        responses.append(r.status_code)
+
+    # At least one request beyond the 5 limit must receive 429 Too Many Requests
+    assert 429 in responses
+
+
+@pytest.mark.asyncio
+async def test_advisory_ask_rate_limiting(client: AsyncClient):
+    """POST /portfolio/advisory/ask is rate limited to 10 requests per minute per IP."""
+    token = create_access_token({"sub": "admin"})
+    auth_headers = {"Authorization": f"Bearer {token}"}
+
+    responses = []
+    for _ in range(13):
+        r = await client.post(
+            "/api/v1/portfolio/advisory/ask",
+            headers=auth_headers,
+            json={"query": "What is my portfolio health score?"}
+        )
+        responses.append(r.status_code)
+
+    # Requests beyond 10 must receive 429 Too Many Requests
+    assert 429 in responses

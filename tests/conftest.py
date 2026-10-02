@@ -1,0 +1,75 @@
+import pytest
+import pytest_asyncio
+from typing import AsyncGenerator
+from httpx import AsyncClient, ASGITransport
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+
+from app.database import Base, get_db
+from app.main import app
+
+# In-memory or temporary test SQLite DB
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+test_engine = create_async_engine(
+    TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    echo=False
+)
+
+TestAsyncSessionLocal = async_sessionmaker(
+    bind=test_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False
+)
+
+
+@pytest_asyncio.fixture(scope="function")
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with TestAsyncSessionLocal() as session:
+        yield session
+
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest_asyncio.fixture(scope="function")
+async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+        yield ac
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth_headers(monkeypatch) -> dict:
+    import hashlib
+    from app.auth import create_access_token
+    from app.config import settings
+
+    test_user = "admin"
+    test_pass = "admin123"
+    test_hash = hashlib.sha256(test_pass.encode("utf-8")).hexdigest()
+
+    monkeypatch.setattr(settings, "ADMIN_USERNAME", test_user)
+    monkeypatch.setattr(settings, "ADMIN_PASSWORD_HASH", test_hash)
+    monkeypatch.setattr(settings, "JWT_SECRET_KEY", "test-secret-key-1234567890-abcdef-1234567890")
+
+    token = create_access_token({"sub": test_user})
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture(scope="function")
+async def auth_client(client: AsyncClient, auth_headers: dict) -> AsyncClient:
+    client.headers.update(auth_headers)
+    return client

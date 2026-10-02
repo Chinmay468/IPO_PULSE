@@ -1,0 +1,43 @@
+# Environments & caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Databases
+*.db
+*.sqlite3
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Distribution
+dist/
+build/
+*.egg-info/
+
+# Spreadsheets & archives
+*.xlsx
+*.xls
+*.tar.gz
+
+# Scripts secrets & temporary files
+scripts/*secret*
+scripts/*.key
+scripts/*.pem
+scripts/*.env*
+scripts/*.xlsx
+scripts/*.xls
+
+# Logs
+logs/
+*.log
+
+# Exclude README from GitHub
+README.md

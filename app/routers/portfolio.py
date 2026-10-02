@@ -1,0 +1,252 @@
+import logging
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Form
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.auth import require_auth
+from app.rate_limiter import limiter
+from app.schemas.portfolio import (
+    HoldingCreate, HoldingUpdate, HoldingResponse,
+    TransactionCreate, TransactionResponse,
+    PortfolioSummary
+)
+import app.services.portfolio_service as svc
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/portfolio", tags=["Portfolio"], dependencies=[Depends(require_auth)])
+
+
+# ── Summary ──────────────────────────────────────────────────────────────────
+
+@router.get("/summary", response_model=PortfolioSummary)
+async def portfolio_summary(db: AsyncSession = Depends(get_db)):
+    """Get full portfolio summary with live P&L for all holdings."""
+    return await svc.get_portfolio_summary(db)
+
+
+# ── Holdings ─────────────────────────────────────────────────────────────────
+
+@router.get("/holdings", response_model=list[HoldingResponse])
+async def list_holdings(db: AsyncSession = Depends(get_db)):
+    """List all holdings (without live prices — use /summary for live data)."""
+    return await svc.list_holdings(db)
+
+
+@router.post("/holdings", response_model=HoldingResponse, status_code=status.HTTP_201_CREATED)
+async def add_holding(data: HoldingCreate, db: AsyncSession = Depends(get_db)):
+    """Add a new stock holding. Also creates the initial BUY transaction."""
+    existing = await svc.get_holding_by_symbol(db, data.symbol, data.exchange.value)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Holding for {data.symbol.upper()} on {data.exchange.value} already exists. Use PATCH to update or add a transaction."
+        )
+    return await svc.create_holding(db, data)
+
+
+@router.patch("/holdings/{holding_id}", response_model=HoldingResponse)
+async def update_holding(holding_id: int, data: HoldingUpdate, db: AsyncSession = Depends(get_db)):
+    """Update holding details (quantity, avg price, company name)."""
+    holding = await svc.update_holding(db, holding_id, data)
+    if not holding:
+        raise HTTPException(status_code=404, detail="Holding not found")
+    return holding
+
+
+@router.delete("/holdings/{holding_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_holding(holding_id: int, db: AsyncSession = Depends(get_db)):
+    """Delete a holding and all its transactions."""
+    success = await svc.delete_holding(db, holding_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Holding not found")
+
+
+# ── Transactions ─────────────────────────────────────────────────────────────
+
+@router.post("/holdings/{holding_id}/transactions", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
+async def add_transaction(holding_id: int, data: TransactionCreate, db: AsyncSession = Depends(get_db)):
+    """Record a BUY, SELL, DIVIDEND, BONUS or SPLIT transaction. BUY recalculates avg price automatically."""
+    txn = await svc.add_transaction(db, holding_id, data)
+    if not txn:
+        raise HTTPException(status_code=404, detail="Holding not found")
+    return txn
+
+
+@router.get("/holdings/{holding_id}/transactions", response_model=list[TransactionResponse])
+async def list_transactions(holding_id: int, db: AsyncSession = Depends(get_db)):
+    """Get full transaction history for a holding."""
+    holding = await svc.get_holding(db, holding_id)
+    if not holding:
+        raise HTTPException(status_code=404, detail="Holding not found")
+    return holding.transactions
+
+
+# ── Import: CSV / Excel ────────────────────────────────────────────────────────
+
+@router.post("/import/csv")
+async def import_csv(
+    file: UploadFile = File(..., description="Holdings file (CSV / Excel) from Angel One, Zerodha, Groww, or Upstox"),
+    password: Optional[str] = Form(None, description="Optional password for encrypted broker files (e.g. PAN card number)"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Upload a holdings file (CSV or Excel .xlsx/.xls) exported from any major Indian broker.
+    Auto-detects Angel One / Zerodha / Groww / Upstox format.
+    Returns a summary of created / updated / skipped rows.
+    """
+    valid_exts = (".csv", ".xlsx", ".xls")
+    if not any(file.filename.lower().endswith(ext) for ext in valid_exts):
+        raise HTTPException(status_code=400, detail="Only .csv, .xlsx, or .xls files are supported.")
+
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 10 MB).")
+
+    try:
+        from app.services.csv_import_service import import_file_to_portfolio
+        result = await import_file_to_portfolio(db, content, filename=file.filename, password=password)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.exception("File import error")
+        raise HTTPException(status_code=500, detail=f"Import failed: {exc}")
+
+
+# ── Import: Angel One SmartAPI ────────────────────────────────────────────────
+
+@router.get("/import/angelone/status")
+async def angelone_status():
+    """Check if Angel One SmartAPI credentials are configured."""
+    from app.services.angelone_sync_service import _is_configured
+    return {"configured": _is_configured()}
+
+
+@router.post("/import/angelone")
+async def sync_angelone(db: AsyncSession = Depends(get_db)):
+    """
+    Pull your live holdings directly from Angel One SmartAPI.
+    Requires ANGELONE_API_KEY, ANGELONE_CLIENT_ID, ANGELONE_PASSWORD
+    (and optionally ANGELONE_TOTP_SECRET) in your .env file.
+    """
+    try:
+        from app.services.angelone_sync_service import sync_angelone_to_portfolio, _is_configured
+        if not _is_configured():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Angel One credentials are not configured. "
+                    "Add ANGELONE_API_KEY, ANGELONE_CLIENT_ID, and ANGELONE_PASSWORD "
+                    "to your .env file and restart the service."
+                )
+            )
+        result = await sync_angelone_to_portfolio(db)
+        return result
+    except HTTPException:
+        raise
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Angel One sync error")
+        raise HTTPException(status_code=500, detail=f"Sync failed: {exc}")
+
+
+# ── AI Portfolio Doctor & Technical Advisory ─────────────────────────────────
+
+@router.get("/advisory")
+async def get_portfolio_advisory(db: AsyncSession = Depends(get_db)):
+    """
+    Get AI-powered technical advisory, candlestick patterns, RSI, Moving Averages,
+    support/resistance levels, and action guidance to keep portfolio green.
+    """
+    summary = await svc.get_portfolio_summary(db)
+    from app.services.portfolio_advisor_service import generate_portfolio_advisory
+    holdings_dict = [h.model_dump() for h in summary.holdings]
+    return await generate_portfolio_advisory(holdings_dict)
+
+
+@router.post("/advisory/ask")
+@limiter.limit("10/minute")
+async def ask_portfolio_advisor(request: Request, data: dict, db: AsyncSession = Depends(get_db)):
+    """
+    Ask the AI Portfolio Doctor a question about technicals, candlestick patterns,
+    stop-loss, or stock-specific actions, grounded in portfolio and active IPO context.
+    """
+    query = data.get("query", "").strip()[:500]
+    if not query:
+        raise HTTPException(status_code=400, detail="Query cannot be empty.")
+    history = data.get("chat_history") or data.get("history") or data.get("messages") or []
+
+    # 1. Fetch live portfolio summary
+    summary = await svc.get_portfolio_summary(db)
+    from app.services.portfolio_advisor_service import generate_portfolio_advisory, groq_answer_query
+    from app.models.ipo import IPO, IPOStatus
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    holdings_dict = [h.model_dump() for h in summary.holdings]
+    advisory_data = await generate_portfolio_advisory(holdings_dict)
+    advisory_data["portfolio_summary"] = summary.model_dump()
+
+    # Log context totals (without secrets) on each /ask call
+    logger.info(
+        "[Ask Endpoint Totals] query=%r total_invested=%.2f current_value=%.2f overall_pnl=%.2f (%.2f%%) holdings_count=%d",
+        query,
+        summary.total_invested,
+        summary.current_value,
+        summary.total_unrealized_pnl,
+        summary.total_pnl_pct,
+        summary.holdings_count
+    )
+
+    # 2. Fetch live & upcoming IPOs with subscriptions, GMP records, and scores
+    stmt = (
+        select(IPO)
+        .where(IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]))
+        .options(
+            selectinload(IPO.subscriptions),
+            selectinload(IPO.gmp_records),
+            selectinload(IPO.score)
+        )
+        .order_by(IPO.open_date.asc().nulls_last())
+    )
+    active_ipos_objs = (await db.execute(stmt)).scalars().all()
+    ipos_data = []
+    for ipo in active_ipos_objs:
+        latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
+        latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
+
+        if ipo.price_band_low and ipo.price_band_high:
+            pband = f"₹{ipo.price_band_low:,.0f} - ₹{ipo.price_band_high:,.0f}"
+        elif ipo.issue_price:
+            pband = f"₹{ipo.issue_price:,.0f}"
+        else:
+            pband = "TBA"
+
+        gmp_str = f"₹{latest_gmp.gmp_amount:,.0f} ({latest_gmp.gmp_percentage:.1f}%)" if latest_gmp else "N/A"
+        sub_str = f"Total {latest_sub.total_multiple:.1f}x (QIB {latest_sub.qib_multiple or 0:.1f}x, Retail {latest_sub.retail_multiple or 0:.1f}x)" if latest_sub else "N/A"
+        score_str = f"{ipo.score.composite_score:.1f}/100" if ipo.score else "N/A"
+        rec_str = ipo.score.recommendation.value if ipo.score else "N/A"
+
+        ipos_data.append({
+            "symbol": ipo.symbol,
+            "company_name": ipo.company_name,
+            "status": ipo.status.value,
+            "price_band": pband,
+            "gmp": gmp_str,
+            "subscription": sub_str,
+            "score": score_str,
+            "recommendation": rec_str
+        })
+
+    answer, source = await groq_answer_query(
+        query=query,
+        advisory_data=advisory_data,
+        chat_history=history,
+        active_ipos=ipos_data,
+        portfolio_summary=summary,
+        db=db
+    )
+    return {"query": query, "answer": answer, "source": source}
+

@@ -1,0 +1,2952 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IPO Pulse - Smart IPO Intelligence & Portfolio Doctor</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+            },
+            fintech: {
+              bg: '#F7F8FA',
+              darkBg: '#0B0F19',
+              card: '#FFFFFF',
+              darkCard: '#121826',
+              border: '#E8EAEE',
+              darkBorder: '#1F2937',
+              profit: '#16A34A',
+              profitBg: '#DCFCE7',
+              loss: '#DC2626',
+              lossBg: '#FEE2E2',
+              darkProfitBg: '#064E3B',
+              darkProfitText: '#34D399',
+              darkLossBg: '#7F1D1D',
+              darkLossText: '#F87171',
+            }
+          },
+          boxShadow: {
+            'soft': '0 1px 2px rgba(16, 24, 40, 0.04)',
+            'card': '0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04)',
+            'dropdown': '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+          },
+          transitionDuration: {
+            DEFAULT: '150ms',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+    .tabular-nums { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+    /* Recommendation Badges */
+    .badge-STRONG_APPLY { background: #dcfce7; color: #14532d; border: 1px solid #86efac; }
+    .badge-APPLY { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .badge-NEUTRAL { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+    .badge-AVOID { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+    .dark .badge-STRONG_APPLY { background: #064e3b; color: #6ee7b7; border-color: #047857; }
+    .dark .badge-APPLY { background: #064e3b; color: #34d399; border-color: #059669; }
+    .dark .badge-NEUTRAL { background: #78350f; color: #fde68a; border-color: #b45309; }
+    .dark .badge-AVOID { background: #7f1d1d; color: #fca5a5; border-color: #b91c1c; }
+
+    /* Number Flash on Live Update */
+    @keyframes flashGreen {
+      0% { background-color: rgba(16, 185, 129, 0.25); }
+      100% { background-color: transparent; }
+    }
+    @keyframes flashRed {
+      0% { background-color: rgba(239, 68, 68, 0.25); }
+      100% { background-color: transparent; }
+    }
+    .flash-green { animation: flashGreen 1.2s ease-out; }
+    .flash-red { animation: flashRed 1.2s ease-out; }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Visible Focus Rings for Accessibility */
+    button:focus-visible, [role="button"]:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 2px solid #10b981;
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body class="bg-[#FAF8F5] dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 min-h-screen flex flex-col antialiased transition-colors duration-150">
+
+  <!-- ==================== 1. SLIM STICKY TOP BAR ==================== -->
+  <header class="bg-[#FAF8F5]/95 dark:bg-[#121826]/95 backdrop-blur-md border-b border-[#EAE3DA] dark:border-[#1F2937] sticky top-0 z-40 transition-colors duration-150">
+    <div class="max-w-[1536px] xl:max-w-[1600px] mx-auto px-4 sm:px-6">
+      <div class="flex justify-between items-center h-14 sm:h-16 gap-3">
+        
+        <!-- Left: Brand Logo -->
+        <div class="flex items-center gap-2.5 cursor-pointer select-none shrink-0" onclick="switchTab('portfolio')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('portfolio')">
+          <div class="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white shadow-sm font-bold text-sm">
+            <i data-lucide="trending-up" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <h1 class="text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-white leading-none">IPO Pulse</h1>
+              <span class="text-[9px] font-extrabold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 px-1.5 py-0.5 rounded uppercase tracking-wider">PRO</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center: Underline-Style Navigation Tabs (Centered) -->
+        <nav class="hidden md:flex items-center justify-center gap-1 sm:gap-4 h-full flex-1">
+          <button onclick="switchTab('ipos')" id="nav-ipos" class="h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5">
+            <i data-lucide="compass" class="w-3.5 h-3.5"></i> IPO Suggester
+          </button>
+          <button onclick="switchTab('portfolio')" id="nav-portfolio" class="h-full px-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-500 transition-all flex items-center gap-1.5">
+            <i data-lucide="briefcase" class="w-3.5 h-3.5"></i> My Portfolio
+          </button>
+          <button onclick="switchTab('allotment')" id="nav-allotment" class="h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5">
+            <i data-lucide="search" class="w-3.5 h-3.5"></i> Check Allotment
+          </button>
+          <button onclick="switchTab('methodology')" id="nav-methodology" class="h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5">
+            <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i> Scoring Formula
+          </button>
+          <!-- Circular AI Button with hover enlargement -->
+          <button onclick="openAICopilot()" id="nav-ai-btn" title="Ask AI Portfolio Doctor & Copilot" aria-label="Ask AI"
+                  class="self-center flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-tr from-violet-600 via-indigo-600 to-sky-500 text-white shadow-xs hover:shadow-md hover:shadow-indigo-500/30 transition-transform duration-200 ease-out hover:scale-120 active:scale-95 cursor-pointer shrink-0 ml-1">
+            <span class="text-[10px] font-black tracking-tight leading-none select-none">AI</span>
+          </button>
+        </nav>
+
+        <!-- Right: Telemetry & Actions (Live Dot, Icon-only Sync, ... Menu) -->
+        <div class="flex items-center gap-2 shrink-0">
+          
+          <!-- Live Dot (Tooltip: "refreshes every 15s") -->
+          <div onclick="toggleLiveSync()" id="live-sync-badge" title="refreshes every 15s" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')toggleLiveSync()"
+               class="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/60 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-400 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer select-none">
+            <span class="relative flex h-2 w-2">
+              <span id="live-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span id="live-dot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span id="live-sync-text" class="hidden sm:inline text-[11px]">Live</span>
+          </div>
+
+          <!-- Icon-Only Sync Button -->
+          <button onclick="syncMarketData()" id="sync-btn" title="Refresh market feeds & quotes"
+                  class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition active:scale-95 cursor-pointer">
+            <i data-lucide="refresh-cw" id="sync-icon" class="w-3.5 h-3.5"></i>
+          </button>
+
+          <!-- Auth Status Button (Admin/Sign In) -->
+          <button onclick="handleAuthButtonClick()" id="auth-header-btn" title="Sign in to manage portfolio"
+                  class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition active:scale-95 cursor-pointer">
+            <i data-lucide="lock" id="auth-header-icon" class="w-3.5 h-3.5 text-slate-400"></i>
+            <span id="auth-header-label">Sign In</span>
+          </button>
+
+          <!-- More Action Menu (...) holding API Docs & Theme Toggle -->
+          <div class="relative custom-dropdown" data-dropdown="more">
+            <button onclick="toggleDropdown('more')" title="More actions" aria-label="More options" class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition cursor-pointer">
+              <i data-lucide="more-vertical" class="w-3.5 h-3.5"></i>
+            </button>
+            <div id="filter-more-menu" class="hidden absolute right-0 mt-1.5 w-48 bg-white dark:bg-[#121826] rounded-xl shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] p-1 z-50">
+              <button onclick="openAICopilotModal(); closeAllDropdowns();" id="header-ai-copilot-btn" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition text-left cursor-pointer">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-500"></i> AI Portfolio Copilot
+              </button>
+              <button onclick="toggleTheme(); closeAllDropdowns();" id="theme-toggle-btn" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition text-left cursor-pointer">
+                <i data-lucide="moon" id="theme-icon-dark" class="w-3.5 h-3.5 hidden dark:block"></i>
+                <i data-lucide="sun" id="theme-icon-light" class="w-3.5 h-3.5 block dark:hidden"></i>
+                <span>Toggle Theme</span>
+              </button>
+              <a href="/docs" target="_blank" class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition">
+                <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-400"></i> API Docs ↗
+              </a>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Tab Strip (Below 768px) -->
+  <div class="md:hidden flex items-center border-b border-[#E8EAEE] dark:border-[#1F2937] bg-white dark:bg-[#121826] px-3 py-1.5 gap-1 overflow-x-auto">
+    <button onclick="switchTab('portfolio')" id="mobile-nav-portfolio" class="flex-1 py-1.5 px-2.5 text-center text-xs font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 shrink-0">Portfolio</button>
+    <button onclick="switchTab('ipos')" id="mobile-nav-ipos" class="flex-1 py-1.5 px-2.5 text-center text-xs font-medium rounded-lg text-slate-600 dark:text-slate-400 shrink-0">IPOs</button>
+    <button onclick="switchTab('allotment')" id="mobile-nav-allotment" class="flex-1 py-1.5 px-2.5 text-center text-xs font-medium rounded-lg text-slate-600 dark:text-slate-400 shrink-0">Allotment</button>
+    <button onclick="switchTab('methodology')" id="mobile-nav-methodology" class="flex-1 py-1.5 px-2.5 text-center text-xs font-medium rounded-lg text-slate-600 dark:text-slate-400 shrink-0">Formula</button>
+    <button onclick="openAICopilot()" id="mobile-nav-ai-btn" title="Ask AI Portfolio Doctor & Copilot" aria-label="Ask AI"
+            class="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-tr from-violet-600 via-indigo-600 to-sky-500 text-white shadow-xs transition-transform duration-200 ease-out hover:scale-120 active:scale-95 shrink-0 ml-1">
+      <span class="text-[9px] font-black tracking-tight leading-none select-none">AI</span>
+    </button>
+  </div>
+
+  <!-- ==================== MAIN CONTENT WRAPPER ==================== -->
+  <main class="max-w-[1536px] xl:max-w-[1600px] mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
+
+    <!-- ================================================================ -->
+    <!-- ==================== TAB: MY PORTFOLIO (HERO) ================== -->
+    <!-- ================================================================ -->
+    <section id="tab-portfolio" class="space-y-6">
+
+      <!-- 2. SUMMARY STRIP: ONE CARD SPLIT INTO 4 COLUMNS WITH DIVIDERS -->
+      <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft overflow-hidden">
+        <div class="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800">
+          
+          <!-- Column 1: Invested -->
+          <div class="p-4 sm:p-5">
+            <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Invested</span>
+            <h3 id="pf-invested" class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 tabular-nums">—</h3>
+            <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Cost basis</p>
+          </div>
+
+          <!-- Column 2: Current Value -->
+          <div class="p-4 sm:p-5 bg-slate-50/40 dark:bg-slate-900/20">
+            <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Current Value</span>
+            <h3 id="pf-value" aria-live="polite" class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 tabular-nums">—</h3>
+            <div id="pf-day-chip" class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md mt-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tabular-nums">
+              Today: —
+            </div>
+          </div>
+
+          <!-- Column 3: Overall Profit & Loss (Till Now) -->
+          <div class="p-4 sm:p-5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Overall Profit &amp; Loss</span>
+              <span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40">TILL NOW</span>
+            </div>
+            <div class="flex items-baseline gap-2 mt-1">
+              <h3 id="pf-pnl" aria-live="polite" class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white tabular-nums">—</h3>
+              <span id="pf-pnl-chip" class="inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tabular-nums">
+                —
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">All-time Net Return</p>
+          </div>
+
+          <!-- Column 4: Positions -->
+          <div class="p-4 sm:p-5">
+            <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Positions</span>
+            <h3 id="pf-count" class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 tabular-nums">—</h3>
+            <p id="pf-gainers-losers" class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5">
+              <span>●</span> —
+            </p>
+            <p id="pf-unpriced-warning" class="text-[10px] font-semibold text-amber-600 dark:text-amber-400 mt-1 hidden"></p>
+          </div>
+
+
+        </div>
+      </div>
+
+      <!-- 3. TWO-COLUMN AREA: HOLDINGS TABLE (75%) + AI DOCTOR & ALLOCATION (25%) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- LEFT COLUMN: HOLDINGS TABLE (HERO) -->
+        <div class="lg:col-span-9 xl:col-span-9 space-y-4">
+          
+          <!-- Holdings Table Card -->
+          <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft overflow-hidden">
+            
+            <!-- 4. Holdings Table Toolbar -->
+            <div class="p-3.5 sm:p-4 border-b border-[#E8EAEE] dark:border-[#1F2937] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-900/30">
+              
+              <!-- Search Box -->
+              <div class="relative w-full sm:w-64">
+                <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400"></i>
+                <input type="text" id="holdings-search-input" oninput="filterHoldingsTable()" placeholder="Search holdings..." 
+                       class="w-full bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition" />
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="flex flex-wrap items-center gap-2">
+                <button onclick="loadPortfolio()" title="Refresh live quotes" 
+                        class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition flex items-center gap-1.5 active:scale-95 cursor-pointer">
+                  <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-slate-500"></i>
+                  <span class="hidden sm:inline">Refresh</span>
+                </button>
+                
+                <button onclick="syncAngelOne()" id="ao-sync-btn" title="Sync positions from Angel One SmartAPI"
+                        class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition flex items-center gap-1.5 active:scale-95 cursor-pointer">
+                  <i data-lucide="link" class="w-3.5 h-3.5 text-slate-500"></i>
+                  <span class="hidden sm:inline">Sync Angel One</span>
+                </button>
+
+                <label title="Import statement from Excel/CSV"
+                       class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+                  <i data-lucide="upload" class="w-3.5 h-3.5 text-slate-500"></i>
+                  <span class="hidden sm:inline">Import</span>
+                  <input type="file" accept=".csv, .xlsx, .xls" class="hidden" onchange="importCSV(event)">
+                </label>
+
+                <button onclick="openAddHoldingModal()" 
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-sm flex items-center gap-1.5 active:scale-95 cursor-pointer">
+                  <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                  <span>+ Add Holding</span>
+                </button>
+              </div>
+
+            </div>
+
+            <!-- Loading Skeleton State -->
+            <div id="pf-loading" class="p-12 text-center text-slate-400 dark:text-slate-500 text-xs">
+              <div class="animate-spin inline-block mb-2">
+                <i data-lucide="loader-2" class="w-6 h-6 text-emerald-500"></i>
+              </div>
+              <p>Fetching real-time stock prices...</p>
+            </div>
+
+            <!-- Friendly Empty State -->
+            <div id="pf-empty" class="hidden p-12 text-center space-y-3">
+              <div class="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+                <i data-lucide="briefcase" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <h4 class="font-bold text-slate-800 dark:text-white text-sm">No holdings yet</h4>
+                <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm mx-auto">Import your broker Excel/CSV statement or add your first stock to begin tracking.</p>
+              </div>
+              <div class="flex items-center justify-center gap-2 pt-2">
+                <label class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer">
+                  Import Statement (.xlsx / .csv)
+                  <input type="file" accept=".csv, .xlsx, .xls" class="hidden" onchange="importCSV(event)">
+                </label>
+                <button onclick="openAddHoldingModal()" class="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                  + Add Manually
+                </button>
+              </div>
+            </div>
+
+            <!-- 5. Holdings Content Container (holds Desktop Table & Mobile Cards) -->
+            <div id="pf-holdings-container" class="hidden">
+              
+              <!-- Desktop Holdings Table with Sortable Headers (md and up) -->
+              <div class="hidden md:block overflow-x-auto">
+                <table class="w-full min-w-[800px] text-xs text-left border-collapse">
+                  <thead class="bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-xs text-[11px] font-semibold text-slate-400 dark:text-slate-500 border-b border-[#E8EAEE] dark:border-[#1F2937] sticky top-0 z-10 select-none">
+                    <tr>
+                      <th onclick="sortHoldings('symbol')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')sortHoldings('symbol')" class="px-4 py-3 cursor-pointer hover:text-slate-700 dark:hover:text-slate-300 transition">
+                        <div class="flex items-center gap-1">
+                          <span>Stock</span> <span id="sort-icon-symbol" class="text-[10px]">↕</span>
+                        </div>
+                      </th>
+                      <th onclick="sortHoldings('quantity')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')sortHoldings('quantity')" class="px-3 py-3 text-right cursor-pointer hover:text-slate-700 dark:hover:text-slate-300 transition">
+                        <div class="flex items-center justify-end gap-1">
+                          <span>Qty</span> <span id="sort-icon-quantity" class="text-[10px]">↕</span>
+                        </div>
+                      </th>
+                      <th onclick="sortHoldings('avg_buy_price')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')sortHoldings('avg_buy_price')" class="px-3 py-3 text-right cursor-pointer hover:text-slate-700 dark:hover:text-slate-300 transition">
+                        <div class="flex items-center justify-end gap-1">
+                          <span>Avg Cost</span> <span id="sort-icon-avg_buy_price" class="text-[10px]">↕</span>
+                        </div>
+                      </th>
+                      <th onclick="sortHoldings('live_price')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')sortHoldings('live_price')" class="px-3 py-3 text-right cursor-pointer hover:text-slate-700 dark:hover:text-slate-300 transition">
+                        <div class="flex items-center justify-end gap-1">
+                          <span>LTP</span> <span id="sort-icon-live_price" class="text-[10px]">↕</span>
+                        </div>
+                      </th>
+                      <th onclick="sortHoldings('current_value')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')sortHoldings('current_value')" class="px-3 py-3 text-right cursor-pointer hover:text-slate-700 dark:hover:text-slate-300 transition">
+                        <div class="flex items-center justify-end gap-1">
+                          <span>Cur. Value</span> <span id="sort-icon-current_value" class="text-[10px]">↕</span>
+                        </div>
+                      </th>
+                      <th onclick="sortHoldings('unrealized_pnl')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')sortHoldings('unrealized_pnl')" class="px-3 py-3 text-right cursor-pointer hover:text-slate-700 dark:hover:text-slate-300 transition">
+                        <div class="flex items-center justify-end gap-1">
+                          <span>P&amp;L</span> <span id="sort-icon-unrealized_pnl" class="text-[10px]">↕</span>
+                        </div>
+                      </th>
+                      <th onclick="sortHoldings('day_change_pct')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')sortHoldings('day_change_pct')" class="px-3 py-3 text-right cursor-pointer hover:text-slate-700 dark:hover:text-slate-300 transition">
+                        <div class="flex items-center justify-end gap-1">
+                          <span>Day Chg</span> <span id="sort-icon-day_change_pct" class="text-[10px]">↕</span>
+                        </div>
+                      </th>
+                      <th class="px-2 py-3 text-center">Trend</th>
+                      <th class="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pf-tbody" class="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
+                    <!-- Injected via JavaScript -->
+                  </tbody>
+                  <tfoot id="pf-tfoot" class="bg-slate-50/95 dark:bg-slate-900/90 border-t-2 border-slate-200 dark:border-slate-700/80 text-xs font-bold text-slate-900 dark:text-white">
+                    <tr>
+                      <td class="px-4 py-3.5">
+                        <div class="flex items-center gap-1.5">
+                          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                          <span class="font-extrabold tracking-tight">Total Portfolio (Till Now)</span>
+                        </div>
+                      </td>
+                      <td id="tfoot-qty" class="px-3 py-3.5 text-right font-mono tabular-nums">—</td>
+                      <td id="tfoot-invested" class="px-3 py-3.5 text-right font-mono tabular-nums text-slate-600 dark:text-slate-400">—</td>
+                      <td class="px-3 py-3.5 text-right text-slate-400 font-mono">—</td>
+                      <td id="tfoot-curr-val" class="px-3 py-3.5 text-right font-mono font-extrabold tabular-nums text-slate-900 dark:text-white">—</td>
+                      <td id="tfoot-pnl" class="px-3 py-3.5 text-right whitespace-nowrap font-mono tabular-nums">
+                        <div id="tfoot-pnl-val">—</div>
+                        <div id="tfoot-pnl-chip" class="mt-0.5">—</div>
+                      </td>
+                      <td id="tfoot-day-chg" class="px-3 py-3.5 text-right whitespace-nowrap font-mono tabular-nums">—</td>
+                      <td class="px-2 py-3.5 text-center text-slate-400 font-mono text-xs">—</td>
+                      <td class="px-4 py-3.5 text-right text-slate-400 font-mono text-xs">—</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <!-- Mobile Holdings Stacked Cards (< 768px) -->
+              <div id="pf-cards-wrap" class="block md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+                <!-- Injected via JavaScript -->
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN (25%): AI DOCTOR + DONUT CHART -->
+        <div class="lg:col-span-3 xl:col-span-3 space-y-4">
+          
+          <!-- Card 1: AI Portfolio Doctor Health Score -->
+          <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 space-y-4">
+            
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="h-7 w-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                </span>
+                <div>
+                  <h4 class="text-xs font-bold text-slate-900 dark:text-white">AI Portfolio Doctor</h4>
+                  <p id="adv-regime-text" class="text-[10px] text-slate-400">Regime: Healthy Bullish Base</p>
+                </div>
+              </div>
+              
+              <button onclick="loadPortfolioAdvisory()" id="adv-diag-btn" title="Re-calculate technical momentum"
+                      class="px-2 py-1 rounded-md text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition flex items-center gap-1 active:scale-95 cursor-pointer">
+                <i data-lucide="activity" class="w-3 h-3 text-emerald-500"></i>
+                <span>Run Diagnosis</span>
+              </button>
+            </div>
+
+            <!-- Health Score Radial Meter -->
+            <div class="flex items-center gap-4 p-3 rounded-lg bg-slate-50/70 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+              <div class="relative flex items-center justify-center shrink-0">
+                <svg class="w-14 h-14 transform -rotate-90" viewBox="0 0 36 36">
+                  <path class="text-slate-200 dark:text-slate-700" stroke-width="3" stroke="currentColor" fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  <path id="adv-gauge-path" class="text-emerald-500 transition-all duration-700 ease-out" stroke-dasharray="79, 100" stroke-width="3" stroke-linecap="round" stroke="currentColor" fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                </svg>
+                <div class="absolute flex flex-col items-center justify-center text-center">
+                  <span id="adv-health-score" class="text-base font-bold font-mono text-slate-900 dark:text-white leading-none">79</span>
+                  <span class="text-[8px] font-medium text-slate-400 mt-0.5">/100</span>
+                </div>
+              </div>
+              
+              <div class="space-y-1 min-w-0 flex-1">
+                <span id="adv-health-verdict-badge" class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300">
+                  ● Prime Accumulation
+                </span>
+                <p id="adv-summary-text" class="text-[11px] text-slate-500 dark:text-slate-400 leading-snug"
+                  Portfolio in oversold base. Technical indicators favor holding and dip accumulation.
+                </p>
+              </div>
+            </div>
+
+            <!-- Stock Allocation Donut Chart -->
+            <div class="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="font-bold text-slate-700 dark:text-slate-300">Portfolio Weight Distribution</span>
+                <span id="donut-total-val" class="font-mono text-slate-400 text-[10px] tabular-nums">—</span>
+              </div>
+              
+              <div class="flex flex-col sm:flex-row items-center gap-3.5">
+                <div class="relative shrink-0 w-22 h-22 flex items-center justify-center">
+                  <svg id="donut-chart-svg" class="w-22 h-22 transform -rotate-90" viewBox="0 0 42 42">
+                    <!-- SVG Donut circles rendered by JS -->
+                  </svg>
+                </div>
+                <div id="donut-legend" class="text-[11px] text-slate-600 dark:text-slate-400 space-y-1 flex-1 w-full">
+                  <!-- Legend items rendered by JS -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Strategic Action Insights Chips -->
+            <div class="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+              <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">AI Strategic Priorities</span>
+              <div id="adv-checklist" class="space-y-2">
+                <!-- Action checklist items rendered by JS -->
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ==================== TAB 2: IPO SUGGESTER ==================== -->
+    <section id="tab-ipos" class="space-y-6 hidden">
+      <!-- Top Stat Metric Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div class="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active IPOs</p>
+            <h3 id="stat-live" class="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-0.5 tabular-nums">-</h3>
+          </div>
+          <span class="p-2 bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-lg"><i data-lucide="flame" class="w-4 h-4"></i></span>
+        </div>
+        <div class="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Upcoming Issues</p>
+            <h3 id="stat-upcoming" class="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-0.5 tabular-nums">-</h3>
+          </div>
+          <span class="p-2 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-lg"><i data-lucide="clock" class="w-4 h-4"></i></span>
+        </div>
+        <div class="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Apply Signals</p>
+            <h3 id="stat-apply" class="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">-</h3>
+          </div>
+          <span class="p-2 bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-lg"><i data-lucide="target" class="w-4 h-4"></i></span>
+        </div>
+        <div class="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Live Scraper</p>
+            <h3 class="text-xs font-bold text-emerald-700 dark:text-emerald-400 mt-1 flex items-center gap-1.5">
+              <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span> Periodic (15m)
+            </h3>
+          </div>
+          <span class="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg"><i data-lucide="activity" class="w-4 h-4"></i></span>
+        </div>
+      </div>
+
+      <!-- Integrated Search & Custom Filter Toolbar -->
+      <div class="bg-white dark:bg-[#121826] p-3 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex flex-col md:flex-row gap-2.5 justify-between items-center">
+        <div class="relative w-full md:w-72">
+          <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400"></i>
+          <input type="text" id="search-input" oninput="applyFilters()" placeholder="Search company or symbol..." 
+                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition">
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <!-- Category (Mainboard / SME) Dropdown -->
+          <div class="relative custom-dropdown" data-dropdown="type">
+            <input type="hidden" id="filter-type" value="">
+            <button type="button" onclick="toggleDropdown('type')" id="filter-type-btn"
+                    class="flex items-center gap-1.5 bg-slate-50 dark:bg-[#0B0F19] hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 transition">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400" id="filter-type-dot"></span>
+              <span id="filter-type-label">All Categories</span>
+              <i data-lucide="chevron-down" id="filter-type-chevron" class="w-3 h-3 text-slate-400"></i>
+            </button>
+            <div id="filter-type-menu" class="hidden absolute right-0 mt-1 w-44 bg-white dark:bg-[#121826] rounded-xl shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] p-1 z-40 space-y-0.5">
+              <button type="button" onclick="selectDropdownOption('type', '', 'All Categories')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left" data-val="">All Categories</button>
+              <button type="button" onclick="selectDropdownOption('type', 'MAINBOARD', 'Mainboard IPOs')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition text-left" data-val="MAINBOARD">🏛️ Mainboard</button>
+              <button type="button" onclick="selectDropdownOption('type', 'SME', 'SME IPOs')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/50 transition text-left" data-val="SME">🏢 SME</button>
+            </div>
+          </div>
+
+          <!-- Status Dropdown -->
+          <div class="relative custom-dropdown" data-dropdown="status">
+            <input type="hidden" id="filter-status" value="">
+            <button type="button" onclick="toggleDropdown('status')" id="filter-status-btn"
+                    class="flex items-center gap-1.5 bg-slate-50 dark:bg-[#0B0F19] hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 transition">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400" id="filter-status-dot"></span>
+              <span id="filter-status-label">All Statuses</span>
+              <i data-lucide="chevron-down" id="filter-status-chevron" class="w-3 h-3 text-slate-400"></i>
+            </button>
+            <div id="filter-status-menu" class="hidden absolute left-0 sm:right-0 sm:left-auto mt-1 w-40 bg-white dark:bg-[#121826] rounded-xl shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] p-1 z-40 space-y-0.5">
+              <button type="button" onclick="selectDropdownOption('status', '', 'All Statuses')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left" data-val="">All Statuses</button>
+              <button type="button" onclick="selectDropdownOption('status', 'LIVE', 'Live Now')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition text-left" data-val="LIVE">● Live Now</button>
+              <button type="button" onclick="selectDropdownOption('status', 'UPCOMING', 'Upcoming')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition text-left" data-val="UPCOMING">Upcoming</button>
+              <button type="button" onclick="selectDropdownOption('status', 'CLOSED', 'Closed')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition text-left" data-val="CLOSED">Closed</button>
+            </div>
+          </div>
+
+          <!-- Suggestion Dropdown -->
+          <div class="relative custom-dropdown" data-dropdown="rec">
+            <input type="hidden" id="filter-rec" value="">
+            <button type="button" onclick="toggleDropdown('rec')" id="filter-rec-btn"
+                    class="flex items-center gap-1.5 bg-slate-50 dark:bg-[#0B0F19] hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 transition">
+              <span id="filter-rec-label">All Recommendations</span>
+              <i data-lucide="chevron-down" id="filter-rec-chevron" class="w-3 h-3 text-slate-400"></i>
+            </button>
+            <div id="filter-rec-menu" class="hidden absolute right-0 mt-1 w-56 bg-white dark:bg-[#121826] rounded-xl shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] p-1 z-40 space-y-0.5">
+              <button type="button" onclick="selectDropdownOption('rec', '', 'All Recommendations')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left" data-val="">All Recommendations</button>
+              <button type="button" onclick="selectDropdownOption('rec', 'STRONG APPLY', 'Strong Apply (≥75)')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition text-left" data-val="STRONG APPLY">🚀 Strong Apply (≥75)</button>
+              <button type="button" onclick="selectDropdownOption('rec', 'APPLY', 'Apply (60-75)')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/50 transition text-left" data-val="APPLY">✅ Apply (60-75)</button>
+              <button type="button" onclick="selectDropdownOption('rec', 'NEUTRAL', 'Neutral (45-60)')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition text-left" data-val="NEUTRAL">⚖️ Neutral (45-60)</button>
+              <button type="button" onclick="selectDropdownOption('rec', 'AVOID', 'Avoid (<45)')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition text-left" data-val="AVOID">⚠️ Avoid (&lt;45)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- IPO Cards Grid -->
+      <div id="ipos-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="col-span-full py-16 text-center text-slate-400 text-xs">
+          <div class="animate-spin inline-block mb-2"><i data-lucide="loader-2" class="w-5 h-5 text-emerald-500"></i></div>
+          <p>Loading live IPO catalog...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: LINK INTIME ALLOTMENT CHECKER ==================== -->
+    <section id="tab-allotment" class="hidden max-w-xl mx-auto space-y-6">
+      <div class="bg-white dark:bg-[#121826] p-6 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft">
+        
+        <div class="flex items-center gap-3 mb-5">
+          <div class="h-10 w-10 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+            <i data-lucide="building-2" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-slate-900 dark:text-white">Link Intime Allotment Status</h2>
+            <p class="text-xs text-slate-400">Live proxy query by PAN, Application No, or DP Client ID</p>
+          </div>
+        </div>
+
+        <form id="allotment-form" onsubmit="handleAllotmentSubmit(event)" class="space-y-4">
+          
+          <!-- Searchable Combobox for IPO Issue -->
+          <div class="relative" id="company-picker-wrapper">
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Select IPO Issue</label>
+            <input type="hidden" id="allotment-company-select" value="">
+            <button type="button" onclick="toggleCompanyPicker()" id="company-picker-btn"
+                    class="w-full bg-slate-50 dark:bg-[#0B0F19] hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-left flex items-center justify-between transition focus:outline-none">
+              <span id="company-picker-label" class="text-slate-400 truncate">Choose IPO issue...</span>
+              <i data-lucide="chevron-down" id="company-picker-chevron" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+            </button>
+            
+            <!-- Popover Dropdown -->
+            <div id="company-picker-popover" class="hidden absolute left-0 right-0 mt-1 bg-white dark:bg-[#121826] rounded-xl shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] p-2 z-50">
+              <div class="relative mb-1.5">
+                <input type="text" id="company-search-input" oninput="filterCompanyOptions(this.value)" placeholder="Search company name..." 
+                       class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <i data-lucide="search" class="w-3 h-3 absolute left-2.5 top-2.5 text-slate-400"></i>
+              </div>
+              <div id="company-options-list" class="max-h-48 overflow-y-auto space-y-0.5 divide-y divide-slate-50 dark:divide-slate-800/60">
+                <div class="py-3 text-center text-xs text-slate-400">Loading live issues...</div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Query By</label>
+            <div class="grid grid-cols-3 gap-2">
+              <label class="flex items-center justify-center gap-1.5 p-2 border rounded-lg cursor-pointer text-xs font-medium border-slate-200 dark:border-slate-700 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-950/40 has-[:checked]:text-blue-600 transition">
+                <input type="radio" name="query_type" value="PAN" checked class="hidden"> PAN
+              </label>
+              <label class="flex items-center justify-center gap-1.5 p-2 border rounded-lg cursor-pointer text-xs font-medium border-slate-200 dark:border-slate-700 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-950/40 has-[:checked]:text-blue-600 transition">
+                <input type="radio" name="query_type" value="APPLICATION_NO" class="hidden"> App No
+              </label>
+              <label class="flex items-center justify-center gap-1.5 p-2 border rounded-lg cursor-pointer text-xs font-medium border-slate-200 dark:border-slate-700 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-950/40 has-[:checked]:text-blue-600 transition">
+                <input type="radio" name="query_type" value="DP_CLIENT_ID" class="hidden"> DP / Client ID
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1" id="identifier-label">PAN Number</label>
+            <input type="text" id="query-value" required placeholder="e.g. ABCDE1234F" style="text-transform: uppercase"
+                   class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs font-mono uppercase text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+
+          <button type="submit" id="allotment-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer">
+            <span id="allotment-spinner" class="hidden"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i></span>
+            <span>Check Allotment Status</span>
+          </button>
+        </form>
+
+        <div id="allotment-result" class="hidden mt-4 pt-4 border-t border-slate-100 dark:border-slate-800"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: SCORING METHODOLOGY ==================== -->
+    <section id="tab-methodology" class="hidden max-w-4xl mx-auto space-y-6">
+      <div class="bg-white dark:bg-[#121826] p-6 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft space-y-6">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-1.5">How Does the 0-100 Scoring Engine Work?</h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            An algorithmic engine computes a composite score out of 100 based on four primary pillars, then maps the score to a recommendation tier.
+          </p>
+        </div>
+
+        <!-- 4 Pillar Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Pillar 1: GMP -->
+          <div class="p-4 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-800/40 space-y-2">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 1. Grey Market Premium (GMP)
+              </h4>
+              <span class="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded">Max 35 Pts</span>
+            </div>
+            <table class="w-full text-[10px] text-slate-600 dark:text-slate-400 border-collapse">
+              <thead><tr class="border-b border-emerald-100 dark:border-emerald-900/60"><th class="text-left py-1 pr-2 font-semibold text-slate-700 dark:text-slate-300">Condition (Mainboard / SME)</th><th class="text-right py-1 font-semibold text-slate-700 dark:text-slate-300">Pts</th></tr></thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <tr><td class="py-1 pr-2">≥35% GMP &nbsp;/&nbsp; ≥50% SME (bumper)</td><td class="text-right font-mono">35</td></tr>
+                <tr><td class="py-1 pr-2">≥20% &nbsp;/&nbsp; ≥30% SME (strong)</td><td class="text-right font-mono">28–35</td></tr>
+                <tr><td class="py-1 pr-2">≥10% &nbsp;/&nbsp; ≥15% SME (healthy)</td><td class="text-right font-mono">18–28</td></tr>
+                <tr><td class="py-1 pr-2">≥5% (modest)</td><td class="text-right font-mono">10–18</td></tr>
+                <tr><td class="py-1 pr-2">0–5% (subdued)</td><td class="text-right font-mono">4–10</td></tr>
+                <tr><td class="py-1 pr-2">&lt;0% (negative discount)</td><td class="text-right font-mono">0</td></tr>
+                <tr><td class="py-1 pr-2">No GMP yet (pre-bidding baseline)</td><td class="text-right font-mono">15</td></tr>
+                <tr><td class="py-1 pr-2 text-emerald-700 dark:text-emerald-400">Subject-to-Sauda bonus (if active)</td><td class="text-right font-mono text-emerald-700 dark:text-emerald-400">+0–1.5</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pillar 2: Subscription Demand -->
+          <div class="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-800/40 space-y-2">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-blue-500"></span> 2. Subscription Demand
+              </h4>
+              <span class="text-[10px] font-extrabold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 rounded">Max 30 Pts</span>
+            </div>
+            <table class="w-full text-[10px] text-slate-600 dark:text-slate-400 border-collapse">
+              <thead><tr class="border-b border-blue-100 dark:border-blue-900/60"><th class="text-left py-1 pr-2 font-semibold text-slate-700 dark:text-slate-300">Component &amp; Condition</th><th class="text-right py-1 font-semibold text-slate-700 dark:text-slate-300">Pts</th></tr></thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <tr><td class="py-1 pr-2 font-semibold" colspan="2">QIB (max 16 pts)</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">≥30x Mainboard &nbsp;/&nbsp; ≥60x SME</td><td class="text-right font-mono">16</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">≥5x</td><td class="text-right font-mono">10</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">≥1x</td><td class="text-right font-mono">6</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">Day 1/2 early bidding</td><td class="text-right font-mono">5</td></tr>
+                <tr><td class="py-1 pr-2 font-semibold" colspan="2">Retail (max 6 pts)</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">≥10x Mainboard &nbsp;/&nbsp; ≥25x SME</td><td class="text-right font-mono">6</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">≥1x / &lt;1x</td><td class="text-right font-mono">3 / 1</td></tr>
+                <tr><td class="py-1 pr-2 font-semibold" colspan="2">Total oversubscription (max 8 pts)</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">≥35x Mainboard &nbsp;/&nbsp; ≥50x SME</td><td class="text-right font-mono">8</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">≥3x / ≥1x</td><td class="text-right font-mono">5 / 3</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pillar 3: Valuation & Financials -->
+          <div class="p-4 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-800/40 space-y-2">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-purple-500"></span> 3. Valuation &amp; Financials
+              </h4>
+              <span class="text-[10px] font-extrabold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/60 px-2 py-0.5 rounded">Max 20 Pts</span>
+            </div>
+            <table class="w-full text-[10px] text-slate-600 dark:text-slate-400 border-collapse">
+              <thead><tr class="border-b border-purple-100 dark:border-purple-900/60"><th class="text-left py-1 pr-2 font-semibold text-slate-700 dark:text-slate-300">Condition</th><th class="text-right py-1 font-semibold text-slate-700 dark:text-slate-300">Pts</th></tr></thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <tr><td class="py-1 pr-2 font-semibold" colspan="2">P/E vs Industry P/E (max 12 pts)</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">&gt;25% discount to industry peers</td><td class="text-right font-mono">12</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">&gt;5% discount</td><td class="text-right font-mono">10</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">Fair / ≤15% premium</td><td class="text-right font-mono">7</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">15–35% premium</td><td class="text-right font-mono">4</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">&gt;35% premium</td><td class="text-right font-mono">1.5</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">Loss-maker (negative P/E)</td><td class="text-right font-mono">2.0</td></tr>
+                <tr><td class="py-1 pr-2 font-semibold" colspan="2">RoNW (max 8 pts)</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">≥20% / ≥15% / ≥10% / &gt;0%</td><td class="text-right font-mono">8 / 6.5 / 4.5 / 2.5</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">Negative (net loss)</td><td class="text-right font-mono">0</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pillar 4: Issue Structure & Sizing -->
+          <div class="p-4 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-800/40 space-y-2">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-amber-500"></span> 4. Structure &amp; Fresh Issue
+              </h4>
+              <span class="text-[10px] font-extrabold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded">Max 15 Pts</span>
+            </div>
+            <table class="w-full text-[10px] text-slate-600 dark:text-slate-400 border-collapse">
+              <thead><tr class="border-b border-amber-100 dark:border-amber-900/60"><th class="text-left py-1 pr-2 font-semibold text-slate-700 dark:text-slate-300">Condition</th><th class="text-right py-1 font-semibold text-slate-700 dark:text-slate-300">Pts</th></tr></thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <tr><td class="py-1 pr-2 font-semibold" colspan="2">Fresh Issue ratio (max 10 pts)</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">≥75% fresh proceeds (expansion)</td><td class="text-right font-mono">10.0</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">40%–74% fresh</td><td class="text-right font-mono">7.5</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">15%–39% fresh</td><td class="text-right font-mono">5.0</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">&lt;15% fresh (predominantly OFS)</td><td class="text-right font-mono">2.0</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">Unknown / default</td><td class="text-right font-mono">6.5</td></tr>
+                <tr><td class="py-1 pr-2 font-semibold" colspan="2">Issue size &amp; liquidity (max 5 pts)</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">Mainboard ₹300 Cr – ₹5,000 Cr (sweet spot)</td><td class="text-right font-mono">5.0</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">Mainboard &gt;₹5,000 Cr / default</td><td class="text-right font-mono">3.5</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">Mainboard &lt;₹100 Cr (micro)</td><td class="text-right font-mono">3.0</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">SME ₹15 Cr – ₹60 Cr (sweet spot)</td><td class="text-right font-mono">5.0</td></tr>
+                <tr><td class="py-1 pr-2 pl-3">SME &gt;₹60 Cr / &lt;₹15 Cr</td><td class="text-right font-mono">4.0 / 3.0</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Recommendation Cutoffs Section -->
+        <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Algorithmic Recommendation Cutoffs</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold text-emerald-700 dark:text-emerald-300">STRONG APPLY</span>
+                <span class="text-[11px] font-mono font-bold text-emerald-800 dark:text-emerald-200">≥ 75 pts</span>
+              </div>
+              <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">
+                High conviction opportunity backed by robust GMP, heavy subscription interest, or solid financial fundamentals.
+              </p>
+            </div>
+
+            <div class="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold text-blue-700 dark:text-blue-300">APPLY</span>
+                <span class="text-[11px] font-mono font-bold text-blue-800 dark:text-blue-200">60 – 74 pts</span>
+              </div>
+              <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">
+                Favourable risk-reward with healthy demand indicators and reasonable valuation metrics.
+              </p>
+            </div>
+
+            <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold text-amber-700 dark:text-amber-300">NEUTRAL</span>
+                <span class="text-[11px] font-mono font-bold text-amber-800 dark:text-amber-200">45 – 59 pts</span>
+              </div>
+              <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">
+                Mixed signals; consider only if retail subscription or GMP accelerates closer to closing.
+              </p>
+            </div>
+
+            <div class="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold text-rose-700 dark:text-rose-300">AVOID</span>
+                <span class="text-[11px] font-mono font-bold text-rose-800 dark:text-rose-200">&lt; 45 pts</span>
+              </div>
+              <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">
+                Unfavourable risk-reward due to muted demand, negative/negligible GMP, or elevated valuations.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Regulatory & Educational Disclaimer -->
+        <div class="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 flex items-start gap-2.5 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+          <i data-lucide="info" class="w-4 h-4 text-slate-400 shrink-0 mt-0.5"></i>
+          <div>
+            <strong class="text-slate-800 dark:text-slate-200">Disclaimer:</strong>
+            GMP (Grey Market Premium) is unofficial grey-market data and does not reflect guaranteed listing gains. Scores and recommendations are algorithmic calculations and do <strong>not</strong> constitute SEBI-registered financial or investment advice. Always consult a certified financial advisor before making investment decisions.
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== AUTH LOGIN MODAL ==================== -->
+  <div id="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-modal-title" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white dark:bg-[#121826] rounded-2xl max-w-sm w-full shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600">
+            <i data-lucide="shield-check" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 id="login-modal-title" class="font-bold text-sm text-slate-900 dark:text-white">Admin Authentication</h3>
+            <p class="text-[11px] text-slate-400">Sign in to manage portfolio</p>
+          </div>
+        </div>
+        <button onclick="closeLoginModal()" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <form id="login-form" onsubmit="submitLogin(event)" class="p-5 space-y-3.5">
+        <div id="login-error" class="hidden bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs rounded-lg px-3 py-2 font-medium"></div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Username</label>
+          <input type="text" id="login-username" required placeholder="admin"
+                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Password</label>
+          <input type="password" id="login-password" required placeholder="••••••••"
+                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+        </div>
+        <button type="submit" id="login-submit-btn"
+                class="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
+          <span id="login-spinner" class="hidden"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i></span>
+          <span id="login-submit-text">Sign In</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== ADD HOLDING MODAL ==================== -->
+  <div id="add-holding-modal" role="dialog" aria-modal="true" aria-labelledby="add-holding-modal-title" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white dark:bg-[#121826] rounded-2xl max-w-md w-full shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40">
+        <div>
+          <h3 id="add-holding-modal-title" class="font-bold text-sm text-slate-900 dark:text-white">Add Stock Holding</h3>
+          <p class="text-[11px] text-slate-400 mt-0.5">Track your equity shares with live quotes</p>
+        </div>
+        <button onclick="closeAddHoldingModal()" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <form id="add-holding-form" onsubmit="submitAddHolding(event)" class="p-5 space-y-3.5">
+        <div id="add-holding-error" class="hidden bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs rounded-lg px-3 py-2 font-semibold"></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Symbol *</label>
+            <input id="ah-symbol" type="text" required placeholder="e.g. TATATECH"
+              class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono uppercase text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Exchange *</label>
+            <select id="ah-exchange" class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none">
+              <option value="NSE">NSE</option>
+              <option value="BSE">BSE</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Company Name *</label>
+          <input id="ah-company" type="text" required placeholder="e.g. Tata Technologies Ltd"
+            class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Quantity *</label>
+            <input id="ah-qty" type="number" required min="1" step="1" placeholder="0"
+              class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Avg Buy Price (₹) *</label>
+            <input id="ah-price" type="number" required min="0.01" step="0.01" placeholder="0.00"
+              class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Purchase Date</label>
+          <input id="ah-date" type="date"
+            class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeAddHoldingModal()"
+            class="flex-1 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition">Cancel</button>
+          <button type="submit"
+            class="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm">Add Holding</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== SCORE BREAKDOWN MODAL (IPO) ==================== -->
+  <div id="score-modal" role="dialog" aria-modal="true" aria-labelledby="score-modal-title" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-[#121826] rounded-2xl max-w-lg w-full shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h3 id="score-modal-title" class="font-bold text-sm text-slate-900 dark:text-white">-</h3>
+            <span id="modal-company-name" class="hidden"></span>
+            <span id="modal-symbol" class="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-bold px-1.5 py-0.5 rounded">-</span>
+            <span id="modal-ipo-type"></span>
+          </div>
+          <p class="text-[11px] text-slate-400">Algorithmic Scoring Engine Breakdown</p>
+        </div>
+        <button onclick="closeModal()" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 text-xs">
+        <div class="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Composite Score</p>
+            <div class="flex items-baseline gap-1 mt-0.5">
+              <span id="modal-score" class="text-2xl font-bold font-mono text-slate-900 dark:text-white">-</span>
+              <span class="text-slate-400 text-xs">/ 100</span>
+            </div>
+          </div>
+          <span id="modal-rec-badge" class="px-2.5 py-1 rounded-lg font-bold text-xs">-</span>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex justify-between text-slate-600 dark:text-slate-400"><span>Grey Market Premium</span><span id="modal-gmp-score" class="font-mono">-</span></div>
+          <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden"><div id="modal-gmp-bar" class="bg-emerald-500 h-full rounded-full" style="width: 0%"></div></div>
+
+          <div class="flex justify-between text-slate-600 dark:text-slate-400"><span>Subscription Demand</span><span id="modal-sub-score" class="font-mono">-</span></div>
+          <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden"><div id="modal-sub-bar" class="bg-blue-500 h-full rounded-full" style="width: 0%"></div></div>
+
+          <div class="flex justify-between text-slate-600 dark:text-slate-400"><span>Valuation vs Peers</span><span id="modal-val-score" class="font-mono">-</span></div>
+          <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden"><div id="modal-val-bar" class="bg-purple-500 h-full rounded-full" style="width: 0%"></div></div>
+
+          <div class="flex justify-between text-slate-600 dark:text-slate-400"><span>Issue Structure</span><span id="modal-struct-score" class="font-mono">-</span></div>
+          <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden"><div id="modal-struct-bar" class="bg-amber-500 h-full rounded-full" style="width: 0%"></div></div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+          <h5 class="font-bold text-slate-800 dark:text-slate-200">Financial Stats</h5>
+          <div class="grid grid-cols-3 gap-2 text-[11px]">
+            <div class="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg"><span class="text-slate-400 block">Rev Growth</span><strong id="modal-rev-growth" class="font-mono text-slate-900 dark:text-white">-</strong></div>
+            <div class="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg"><span class="text-slate-400 block">PAT Growth</span><strong id="modal-pat-growth" class="font-mono text-slate-900 dark:text-white">-</strong></div>
+            <div class="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg"><span class="text-slate-400 block">Debt/Eq</span><strong id="modal-debt-equity" class="font-mono text-slate-900 dark:text-white">-</strong></div>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <ul id="modal-positives" class="p-3 bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 rounded-lg text-[11px] space-y-1"></ul>
+          <ul id="modal-risks" class="p-3 bg-rose-50/60 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300 rounded-lg text-[11px] space-y-1"></ul>
+        </div>
+      </div>
+
+      <div class="p-3.5 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between rounded-b-2xl">
+        <span class="text-[11px] text-slate-400">Participate in this IPO</span>
+        <a id="modal-angelone-btn" href="#" target="_blank" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs">Apply via Angel One ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== AI COPILOT FLOATING DOCK (BOTTOM-RIGHT) ==================== -->
+  <div id="ai-copilot-modal" role="dialog" aria-modal="true" aria-labelledby="copilot-modal-title" class="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-50 hidden w-[calc(100vw-24px)] sm:w-[390px] md:w-[410px] max-w-[95vw] transition-all">
+    <div class="bg-[#FCFAF7] dark:bg-[#121826] rounded-[28px] sm:rounded-[32px] border border-[#EAE3DA] dark:border-slate-800 shadow-[0_20px_50px_-10px_rgba(40,30,20,0.18)] dark:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6)] w-full flex flex-col h-[520px] sm:h-[580px] max-h-[85vh] overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200">
+      
+      <!-- Header Bar with Warm Hue -->
+      <div class="px-5 py-3.5 border-b border-[#ECE5DC] dark:border-slate-800/90 flex items-center justify-between bg-[#FAF6F0] dark:bg-[#151D2C] select-none">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-rose-500 flex items-center justify-center text-white shadow-xs shrink-0">
+            <i data-lucide="sparkles" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 id="copilot-modal-title" class="text-sm font-bold text-[#2D2A26] dark:text-white truncate">IPO Pulse Copilot</h3>
+          </div>
+        </div>
+        
+        <!-- Right Action Controls -->
+        <div class="flex items-center gap-1 shrink-0">
+          <button onclick="resetAICopilotChat()" title="Reset chat" class="p-1.5 rounded-lg text-[#7C7164] dark:text-slate-400 hover:text-[#2D2A26] dark:hover:text-white hover:bg-[#F0EAE1] dark:hover:bg-slate-800/80 transition cursor-pointer">
+            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+          </button>
+          <button onclick="toggleAICopilotVoice()" id="ai-voice-btn" title="Toggle audio read-aloud" class="p-1.5 rounded-lg text-[#7C7164] dark:text-slate-400 hover:text-[#2D2A26] dark:hover:text-white hover:bg-[#F0EAE1] dark:hover:bg-slate-800/80 transition cursor-pointer">
+            <i data-lucide="volume-2" id="ai-voice-icon" class="w-4 h-4"></i>
+          </button>
+          <button onclick="closeAICopilotModal()" title="Close chat" class="p-1.5 rounded-lg text-[#7C7164] dark:text-slate-400 hover:text-[#2D2A26] dark:hover:text-white hover:bg-[#F0EAE1] dark:hover:bg-slate-800/80 transition cursor-pointer">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Chat Messages Scroll Area -->
+      <div id="ai-modal-chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3.5 bg-[#FCFAF7] dark:bg-[#121826] text-xs sm:text-[13px] leading-relaxed">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Bottom Capsule Input Bar -->
+      <div class="p-3.5 bg-[#FAF6F0] dark:bg-[#121826] border-t border-[#ECE5DC] dark:border-slate-800/80">
+        <form onsubmit="submitAICopilotChat(event)" class="relative flex items-center rounded-full bg-[#F3ECE4] dark:bg-[#1A2234] border border-[#DFD6CB] dark:border-slate-700/90 px-3.5 py-2 hover:border-[#CEC3B5] dark:hover:border-slate-600 focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-600/70 transition shadow-2xs">
+          <!-- Left Menu Button -->
+          <button type="button" onclick="toggleQuickPromptSuggestions()" title="Prompt Suggestions" class="text-[#7C7164] dark:text-slate-400 hover:text-[#2D2A26] dark:hover:text-white p-1 rounded-full transition cursor-pointer shrink-0">
+            <i data-lucide="menu" class="w-4 h-4"></i>
+          </button>
+          
+          <!-- Input Field -->
+          <input type="text" id="ai-modal-input" placeholder="Ask anything" autocomplete="off"
+                 class="flex-1 bg-transparent border-0 px-2 py-0.5 text-xs sm:text-sm text-[#2D2A26] dark:text-white placeholder-[#8E8477] focus:outline-none focus:ring-0" />
+          
+          <!-- Right Send Button -->
+          <button type="submit" id="ai-modal-send-btn" title="Send query"
+                  class="text-[#8E8477] hover:text-amber-700 dark:text-slate-400 dark:hover:text-indigo-400 p-1 rounded-full transition cursor-pointer shrink-0 active:scale-90 flex items-center justify-center">
+            <i data-lucide="send" class="w-4 h-4"></i>
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== FRONTEND JS LOGIC ==================== -->
+  <script>
+    let allIpos = [];
+    let currentPortfolioHoldings = [];
+    let previousHoldingsPrices = {};
+    let currentActiveTab = 'portfolio';
+    let liveSyncInterval = null;
+    let liveSyncEnabled = true;
+    let globalAdvisoryData = null;
+    let expandedRowSymbol = null;
+    let currentSortCol = 'current_value';
+    let currentSortAsc = false;
+    let aiChatHistory = [];
+    const API = '/api/v1/portfolio';
+
+    // Auth Management
+    function getAuthToken() {
+      return localStorage.getItem('ipo_pulse_token') || '';
+    }
+
+    function setAuthToken(token) {
+      if (token) {
+        localStorage.setItem('ipo_pulse_token', token);
+      } else {
+        localStorage.removeItem('ipo_pulse_token');
+      }
+      updateAuthUI();
+    }
+
+    function getAuthHeaders(extra = {}) {
+      const headers = { ...extra };
+      const token = getAuthToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      return headers;
+    }
+
+    function updateAuthUI() {
+      const token = getAuthToken();
+      const label = document.getElementById('auth-header-label');
+      const icon = document.getElementById('auth-header-icon');
+      const btn = document.getElementById('auth-header-btn');
+      if (token) {
+        if (label) label.textContent = 'Admin (Logout)';
+        if (icon) icon.setAttribute('data-lucide', 'unlock');
+        if (btn) btn.classList.add('border-emerald-500/50', 'text-emerald-600', 'dark:text-emerald-400');
+      } else {
+        if (label) label.textContent = 'Sign In';
+        if (icon) icon.setAttribute('data-lucide', 'lock');
+        if (btn) btn.classList.remove('border-emerald-500/50', 'text-emerald-600', 'dark:text-emerald-400');
+      }
+      refreshLucideIcons();
+    }
+
+    function openLoginModal() {
+      const modal = document.getElementById('login-modal');
+      const err = document.getElementById('login-error');
+      if (err) { err.classList.add('hidden'); err.textContent = ''; }
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+      refreshLucideIcons();
+    }
+
+    function closeLoginModal() {
+      const modal = document.getElementById('login-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    function handleAuthButtonClick() {
+      if (getAuthToken()) {
+        if (confirm('Log out from Admin session?')) {
+          setAuthToken(null);
+          loadPortfolio(true);
+        }
+      } else {
+        openLoginModal();
+      }
+    }
+
+    async function submitLogin(e) {
+      e.preventDefault();
+      const user = document.getElementById('login-username').value.trim();
+      const pass = document.getElementById('login-password').value;
+      const errEl = document.getElementById('login-error');
+      const spinner = document.getElementById('login-spinner');
+      const submitText = document.getElementById('login-submit-text');
+      const submitBtn = document.getElementById('login-submit-btn');
+
+      errEl.classList.add('hidden');
+      spinner.classList.remove('hidden');
+      submitText.textContent = 'Verifying...';
+      submitBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: user, password: pass })
+        });
+        if (res.status === 429) {
+          throw new Error('Too many login attempts. Please wait 1 minute.');
+        }
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Invalid username or password.');
+        }
+        const data = await res.json();
+        setAuthToken(data.access_token);
+        closeLoginModal();
+        document.getElementById('login-password').value = '';
+        await loadPortfolio();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        spinner.classList.add('hidden');
+        submitText.textContent = 'Sign In';
+        submitBtn.disabled = false;
+        refreshLucideIcons();
+      }
+    }
+
+    // Theme Management (Light / Dark)
+    function initTheme() {
+      const saved = localStorage.getItem('ipo_theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (saved === 'dark' || (!saved && prefersDark)) {
+        document.documentElement.classList.add('dark');
+        document.documentElement.classList.remove('light');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+      }
+      refreshLucideIcons();
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      document.documentElement.classList.toggle('light', !isDark);
+      localStorage.setItem('ipo_theme', isDark ? 'dark' : 'light');
+      refreshLucideIcons();
+    }
+
+    function refreshLucideIcons() {
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    }
+
+    // Currency & Number Formatters (en-IN Indian Standard)
+    function fmtINR(val) {
+      if (val == null || isNaN(val)) return '—';
+      const n = Number(val);
+      const isNeg = n < 0;
+      const formatted = Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return (isNeg ? '-₹' : '₹') + formatted;
+    }
+
+    function fmtPct(val) {
+      if (val == null || isNaN(val)) return '—';
+      const n = Number(val);
+      const sign = n >= 0 ? '+' : '';
+      return sign + n.toFixed(2) + '%';
+    }
+
+    function pnlColorClass(val) {
+      if (val == null || isNaN(val)) return 'text-slate-500';
+      return Number(val) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+    }
+
+    function pnlChipHTML(val, isDay = false) {
+      if (val == null || isNaN(val)) return '—';
+      const n = Number(val);
+      const isPos = n >= 0;
+      const arrow = isPos ? '▲' : '▼';
+      const bgClass = isPos 
+        ? 'bg-[#DCFCE7] dark:bg-[#064E3B] text-[#16A34A] dark:text-[#34D399]' 
+        : 'bg-[#FEE2E2] dark:bg-[#7F1D1D] text-[#DC2626] dark:text-[#F87171]';
+      return `<span class="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${bgClass} tabular-nums">${arrow} ${fmtPct(n)}</span>`;
+    }
+
+    // Tab Switching
+    function switchTab(tabId) {
+      currentActiveTab = tabId;
+      document.querySelectorAll('main > section').forEach(sec => sec.classList.add('hidden'));
+      const activeSection = document.getElementById('tab-' + tabId);
+      if (activeSection) activeSection.classList.remove('hidden');
+
+      // Update Desktop Tabs
+      ['portfolio', 'ipos', 'allotment', 'methodology'].forEach(t => {
+        const btn = document.getElementById('nav-' + t);
+        const mBtn = document.getElementById('mobile-nav-' + t);
+        if (t === tabId) {
+          if (btn) btn.className = "h-full px-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-500 transition-all flex items-center gap-1.5";
+          if (mBtn) mBtn.className = "flex-1 py-1.5 px-2.5 text-center text-xs font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 shrink-0";
+        } else {
+          if (btn) btn.className = "h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5";
+          if (mBtn) mBtn.className = "flex-1 py-1.5 px-2.5 text-center text-xs font-medium rounded-lg text-slate-600 dark:text-slate-400 shrink-0";
+        }
+      });
+
+      if (tabId === 'allotment') loadRegistrarCompanies();
+      if (tabId === 'portfolio') loadPortfolio();
+      refreshLucideIcons();
+    }
+
+    function openAICopilot() {
+      openAICopilotModal();
+    }
+
+    // Load Portfolio Summary & Holdings
+    async function loadPortfolio(silent = false) {
+      if (!silent) {
+        document.getElementById('pf-loading').classList.remove('hidden');
+        document.getElementById('pf-empty').classList.add('hidden');
+        document.getElementById('pf-holdings-container').classList.add('hidden');
+      }
+
+      try {
+        const res = await fetch(`${API}/summary`, { headers: getAuthHeaders() });
+        if (res.status === 401) {
+          if (!silent) {
+            document.getElementById('pf-loading').classList.add('hidden');
+            openLoginModal();
+          }
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderPortfolioSummary(data);
+        currentPortfolioHoldings = data.holdings || [];
+        renderHoldings(currentPortfolioHoldings);
+        renderAllocationDonut(currentPortfolioHoldings, data.current_value);
+        loadPortfolioAdvisory(silent);
+      } catch (err) {
+        console.error('Portfolio load failed:', err);
+        if (!silent) {
+          document.getElementById('pf-loading').textContent = 'Failed to load portfolio.';
+        }
+      } finally {
+        refreshLucideIcons();
+      }
+    }
+
+    // Render 4-Column Top Summary Strip
+    function renderPortfolioSummary(data) {
+      document.getElementById('pf-loading').classList.add('hidden');
+      document.getElementById('pf-invested').textContent = fmtINR(data.total_invested);
+      document.getElementById('pf-value').textContent = fmtINR(data.current_value);
+
+      // Today's Change Chip under Current Value
+      const dayVal = data.day_change || 0;
+      const dayPct = data.day_change_pct || 0;
+      const dayIsPos = dayVal >= 0;
+      const dayChip = document.getElementById('pf-day-chip');
+      const dayArrow = dayIsPos ? '▲' : '▼';
+      const dayBg = dayIsPos 
+        ? 'bg-[#DCFCE7] dark:bg-[#064E3B] text-[#16A34A] dark:text-[#34D399]' 
+        : 'bg-[#FEE2E2] dark:bg-[#7F1D1D] text-[#DC2626] dark:text-[#F87171]';
+      dayChip.className = `inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${dayBg} tabular-nums mt-1 whitespace-nowrap`;
+      dayChip.innerHTML = `Today: ${dayArrow} ${fmtINR(dayVal)} (${fmtPct(dayPct)})`;
+
+      // Unrealized P&L
+      const pnl = data.total_unrealized_pnl || 0;
+      const pnlPct = data.total_pnl_pct || 0;
+      const pnlEl = document.getElementById('pf-pnl');
+      pnlEl.textContent = fmtINR(pnl);
+      pnlEl.className = `text-xl sm:text-2xl font-bold font-mono tabular-nums whitespace-nowrap ${pnlColorClass(pnl)}`;
+
+      const pnlChip = document.getElementById('pf-pnl-chip');
+      const pnlIsPos = pnl >= 0;
+      const pnlBg = pnlIsPos 
+        ? 'bg-[#DCFCE7] dark:bg-[#064E3B] text-[#16A34A] dark:text-[#34D399]' 
+        : 'bg-[#FEE2E2] dark:bg-[#7F1D1D] text-[#DC2626] dark:text-[#F87171]';
+      pnlChip.className = `inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${pnlBg} tabular-nums whitespace-nowrap`;
+      pnlChip.innerHTML = `${pnlIsPos ? '▲' : '▼'} ${fmtPct(pnlPct)}`;
+
+      // Positions count & Gainers/Losers dots
+      document.getElementById('pf-count').textContent = data.holdings_count || '0';
+      document.getElementById('pf-gainers-losers').innerHTML = 
+        `<span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span> ${data.gainers || 0} up · <span class="inline-block w-2 h-2 rounded-full bg-rose-500"></span> ${data.losers || 0} down`;
+
+      const unpricedEl = document.getElementById('pf-unpriced-warning');
+      if (unpricedEl) {
+        if (data.unpriced_count && data.unpriced_count > 0) {
+          unpricedEl.textContent = `${data.unpriced_count} holding(s) unpriced, excluded from totals`;
+          unpricedEl.classList.remove('hidden');
+        } else {
+          unpricedEl.classList.add('hidden');
+        }
+      }
+    }
+
+
+    // Sort Holdings Function
+    function sortHoldings(col) {
+      if (currentSortCol === col) {
+        currentSortAsc = !currentSortAsc;
+      } else {
+        currentSortCol = col;
+      }
+      renderHoldings(currentPortfolioHoldings);
+    }
+
+    // Helper to format AI markdown in cards, action plans, and chat
+    function formatAIMarkdown(text) {
+      if (!text) return '';
+      let processed = String(text);
+
+      // Handle Markdown Tables if present
+      if (processed.includes('|')) {
+        const lines = processed.split('\n');
+        let inTable = false;
+        let tableHtml = '';
+        let newLines = [];
+        for (let line of lines) {
+          if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+            if (!inTable) {
+              inTable = true;
+              tableHtml = '<div class="overflow-x-auto my-2"><table class="w-full text-[11px] border border-[#DFD6CB] dark:border-slate-700/80 rounded-lg overflow-hidden"><tbody class="divide-y divide-[#EAE3DA] dark:divide-slate-800">';
+            }
+            if (line.includes('---')) continue;
+            const cells = line.split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+            tableHtml += '<tr class="hover:bg-[#F2ECE3] dark:hover:bg-slate-800/50">';
+            cells.forEach(c => {
+              tableHtml += `<td class="px-2 py-1 border-r border-[#EAE3DA] dark:border-slate-800/60 last:border-r-0">${c.trim()}</td>`;
+            });
+            tableHtml += '</tr>';
+          } else {
+            if (inTable) {
+              inTable = false;
+              tableHtml += '</tbody></table></div>';
+              newLines.push(tableHtml);
+            }
+            newLines.push(line);
+          }
+        }
+        if (inTable) {
+          tableHtml += '</tbody></table></div>';
+          newLines.push(tableHtml);
+        }
+        processed = newLines.join('\n');
+      }
+
+      // Strip / clean markdown headers
+      processed = processed
+        .replace(/^###\s*(.*)$/gm, '<div class="font-bold text-[13px] mt-2 mb-1">$1</div>')
+        .replace(/^##\s*(.*)$/gm, '<div class="font-bold text-[14px] mt-2 mb-1">$1</div>')
+        .replace(/^#\s*(.*)$/gm, '<div class="font-bold text-[15px] mt-2 mb-1">$1</div>');
+
+      // Inline formatting (bold, italic, code)
+      processed = processed
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code class="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded font-mono text-[10px]">$1</code>');
+
+      // Numbered lists: lines starting with '1. ' or '1) '
+      processed = processed.replace(/^\s*(\d+)[\.\)]\s+(.*)$/gm, '<li class="ol-item ml-1">$2</li>');
+      processed = processed.replace(/((?:<li class="ol-item ml-1">.*?<\/li>\s*)+)/gs, function(match) {
+        const items = match.replace(/<\/li>\s+<li/g, '</li><li').trim();
+        return `<ol class="space-y-1.5 my-2 list-decimal pl-5">${items}</ol>`;
+      });
+
+      // Bullet lists: lines starting with '- ', '* ', or '• '
+      processed = processed.replace(/^\s*[-*•]\s+(.*)$/gm, '<li class="ul-item ml-1">$1</li>');
+      processed = processed.replace(/((?:<li class="ul-item ml-1">.*?<\/li>\s*)+)/gs, function(match) {
+        const items = match.replace(/<\/li>\s+<li/g, '</li><li').trim();
+        return `<ul class="space-y-1 my-2 list-disc pl-5">${items}</ul>`;
+      });
+
+      // Line breaks and paragraphs
+      processed = processed.replace(/<\/li>\s*<li/g, '</li><li');
+      processed = processed.replace(/\n{2,}/g, '<br/><br/>');
+      processed = processed.replace(/\n/g, '<br/>');
+      processed = processed
+        .replace(/(?:<br\/>)+(<\/?(?:ol|ul|li|div|table|tbody|tr|td))/gi, '$1')
+        .replace(/(<\/(?:ol|ul|li|div|table|tbody|tr|td)>)(?:<br\/>)+/gi, '$1');
+
+      return processed.trim();
+    }
+
+    function filterHoldingsTable() {
+      const q = (document.getElementById('holdings-search-input')?.value || '').toLowerCase().trim();
+      const filtered = currentPortfolioHoldings.filter(h => 
+        h.symbol.toLowerCase().includes(q) || h.company_name.toLowerCase().includes(q)
+      );
+      renderHoldings(filtered, true, true);
+    }
+
+    // Helper: Update Table Footer Totals
+    function updateHoldingsFooter(list) {
+      let sumQty = 0;
+      let sumInvested = 0;
+      let sumCurrentVal = 0;
+      let sumDayChgAmt = 0;
+
+      list.forEach(h => {
+        const qty = Number(h.quantity) || 0;
+        const invested = Number(h.invested_value != null ? h.invested_value : (h.avg_buy_price * qty)) || 0;
+        const currVal = Number(h.current_value != null ? h.current_value : (h.live_price ? h.live_price * qty : invested)) || 0;
+        const dayPct = Number(h.day_change_pct) || 0;
+        const prevVal = currVal / (1 + dayPct / 100);
+        const dayAmt = currVal - prevVal;
+
+        sumQty += qty;
+        sumInvested += invested;
+        sumCurrentVal += currVal;
+        sumDayChgAmt += dayAmt;
+      });
+
+      const totalPnl = sumCurrentVal - sumInvested;
+      const totalPnlPct = sumInvested > 0 ? (totalPnl / sumInvested) * 100 : 0;
+      const totalDayPct = (sumCurrentVal - sumDayChgAmt) > 0 ? (sumDayChgAmt / (sumCurrentVal - sumDayChgAmt)) * 100 : 0;
+
+      const tfootQty = document.getElementById('tfoot-qty');
+      const tfootInvested = document.getElementById('tfoot-invested');
+      const tfootCurrVal = document.getElementById('tfoot-curr-val');
+      const tfootPnlVal = document.getElementById('tfoot-pnl-val');
+      const tfootPnlChip = document.getElementById('tfoot-pnl-chip');
+      const tfootDayChg = document.getElementById('tfoot-day-chg');
+
+      if (tfootQty) tfootQty.textContent = '—';
+      if (tfootInvested) tfootInvested.textContent = fmtINR(sumInvested);
+      if (tfootCurrVal) tfootCurrVal.textContent = fmtINR(sumCurrentVal);
+      if (tfootPnlVal) {
+        tfootPnlVal.textContent = fmtINR(totalPnl);
+        tfootPnlVal.className = `font-mono font-extrabold tabular-nums ${pnlColorClass(totalPnl)}`;
+      }
+      if (tfootPnlChip) {
+        tfootPnlChip.innerHTML = pnlChipHTML(totalPnlPct);
+      }
+      if (tfootDayChg) {
+        tfootDayChg.innerHTML = `<div>${fmtINR(sumDayChgAmt)}</div><div class="mt-0.5">${pnlChipHTML(totalDayPct, true)}</div>`;
+      }
+    }
+
+    // Helper: Dynamic 7-day SVG Sparkline renderer
+    function renderSparkline(closes) {
+      if (!closes || !Array.isArray(closes) || closes.length < 2) {
+        return '<span class="text-slate-400 font-mono text-xs">—</span>';
+      }
+      const min = Math.min(...closes);
+      const max = Math.max(...closes);
+      const range = max - min || 1;
+      const width = 50;
+      const height = 18;
+      const pad = 2;
+      const points = closes.map((val, idx) => {
+        const x = Math.round((idx / (closes.length - 1)) * width);
+        const y = Math.round(height - pad - ((val - min) / range) * (height - 2 * pad));
+        return `${x},${y}`;
+      });
+      const pathD = 'M ' + points.join(' L ');
+      const isUp = closes[closes.length - 1] >= closes[0];
+      const color = isUp ? '#10B981' : '#EF4444';
+      return `
+        <svg class="w-10 h-4 mx-auto overflow-visible" viewBox="0 0 50 20">
+          <path class="sparkline-path" d="${pathD}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      `;
+    }
+
+    // Render Holdings Table & Mobile Cards with in-place live update support
+    function renderHoldings(holdings, skipSorting = false, forceFullBuild = false) {
+      const tbody = document.getElementById('pf-tbody');
+      const cardsWrap = document.getElementById('pf-cards-wrap');
+      const container = document.getElementById('pf-holdings-container');
+      if (!tbody) return;
+
+      if (!holdings || holdings.length === 0) {
+        document.getElementById('pf-empty').classList.remove('hidden');
+        if (container) container.classList.add('hidden');
+        tbody.innerHTML = '';
+        if (cardsWrap) cardsWrap.innerHTML = '';
+        return;
+      }
+
+      document.getElementById('pf-empty').classList.add('hidden');
+      if (container) container.classList.remove('hidden');
+
+      let list = [...holdings];
+      if (!skipSorting && currentSortCol) {
+        list.sort((a, b) => {
+          let valA = a[currentSortCol];
+          let valB = b[currentSortCol];
+          if (typeof valA === 'string') valA = valA.toLowerCase();
+          if (typeof valB === 'string') valB = valB.toLowerCase();
+          if (valA < valB) return currentSortAsc ? -1 : 1;
+          if (valA > valB) return currentSortAsc ? 1 : -1;
+          return 0;
+        });
+      }
+
+      // Check if we can perform an IN-PLACE update (same symbols and count)
+      const existingRows = Array.from(tbody.querySelectorAll('tr[data-holding-symbol]'));
+      const canUpdateInPlace = !forceFullBuild && 
+        existingRows.length === list.length && 
+        list.every((h, i) => existingRows[i]?.dataset.holdingSymbol === h.symbol);
+
+      if (canUpdateInPlace) {
+        list.forEach(h => {
+          const pnl = h.unrealized_pnl || 0;
+          const pnlPct = h.pnl_pct || 0;
+          const dayChg = h.day_change_pct || 0;
+          const ltp = h.live_price || h.avg_buy_price;
+          const prevPrice = previousHoldingsPrices[h.symbol];
+
+          let flashClass = '';
+          if (prevPrice !== undefined && prevPrice !== null && prevPrice !== ltp) {
+            flashClass = ltp > prevPrice ? 'flash-green' : 'flash-red';
+          }
+          previousHoldingsPrices[h.symbol] = ltp;
+
+          const row = document.getElementById('pf-row-' + h.symbol);
+          if (row) {
+            const qtyEl = row.querySelector('.cell-qty');
+            if (qtyEl) qtyEl.textContent = h.quantity;
+            const avgEl = row.querySelector('.cell-avg');
+            if (avgEl) avgEl.textContent = fmtINR(h.avg_buy_price);
+            
+            const ltpEl = row.querySelector('.cell-ltp');
+            if (ltpEl) {
+              ltpEl.textContent = fmtINR(ltp);
+              if (flashClass) {
+                ltpEl.classList.remove('flash-green', 'flash-red');
+                void ltpEl.offsetWidth;
+                ltpEl.classList.add(flashClass);
+                setTimeout(() => ltpEl.classList.remove(flashClass), 1200);
+              }
+            }
+
+            const curValEl = row.querySelector('.cell-curval');
+            if (curValEl) curValEl.textContent = fmtINR(h.current_value);
+
+            const pnlValEl = row.querySelector('.cell-pnl-val');
+            if (pnlValEl) {
+              pnlValEl.textContent = fmtINR(pnl);
+              pnlValEl.className = 'cell-pnl-val font-mono font-bold tabular-nums ' + pnlColorClass(pnl);
+            }
+
+            const pnlChipEl = row.querySelector('.cell-pnl-chip');
+            if (pnlChipEl) pnlChipEl.innerHTML = pnlChipHTML(pnlPct);
+
+            const dayChgEl = row.querySelector('.cell-daychg');
+            if (dayChgEl) dayChgEl.innerHTML = pnlChipHTML(dayChg, true);
+
+            const cellTrendEl = row.querySelector('.cell-trend');
+            if (cellTrendEl) {
+              cellTrendEl.innerHTML = renderSparkline(h.trend_closes);
+            }
+          }
+
+          // In-place update for Mobile Card
+          const card = document.getElementById('pf-card-' + h.symbol);
+          if (card) {
+            const mLtp = card.querySelector('.mcell-ltp');
+            if (mLtp) {
+              mLtp.textContent = fmtINR(ltp);
+              if (flashClass) {
+                mLtp.classList.remove('flash-green', 'flash-red');
+                void mLtp.offsetWidth;
+                mLtp.classList.add(flashClass);
+                setTimeout(() => mLtp.classList.remove(flashClass), 1200);
+              }
+            }
+            const mDay = card.querySelector('.mcell-daychg');
+            if (mDay) mDay.innerHTML = pnlChipHTML(dayChg, true);
+            const mPnl = card.querySelector('.mcell-pnl');
+            if (mPnl) {
+              mPnl.textContent = fmtINR(pnl);
+              mPnl.className = 'mcell-pnl font-mono font-bold tabular-nums whitespace-nowrap ' + pnlColorClass(pnl);
+            }
+            const mPnlChip = card.querySelector('.mcell-pnl-chip');
+            if (mPnlChip) mPnlChip.innerHTML = pnlChipHTML(pnlPct);
+          }
+
+          // If expanded, update LTP in the expanded view
+          const expLtp = document.getElementById('pf-exp-ltp-' + h.symbol);
+          if (expLtp) expLtp.textContent = fmtINR(ltp);
+        });
+
+        updateHoldingsFooter(list);
+        return;
+      }
+
+      // Full Build Path (table layout rebuilt when sorting, filtering, or row count changes)
+      tbody.innerHTML = '';
+      if (cardsWrap) cardsWrap.innerHTML = '';
+
+      list.forEach(h => {
+        const pnl = h.unrealized_pnl || 0;
+        const pnlPct = h.pnl_pct || 0;
+        const dayChg = h.day_change_pct || 0;
+        const ltp = h.live_price || h.avg_buy_price;
+
+        // Flash detection on price tick
+        let flashClass = '';
+        if (previousHoldingsPrices[h.symbol] !== undefined && previousHoldingsPrices[h.symbol] !== null && previousHoldingsPrices[h.symbol] !== ltp) {
+          flashClass = ltp > previousHoldingsPrices[h.symbol] ? 'flash-green' : 'flash-red';
+        }
+        previousHoldingsPrices[h.symbol] = ltp;
+
+        const isExpanded = expandedRowSymbol === h.symbol;
+        const advisory = globalAdvisoryData?.stock_advisories?.find(s => s.symbol === h.symbol || s.company_name.includes(h.symbol));
+        const tech = advisory?.technicals || {
+          rsi: 35.0, rsi_status: 'Accumulation', stop_loss: (h.avg_buy_price * 0.9).toFixed(2),
+          target_1: (h.avg_buy_price * 1.1).toFixed(2), target_2: (h.avg_buy_price * 1.2).toFixed(2),
+          pattern: 'Base Consolidation', strategy: 'Positional hold. Maintain risk guardrail.'
+        };
+
+        const rsiVal = Number(tech.rsi) || 50;
+        let rsiStatus = 'Neutral';
+        let rsiBadgeColor = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
+        if (rsiVal <= 35) {
+          rsiStatus = 'Oversold';
+          rsiBadgeColor = 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300';
+        } else if (rsiVal >= 65) {
+          rsiStatus = 'Overbought';
+          rsiBadgeColor = 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300';
+        }
+
+        // 1. DESKTOP ROW (Subtle hover, no zebra, right-aligned numbers, tabular-nums)
+        const row = document.createElement('tr');
+        row.id = `pf-row-${h.symbol}`;
+        row.dataset.holdingSymbol = h.symbol;
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
+        row.className = `hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors duration-150 cursor-pointer border-b border-slate-100 dark:border-slate-800/80 ${isExpanded ? 'bg-emerald-50/20 dark:bg-emerald-950/20' : ''}`;
+        row.onclick = (e) => {
+          if (e.target.closest('button') || e.target.closest('input')) return;
+          toggleRowExpand(h.symbol);
+        };
+        row.onkeydown = (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggleRowExpand(h.symbol);
+          }
+        };
+
+        // Mini Sparkline SVG
+        const sparklineColor = dayChg >= 0 ? '#10B981' : '#EF4444';
+        const sparklinePath = dayChg >= 0 ? 'M 0 15 Q 12 18, 25 10 T 50 4' : 'M 0 5 Q 12 4, 25 12 T 50 16';
+
+        row.innerHTML = `
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+              <button onclick="toggleRowExpand('${h.symbol}')" class="p-0.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition" aria-label="Toggle details">
+                <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}" class="w-3.5 h-3.5"></i>
+              </button>
+              <div class="min-w-0">
+                <span class="font-bold text-slate-900 dark:text-white block truncate max-w-[200px] sm:max-w-[260px]" title="${h.company_name}">${h.company_name}</span>
+                <div class="text-[10px] text-slate-400 font-mono">${h.symbol} · ${h.exchange}</div>
+              </div>
+            </div>
+          </td>
+          <td class="cell-qty px-3 py-3 text-right font-mono text-slate-700 dark:text-slate-300 tabular-nums">${h.quantity}</td>
+          <td class="cell-avg px-3 py-3 text-right font-mono text-slate-700 dark:text-slate-300 tabular-nums">${fmtINR(h.avg_buy_price)}</td>
+          <td class="cell-ltp px-3 py-3 text-right font-mono font-bold text-slate-900 dark:text-white tabular-nums ${flashClass}" aria-live="polite">
+            ${fmtINR(ltp)}
+          </td>
+          <td class="cell-curval px-3 py-3 text-right font-mono font-bold text-slate-900 dark:text-white tabular-nums" aria-live="polite">${fmtINR(h.current_value)}</td>
+          <td class="px-3 py-3 text-right whitespace-nowrap">
+            <div class="cell-pnl-val font-mono font-bold tabular-nums ${pnlColorClass(pnl)}">${fmtINR(pnl)}</div>
+            <div class="cell-pnl-chip">${pnlChipHTML(pnlPct)}</div>
+          </td>
+          <td class="cell-daychg px-3 py-3 text-right whitespace-nowrap">
+            ${pnlChipHTML(dayChg, true)}
+          </td>
+          <td class="cell-trend px-2 py-3 text-center">
+            ${renderSparkline(h.trend_closes)}
+          </td>
+          <td class="px-4 py-3 text-right whitespace-nowrap">
+            <div class="flex items-center justify-end gap-1.5">
+              <button onclick="toggleRowExpand('${h.symbol}')" title="AI Technical Diagnostics"
+                      class="px-2 py-1 rounded-md text-[10px] font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800/60 transition cursor-pointer">
+                AI Insight
+              </button>
+              <button onclick="deleteHolding(${h.id}, '${h.symbol}')" title="Delete holding"
+                      class="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(row);
+
+        // Desktop Inline Row Expand (Horizontal Bar: Stop-Loss, Avg Cost, LTP, Target 1, Target 2 + RSI Badge)
+        if (isExpanded) {
+          const expandRow = document.createElement('tr');
+          expandRow.id = `pf-expand-${h.symbol}`;
+          expandRow.className = 'bg-slate-50/70 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800';
+          expandRow.innerHTML = `
+            <td colspan="9" class="p-4 sm:p-5 space-y-3">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 dark:border-slate-800 pb-2.5">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-500"></i> ${h.symbol} Technical Health Diagnosis
+                  </span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${rsiBadgeColor}">
+                    RSI ${rsiVal.toFixed(1)} · ${rsiStatus}
+                  </span>
+                </div>
+                <div class="text-[11px] text-slate-500 font-mono">
+                  Pattern: <strong>${tech.pattern || 'Consolidation'}</strong>
+                </div>
+              </div>
+
+              <!-- Horizontal Price Bar (Stop-Loss -> Avg Cost -> LTP -> Target 1 -> Target 2) -->
+              <div class="space-y-1.5 pt-1">
+                <div class="grid grid-cols-2 sm:grid-cols-5 text-center text-[10px] font-mono font-semibold gap-2">
+                  <div class="text-rose-600 dark:text-rose-400 sm:text-left">
+                    <span class="block text-[9px] text-slate-400 font-sans">Stop-Loss</span>
+                    ${fmtINR(tech.stop_loss)}
+                  </div>
+                  <div class="text-slate-600 dark:text-slate-400">
+                    <span class="block text-[9px] text-slate-400 font-sans">Avg Cost</span>
+                    ${fmtINR(h.avg_buy_price)}
+                  </div>
+                  <div class="text-slate-900 dark:text-white font-bold bg-slate-200/60 dark:bg-slate-800 px-1 py-0.5 rounded">
+                    <span class="block text-[9px] text-emerald-600 dark:text-emerald-400 font-sans font-bold">LTP</span>
+                    <span id="pf-exp-ltp-${h.symbol}">${fmtINR(ltp)}</span>
+                  </div>
+                  <div class="text-blue-600 dark:text-blue-400">
+                    <span class="block text-[9px] text-slate-400 font-sans">Target 1</span>
+                    ${fmtINR(tech.target_1)}
+                  </div>
+                  <div class="text-indigo-600 dark:text-indigo-400 sm:text-right">
+                    <span class="block text-[9px] text-slate-400 font-sans">Target 2</span>
+                    ${fmtINR(tech.target_2)}
+                  </div>
+                </div>
+                <div class="relative h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex shadow-inner">
+                  <div class="h-full bg-rose-400" style="width: 20%" title="Stop-Loss Zone"></div>
+                  <div class="h-full bg-amber-400" style="width: 25%" title="Cost Zone"></div>
+                  <div class="h-full bg-emerald-400" style="width: 25%" title="Target 1 Zone"></div>
+                  <div class="h-full bg-blue-500" style="width: 30%" title="Target 2 Zone"></div>
+                </div>
+              </div>
+
+              <!-- AI Action Plan with Markdown Support -->
+              <div class="p-3 rounded-lg bg-white dark:bg-[#121826] border border-slate-200/70 dark:border-slate-800 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">
+                <strong>💡 Action Plan:</strong> ${formatAIMarkdown(tech.strategy || 'Hold position. Maintain risk guardrail.')}
+              </div>
+            </td>
+          `;
+          tbody.appendChild(expandRow);
+        }
+
+        // 2. MOBILE STACKED CARD (< 768px)
+        if (cardsWrap) {
+          const card = document.createElement('div');
+          card.id = `pf-card-${h.symbol}`;
+          card.dataset.holdingSymbol = h.symbol;
+          card.className = `p-3.5 space-y-2.5 transition ${isExpanded ? 'bg-emerald-50/20 dark:bg-emerald-950/20' : ''}`;
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex-1 cursor-pointer" onclick="toggleRowExpand('${h.symbol}')">
+                <div class="font-bold text-xs text-slate-900 dark:text-white">${h.company_name}</div>
+                <div class="text-[10px] text-slate-400 font-mono">${h.symbol} · ${h.exchange}</div>
+              </div>
+              <div class="text-right">
+                <div class="mcell-ltp font-mono font-bold text-xs text-slate-900 dark:text-white tabular-nums ${flashClass}">${fmtINR(ltp)}</div>
+                <div class="mcell-daychg mt-0.5">${pnlChipHTML(dayChg, true)}</div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100/80 dark:border-slate-800/60">
+              <div class="text-slate-500 font-mono">
+                <span>Qty: <strong class="mcell-qty text-slate-700 dark:text-slate-300">${h.quantity}</strong></span> · 
+                <span>Avg: <strong class="mcell-avg text-slate-700 dark:text-slate-300">${fmtINR(h.avg_buy_price)}</strong></span>
+              </div>
+              <div class="text-right whitespace-nowrap">
+                <span class="text-slate-400 text-[10px]">P&amp;L:</span>
+                <span class="mcell-pnl font-mono font-bold tabular-nums whitespace-nowrap ${pnlColorClass(pnl)}">${fmtINR(pnl)}</span>
+                <span class="mcell-pnl-chip whitespace-nowrap">${pnlChipHTML(pnlPct)}</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <button onclick="toggleRowExpand('${h.symbol}')" class="px-2.5 py-1 rounded-md text-[10px] font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800/60 transition flex items-center gap-1">
+                <i data-lucide="sparkles" class="w-3 h-3 text-indigo-500"></i>
+                <span>${isExpanded ? 'Hide Diagnosis' : 'AI Insight'}</span>
+                <i data-lucide="${isExpanded ? 'chevron-up' : 'chevron-down'}" class="w-3 h-3"></i>
+              </button>
+              <button onclick="deleteHolding(${h.id}, '${h.symbol}')" class="p-1 rounded text-slate-400 hover:text-rose-600 transition">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+
+            ${isExpanded ? `
+              <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2 mt-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${rsiBadgeColor}">
+                    RSI ${rsiVal.toFixed(1)} · ${rsiStatus}
+                  </span>
+                  <span class="text-[10px] text-slate-500 font-mono">${tech.pattern || 'Consolidation'}</span>
+                </div>
+                <div class="space-y-1">
+                  <div class="flex justify-between text-[9px] font-mono text-slate-400">
+                    <span class="text-rose-600">SL: ${fmtINR(tech.stop_loss)}</span>
+                    <span class="text-emerald-600 font-bold">LTP: ${fmtINR(ltp)}</span>
+                    <span class="text-indigo-600">Tgt: ${fmtINR(tech.target_1)}</span>
+                  </div>
+                  <div class="h-1.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full flex overflow-hidden">
+                    <div class="bg-rose-400 h-full" style="width: 25%"></div>
+                    <div class="bg-emerald-400 h-full" style="width: 45%"></div>
+                    <div class="bg-indigo-400 h-full" style="width: 30%"></div>
+                  </div>
+                </div>
+                <p class="text-[10px] text-slate-600 dark:text-slate-300 leading-snug pt-1">
+                  <strong>Action:</strong> ${formatAIMarkdown(tech.strategy || 'Hold. Maintain stop loss.')}
+                </p>
+              </div>
+            ` : ''}
+          `;
+          cardsWrap.appendChild(card);
+        }
+      });
+
+      // Populate Table Footer Totals
+      updateHoldingsFooter(list);
+
+      // Add Mobile Summary Card at bottom
+      if (cardsWrap && list.length > 0) {
+        let sumInvested = 0;
+        let sumCurrentVal = 0;
+        list.forEach(h => {
+          const qty = Number(h.quantity) || 0;
+          sumInvested += Number(h.invested_value != null ? h.invested_value : (h.avg_buy_price * qty)) || 0;
+          sumCurrentVal += Number(h.current_value != null ? h.current_value : (h.live_price ? h.live_price * qty : sumInvested)) || 0;
+        });
+        const totalPnl = sumCurrentVal - sumInvested;
+        const totalPnlPct = sumInvested > 0 ? (totalPnl / sumInvested) * 100 : 0;
+
+        const summaryCard = document.createElement('div');
+        summaryCard.className = 'p-4 bg-slate-100/90 dark:bg-slate-900/90 rounded-b-xl space-y-2 border-t border-slate-200 dark:border-slate-800';
+        summaryCard.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Total Portfolio (Till Now)
+            </span>
+            <span class="text-xs font-mono font-extrabold tabular-nums ${pnlColorClass(totalPnl)}">${fmtINR(totalPnl)} (${fmtPct(totalPnlPct)})</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-[11px] pt-1 text-slate-600 dark:text-slate-400 font-mono">
+            <div>Invested: <strong class="text-slate-900 dark:text-white">${fmtINR(sumInvested)}</strong></div>
+            <div>Current: <strong class="text-slate-900 dark:text-white">${fmtINR(sumCurrentVal)}</strong></div>
+          </div>
+        `;
+        cardsWrap.appendChild(summaryCard);
+      }
+
+      refreshLucideIcons();
+    }
+
+    function toggleRowExpand(symbol) {
+      expandedRowSymbol = expandedRowSymbol === symbol ? null : symbol;
+      renderHoldings(currentPortfolioHoldings, false, true);
+    }
+
+    // Render Allocation Donut Chart (SVG)
+    function renderAllocationDonut(holdings, totalVal) {
+      const svg = document.getElementById('donut-chart-svg');
+      const legend = document.getElementById('donut-legend');
+      const totalEl = document.getElementById('donut-total-val');
+      if (!svg || !legend) return;
+
+      if (!holdings || holdings.length === 0 || !totalVal || totalVal <= 0) {
+        svg.innerHTML = '<circle cx="21" cy="21" r="15.915" fill="none" stroke="#E2E8F0" stroke-width="6"/>';
+        legend.innerHTML = '<span class="text-slate-400">No data</span>';
+        if (totalEl) totalEl.textContent = '₹0.00';
+        return;
+      }
+
+      if (totalEl) totalEl.textContent = fmtINR(totalVal);
+
+      // 6 clearly distinct neutral colors: Indigo, Amber, Pink, Teal, Purple, Slate
+      const colors = ['#6366F1', '#F59E0B', '#EC4899', '#14B8A6', '#8B5CF6', '#64748B'];
+      let displayItems = [];
+      if (holdings.length <= 6) {
+        displayItems = holdings.map(h => ({
+          symbol: h.symbol,
+          val: Math.max(0, Number(h.current_value) || 0)
+        }));
+      } else {
+        const sorted = [...holdings].sort((a, b) => (Number(b.current_value) || 0) - (Number(a.current_value) || 0));
+        const top5 = sorted.slice(0, 5);
+        const othersVal = sorted.slice(5).reduce((sum, h) => sum + Math.max(0, Number(h.current_value) || 0), 0);
+        displayItems = top5.map(h => ({
+          symbol: h.symbol,
+          val: Math.max(0, Number(h.current_value) || 0)
+        }));
+        if (othersVal > 0) {
+          displayItems.push({ symbol: `Others (${sorted.length - 5})`, val: othersVal });
+        }
+      }
+
+      let accumulatedOffset = 0;
+      let svgCircles = '';
+      let legendItems = '';
+
+      displayItems.forEach((item, idx) => {
+        const color = colors[idx];
+        const pct = Math.max(0, (item.val / totalVal) * 100);
+        const dashArray = `${pct.toFixed(1)} ${ (100 - pct).toFixed(1) }`;
+        const dashOffset = (100 - accumulatedOffset);
+        accumulatedOffset += pct;
+
+        svgCircles += `
+          <circle cx="21" cy="21" r="15.915" fill="none" stroke="${color}" stroke-width="5"
+                  stroke-dasharray="${dashArray}" stroke-dashoffset="${dashOffset}"/>
+        `;
+
+        legendItems += `
+          <div class="flex items-center justify-between gap-1.5 py-0.5">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs" style="background: ${color}"></span>
+              <span class="truncate font-semibold text-slate-800 dark:text-slate-200 text-[11px]">${item.symbol}</span>
+            </div>
+            <span class="font-mono font-bold text-slate-700 dark:text-slate-300 shrink-0 text-[11px] tabular-nums">${pct.toFixed(1)}%</span>
+          </div>
+        `;
+      });
+
+      svg.innerHTML = svgCircles;
+      legend.innerHTML = legendItems;
+    }
+
+    // AI Portfolio Advisory
+    async function loadPortfolioAdvisory(silent = false) {
+      const btn = document.getElementById('adv-diag-btn');
+      if (btn && !silent) btn.innerHTML = '<i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i><span>Diagnosing...</span>';
+      try {
+        const res = await fetch('/api/v1/portfolio/advisory', { headers: getAuthHeaders() });
+        if (res.status === 401) {
+          if (!silent) openLoginModal();
+          return;
+        }
+        if (!res.ok) return;
+        const data = await res.json();
+        globalAdvisoryData = data;
+        renderAdvisoryData(data);
+      } catch (err) {
+        console.error('Advisory load error:', err);
+      } finally {
+        if (btn && !silent) btn.innerHTML = '<i data-lucide="activity" class="w-3 h-3 text-emerald-500"></i><span>Run Diagnosis</span>';
+        refreshLucideIcons();
+      }
+    }
+
+    function renderAdvisoryData(data) {
+      if (!data) return;
+      const score = data.health_score || 50;
+      const scoreEl = document.getElementById('adv-health-score');
+      if (scoreEl) scoreEl.textContent = score;
+
+      const gaugePath = document.getElementById('adv-gauge-path');
+      if (gaugePath) {
+        const pct = Math.min(100, Math.max(0, score));
+        gaugePath.setAttribute('stroke-dasharray', `${pct}, 100`);
+        if (score >= 70) gaugePath.setAttribute('class', 'text-emerald-500 transition-all duration-700 ease-out');
+        else if (score >= 56) gaugePath.setAttribute('class', 'text-blue-500 transition-all duration-700 ease-out');
+        else if (score >= 42) gaugePath.setAttribute('class', 'text-amber-500 transition-all duration-700 ease-out');
+        else gaugePath.setAttribute('class', 'text-rose-500 transition-all duration-700 ease-out');
+      }
+
+      const verdictEl = document.getElementById('adv-health-verdict-badge');
+      if (verdictEl && data.health_verdict) {
+        verdictEl.textContent = data.verdict_badge || `● ${data.health_verdict}`;
+        if (score >= 70) {
+          verdictEl.className = "inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300";
+        } else if (score >= 56) {
+          verdictEl.className = "inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300";
+        } else if (score >= 42) {
+          verdictEl.className = "inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300";
+        } else {
+          verdictEl.className = "inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300";
+        }
+      }
+
+      const regimeEl = document.getElementById('adv-regime-text');
+      if (regimeEl && data.market_sentiment) {
+        regimeEl.textContent = `Regime: ${data.market_sentiment.regime || 'Bullish Base'}`;
+      }
+
+      const summaryEl = document.getElementById('adv-summary-text');
+      if (summaryEl && data.summary) {
+        summaryEl.textContent = data.summary;
+        summaryEl.setAttribute('title', data.summary);
+      }
+
+      // 7. Render 3 Horizontal Strategic Priority Cards (max 3 lines, click to expand, tooltip)
+      const checklistEl = document.getElementById('adv-checklist');
+      if (checklistEl && data.action_checklist?.length) {
+        checklistEl.innerHTML = data.action_checklist.slice(0, 3).map(item => {
+          if (typeof item === 'object') {
+            const iconMap = { opportunity: 'trending-up', protection: 'shield', profit: 'pie-chart' };
+            const iconName = iconMap[item.type] || 'check-circle-2';
+            const cleanDesc = formatAIMarkdown(item.desc || '');
+            return `
+              <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 space-y-1">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 truncate">
+                    <i data-lucide="${iconName}" class="w-3.5 h-3.5 text-emerald-500 shrink-0"></i>
+                    <span class="truncate">${item.title || 'Insight'}</span>
+                  </span>
+                  ${item.badge ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">${item.badge}</span>` : ''}
+                </div>
+                <div class="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                  ${cleanDesc}
+                </div>
+              </div>
+            `;
+          } else {
+            const cleanText = formatAIMarkdown(item);
+            return `
+              <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                ${cleanText}
+              </div>
+            `;
+          }
+        }).join('');
+      }
+      refreshLucideIcons();
+    }
+
+    // =========================================================================
+    // AI Portfolio Copilot Floating Dock & Interactive Chat
+    // =========================================================================
+    let aiVoiceEnabled = false;
+
+    function initAICopilotGreeting() {
+      const chatContainer = document.getElementById('ai-modal-chat-messages');
+      if (!chatContainer) return;
+      chatContainer.innerHTML = `
+        <div class="bg-[#F5EFEB] dark:bg-[#1B2433] border border-[#E8DFD5] dark:border-slate-700/60 rounded-[22px] p-4 sm:p-5 text-[#2D2A26] dark:text-slate-200 text-xs sm:text-[13px] leading-relaxed space-y-2.5 shadow-2xs">
+          <p class="font-bold text-[#1C1A17] dark:text-white flex items-center gap-2">
+            <span>Welcome to IPO Pulse AI Copilot</span>
+          </p>
+          <p>
+            I analyze your live equity holdings, cost bases, profit harvesting levels, and trailing stop-loss guards in real-time. You can ask me specific questions regarding any stock or IPO.
+          </p>
+          <p class="text-[11px] text-[#7C7164] dark:text-slate-400">
+            Click a suggested topic below or type anything in the prompt box to begin.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap gap-2 pt-1" id="ai-quick-suggestions-box">
+          <button type="button" onclick="askAICopilotPrompt('How to make my portfolio green?')" class="rounded-full border border-[#DDD4C7] dark:border-slate-700 bg-[#FFFDFB] dark:bg-[#121826] hover:bg-[#F2ECE3] dark:hover:bg-slate-800/80 px-3.5 py-1.5 text-xs font-semibold text-[#4A443B] dark:text-slate-300 transition shadow-2xs cursor-pointer active:scale-95">
+            🌿 Turn Portfolio Green
+          </button>
+          <button type="button" onclick="askAICopilotPrompt('Show stop loss levels for all holdings')" class="rounded-full border border-[#DDD4C7] dark:border-slate-700 bg-[#FFFDFB] dark:bg-[#121826] hover:bg-[#F2ECE3] dark:hover:bg-slate-800/80 px-3.5 py-1.5 text-xs font-semibold text-[#4A443B] dark:text-slate-300 transition shadow-2xs cursor-pointer active:scale-95">
+            🛡️ Stop-Loss Check
+          </button>
+          <button type="button" onclick="askAICopilotPrompt('What is the best stock to buy on dip?')" class="rounded-full border border-[#DDD4C7] dark:border-slate-700 bg-[#FFFDFB] dark:bg-[#121826] hover:bg-[#F2ECE3] dark:hover:bg-slate-800/80 px-3.5 py-1.5 text-xs font-semibold text-[#4A443B] dark:text-slate-300 transition shadow-2xs cursor-pointer active:scale-95">
+            🎯 Top Dip Pick
+          </button>
+          <button type="button" onclick="askAICopilotPrompt('What is my overall profit and loss till now?')" class="rounded-full border border-[#DDD4C7] dark:border-slate-700 bg-[#FFFDFB] dark:bg-[#121826] hover:bg-[#F2ECE3] dark:hover:bg-slate-800/80 px-3.5 py-1.5 text-xs font-semibold text-[#4A443B] dark:text-slate-300 transition shadow-2xs cursor-pointer active:scale-95">
+            💼 Overall P&L Till Now
+          </button>
+        </div>
+      `;
+      refreshLucideIcons();
+    }
+
+    function openAICopilotModal() {
+      const modal = document.getElementById('ai-copilot-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      modal.classList.add('block');
+
+      const chatContainer = document.getElementById('ai-modal-chat-messages');
+      if (chatContainer && chatContainer.children.length === 0) {
+        initAICopilotGreeting();
+      }
+
+      refreshLucideIcons();
+      setTimeout(() => {
+        const input = document.getElementById('ai-modal-input');
+        if (input) input.focus();
+      }, 100);
+    }
+
+    function closeAICopilotModal() {
+      const modal = document.getElementById('ai-copilot-modal');
+      if (!modal) return;
+      modal.classList.add('hidden');
+      modal.classList.remove('block');
+      modal.classList.remove('flex');
+    }
+
+    function resetAICopilotChat() {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      aiChatHistory = [];
+      initAICopilotGreeting();
+      const input = document.getElementById('ai-modal-input');
+      if (input) {
+        input.value = '';
+        input.focus();
+      }
+    }
+
+    function toggleAICopilotVoice() {
+      aiVoiceEnabled = !aiVoiceEnabled;
+      const icon = document.getElementById('ai-voice-icon');
+      const btn = document.getElementById('ai-voice-btn');
+      if (aiVoiceEnabled) {
+        if (icon) icon.setAttribute('data-lucide', 'volume-2');
+        if (btn) btn.className = "p-1.5 rounded-lg text-amber-700 dark:text-amber-400 bg-[#F2ECE3] dark:bg-amber-950/60 transition cursor-pointer";
+        speakAIText("Voice read-aloud enabled");
+      } else {
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        if (icon) icon.setAttribute('data-lucide', 'volume-x');
+        if (btn) btn.className = "p-1.5 rounded-lg text-[#7C7164] dark:text-slate-400 hover:text-[#2D2A26] dark:hover:text-white hover:bg-[#F0EAE1] dark:hover:bg-slate-800/80 transition cursor-pointer";
+      }
+      refreshLucideIcons();
+    }
+
+    function speakAIText(text) {
+      if (!aiVoiceEnabled || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const plainText = text.replace(/<[^>]*>?/gm, '').replace(/[*#`_]/g, '');
+      const utterance = new SpeechSynthesisUtterance(plainText);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function toggleQuickPromptSuggestions() {
+      const input = document.getElementById('ai-modal-input');
+      if (input) {
+        input.focus();
+        if (!input.value) {
+          input.value = 'How to make my portfolio green?';
+        }
+      }
+    }
+
+    function toggleAICopilotModal() {
+      const modal = document.getElementById('ai-copilot-modal');
+      if (modal && modal.classList.contains('hidden')) {
+        openAICopilotModal();
+      } else {
+        closeAICopilotModal();
+      }
+    }
+
+    function askAICopilotPrompt(promptText) {
+      const input = document.getElementById('ai-modal-input');
+      if (input) input.value = promptText;
+      submitAICopilotChat();
+    }
+
+    async function submitAICopilotChat(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('ai-modal-input');
+      const sendBtn = document.getElementById('ai-modal-send-btn');
+      const chatContainer = document.getElementById('ai-modal-chat-messages');
+      if (!input || !chatContainer) return;
+
+      const query = input.value.trim();
+      if (!query) return;
+
+      // 1. Append User Bubble (Warm dark tone)
+      const userBubble = document.createElement('div');
+      userBubble.className = 'flex items-start justify-end';
+      userBubble.innerHTML = `
+        <div class="bg-[#24211D] text-[#FAF8F5] dark:bg-indigo-600 dark:text-white rounded-[20px] rounded-br-xs px-4 py-2.5 text-xs sm:text-[13px] max-w-[85%] shadow-xs leading-relaxed">
+          ${query.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+        </div>
+      `;
+      chatContainer.appendChild(userBubble);
+      input.value = '';
+
+      // 2. Append Typing Indicator
+      const typingIndicator = document.createElement('div');
+      typingIndicator.id = 'ai-typing-indicator';
+      typingIndicator.className = 'flex items-start';
+      typingIndicator.innerHTML = `
+        <div class="bg-[#F5EFEB] dark:bg-[#1A2234] border border-[#E8DFD5] dark:border-slate-700/60 rounded-[20px] px-4 py-3 text-xs text-[#7C7164] dark:text-slate-400 max-w-[90%] flex items-center gap-2 shadow-2xs">
+          <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-amber-600 shrink-0"></i>
+          <span>Analyzing portfolio momentum &amp; levels...</span>
+        </div>
+      `;
+      chatContainer.appendChild(typingIndicator);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      refreshLucideIcons();
+
+      const recentHistory = aiChatHistory.slice(-6);
+      aiChatHistory.push({ role: 'user', content: query });
+
+      try {
+        const res = await fetch('/api/v1/portfolio/advisory/ask', {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ query: query, history: recentHistory })
+        });
+        if (res.status === 401) {
+          openLoginModal();
+          throw new Error('Authentication required. Please sign in to ask AI questions.');
+        }
+        if (res.status === 429) {
+          throw new Error('Rate limit reached (10 questions/min). Please wait a moment.');
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Failed to get answer');
+
+        aiChatHistory.push({ role: 'assistant', content: data.answer });
+        if (aiChatHistory.length > 20) aiChatHistory = aiChatHistory.slice(-20);
+
+        const indicator = document.getElementById('ai-typing-indicator');
+        if (indicator) indicator.remove();
+
+        const isFallback = (data.source === 'fallback');
+        const fallbackBadge = isFallback 
+          ? `<div class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 mb-1 select-none">
+               <i data-lucide="shield-alert" class="w-3 h-3 text-amber-600 dark:text-amber-400"></i>
+               <span>Basic mode</span>
+             </div>` 
+          : '';
+
+        // 3. Append AI Response Bubble (Warm Tone)
+        const aiBubble = document.createElement('div');
+        aiBubble.className = 'flex items-start';
+        aiBubble.innerHTML = `
+          <div class="bg-[#F5EFEB] dark:bg-[#1A2234] border border-[#E8DFD5] dark:border-slate-700/60 rounded-[22px] px-4 py-3.5 text-xs sm:text-[13px] text-[#2D2A26] dark:text-slate-200 max-w-[92%] leading-relaxed shadow-2xs space-y-1.5">
+            ${fallbackBadge}
+            <div>${formatAIMarkdown(data.answer)}</div>
+          </div>
+        `;
+        chatContainer.appendChild(aiBubble);
+        speakAIText(data.answer);
+      } catch (err) {
+        const indicator = document.getElementById('ai-typing-indicator');
+        if (indicator) indicator.remove();
+
+        const errBubble = document.createElement('div');
+        errBubble.className = 'flex items-start';
+        errBubble.innerHTML = `
+          <div class="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-[20px] px-4 py-3 text-xs text-rose-700 dark:text-rose-300 max-w-[90%] shadow-2xs">
+            Failed to query AI advisor: ${err.message}
+          </div>
+        `;
+        chatContainer.appendChild(errBubble);
+      } finally {
+        if (sendBtn) sendBtn.disabled = false;
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        refreshLucideIcons();
+      }
+    }
+
+    async function deleteHolding(id, symbol) {
+      if (!confirm(`Remove ${symbol} from your portfolio?`)) return;
+      try {
+        const res = await fetch(`${API}/holdings/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+        if (res.status === 401) { openLoginModal(); return; }
+        if (res.ok || res.status === 204) {
+          loadPortfolio();
+        } else {
+          alert('Failed to delete holding.');
+        }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      }
+    }
+
+    async function syncAngelOne() {
+      const btn = document.getElementById('ao-sync-btn');
+      const origHTML = btn.innerHTML;
+      btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Syncing...</span>';
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API}/import/angelone`, { method: 'POST', headers: getAuthHeaders() });
+        if (res.status === 401) { openLoginModal(); return; }
+        const data = await res.json();
+        if (!res.ok) {
+          const detail = String(data.detail || '');
+          if (detail.includes('timed out') || detail.includes('Timeout') || detail.includes('HTTPSConnectionPool')) {
+            alert('🔒 Angel One SmartAPI Firewall Block\n\nAngel One drops connections from cloud servers by default.\n\nTo enable 1-click sync from this server:\n1. Log in to https://smartapi.angelone.in\n2. Open your App settings\n3. Add this server\'s static IP to your Whitelist: 129.154.239.226\n\n💡 Note: Your 6 holdings are already fully imported and live! You can also use the "Import" button to upload your statement anytime.');
+          } else {
+            alert('⚠️ ' + (data.detail || 'Sync failed'));
+          }
+          return;
+        }
+        alert(`✅ Angel One sync complete!\nCreated: ${data.created}  Updated: ${data.updated}  Skipped: ${data.skipped}`);
+        loadPortfolio();
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        btn.innerHTML = origHTML;
+        btn.disabled = false;
+        refreshLucideIcons();
+      }
+    }
+
+    async function importCSV(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      event.target.value = '';
+      try {
+        const res = await fetch(`${API}/import/csv`, { method: 'POST', headers: getAuthHeaders(), body: formData });
+        if (res.status === 401) { openLoginModal(); return; }
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 422 && data.detail && data.detail.includes('password-protected')) {
+            const pwd = prompt('🔒 This statement is password-protected by your broker.\n\nPlease enter your password (e.g., your PAN in CAPITAL letters):');
+            if (pwd && pwd.trim()) {
+              const retryForm = new FormData();
+              retryForm.append('file', file);
+              retryForm.append('password', pwd.trim());
+              const retryRes = await fetch(`${API}/import/csv`, { method: 'POST', headers: getAuthHeaders(), body: retryForm });
+              if (retryRes.status === 401) { openLoginModal(); return; }
+              const retryData = await retryRes.json();
+              if (!retryRes.ok) {
+                alert('⚠️ Decryption/Import failed: ' + (retryData.detail || JSON.stringify(retryData)));
+                return;
+              }
+              alert(`✅ Statement imported!\nParsed: ${retryData.total_parsed}  Created: ${retryData.created}  Updated: ${retryData.updated}`);
+              loadPortfolio();
+              return;
+            }
+            return;
+          }
+          alert('⚠️ Import failed: ' + (data.detail || JSON.stringify(data)));
+          return;
+        }
+        alert(`✅ Import complete!\nParsed: ${data.total_parsed}  Created: ${data.created}  Updated: ${data.updated}`);
+        loadPortfolio();
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      }
+    }
+
+    function openAddHoldingModal() {
+      document.getElementById('add-holding-modal').classList.remove('hidden');
+      document.getElementById('add-holding-modal').classList.add('flex');
+    }
+
+    function closeAddHoldingModal() {
+      document.getElementById('add-holding-modal').classList.add('hidden');
+      document.getElementById('add-holding-modal').classList.remove('flex');
+      document.getElementById('add-holding-form').reset();
+      document.getElementById('add-holding-error').classList.add('hidden');
+    }
+
+    async function submitAddHolding(e) {
+      e.preventDefault();
+      const errEl = document.getElementById('add-holding-error');
+      errEl.classList.add('hidden');
+
+      const body = {
+        symbol: document.getElementById('ah-symbol').value.trim().toUpperCase(),
+        company_name: document.getElementById('ah-company').value.trim(),
+        exchange: document.getElementById('ah-exchange').value,
+        quantity: parseFloat(document.getElementById('ah-qty').value),
+        avg_buy_price: parseFloat(document.getElementById('ah-price').value),
+        initial_transaction_date: document.getElementById('ah-date').value || null,
+      };
+
+      try {
+        const res = await fetch(`${API}/holdings`, {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify(body)
+        });
+        if (res.status === 401) {
+          openLoginModal();
+          return;
+        }
+        if (res.ok || res.status === 201) {
+          closeAddHoldingModal();
+          loadPortfolio();
+        } else {
+          const data = await res.json();
+          errEl.textContent = data.detail || 'Failed to add holding.';
+          errEl.classList.remove('hidden');
+        }
+      } catch (err) {
+        errEl.textContent = 'Network error: ' + err.message;
+        errEl.classList.remove('hidden');
+      }
+    }
+
+    // 15s Live Sync Controller
+    function initLiveSync() {
+      if (liveSyncInterval) clearInterval(liveSyncInterval);
+      liveSyncInterval = setInterval(() => {
+        if (!liveSyncEnabled) return;
+        if (currentActiveTab === 'portfolio') {
+          loadPortfolio(true);
+        } else if (currentActiveTab === 'ipos') {
+          loadIpos(true);
+        }
+      }, 15000);
+    }
+
+    function toggleLiveSync() {
+      liveSyncEnabled = !liveSyncEnabled;
+      const ping = document.getElementById('live-ping');
+      const dot = document.getElementById('live-dot');
+      const text = document.getElementById('live-sync-text');
+
+      if (liveSyncEnabled) {
+        if (ping) ping.classList.remove('hidden');
+        if (dot) dot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
+        if (text) text.textContent = 'Live: 15s';
+        if (currentActiveTab === 'portfolio') loadPortfolio(true);
+        else if (currentActiveTab === 'ipos') loadIpos(true);
+      } else {
+        if (ping) ping.classList.add('hidden');
+        if (dot) dot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-400';
+        if (text) text.textContent = 'Live: OFF';
+      }
+    }
+
+    async function syncMarketData() {
+      const btn = document.getElementById('sync-btn');
+      const icon = document.getElementById('sync-icon');
+      if (icon) icon.classList.add('animate-spin');
+      try {
+        const res = await fetch('/api/v1/scraper/sync', { method: 'POST', headers: getAuthHeaders() });
+        if (res.status === 401) { openLoginModal(); return; }
+        await loadIpos();
+        if (currentActiveTab === 'portfolio') await loadPortfolio();
+      } catch (err) {
+        console.error("Sync error:", err);
+      } finally {
+        if (icon) icon.classList.remove('animate-spin');
+      }
+    }
+
+    // IPO Suggester Logic
+    async function loadIpos(silent = false) {
+      try {
+        const res = await fetch('/api/v1/ipos?limit=100');
+        const data = await res.json();
+        allIpos = data.items || [];
+        updateStats(allIpos);
+        applyFilters();
+      } catch (err) {
+        if (!silent) {
+          console.error("Failed to load IPOs:", err);
+        }
+      }
+    }
+
+    function updateStats(items) {
+      const activeItems = items.filter(i => i.status !== 'LISTED');
+      const live = activeItems.filter(i => i.status === 'LIVE').length;
+      const upcoming = activeItems.filter(i => i.status === 'UPCOMING').length;
+      const apply = activeItems.filter(i => i.score && (i.score.recommendation === 'APPLY' || i.score.recommendation === 'STRONG APPLY')).length;
+      document.getElementById('stat-live').textContent = live;
+      document.getElementById('stat-upcoming').textContent = upcoming;
+      document.getElementById('stat-apply').textContent = apply;
+    }
+
+    function applyFilters() {
+      const search = document.getElementById('search-input').value.toLowerCase().trim();
+      const status = document.getElementById('filter-status').value;
+      const rec = document.getElementById('filter-rec').value;
+      const type = document.getElementById('filter-type')?.value || '';
+
+      const filtered = allIpos.filter(ipo => {
+        if (ipo.status === 'LISTED') return false;
+        const matchesSearch = !search || ipo.company_name.toLowerCase().includes(search) || ipo.symbol.toLowerCase().includes(search);
+        const matchesStatus = !status || ipo.status === status;
+        const matchesRec = !rec || (ipo.score && ipo.score.recommendation === rec);
+        const matchesType = !type || (ipo.ipo_type && ipo.ipo_type.toUpperCase() === type.toUpperCase());
+        return matchesSearch && matchesStatus && matchesRec && matchesType;
+      });
+
+      renderIpos(filtered);
+    }
+
+    function renderIpos(items) {
+      const container = document.getElementById('ipos-container');
+      if (items.length === 0) {
+        container.innerHTML = '<div class="col-span-full py-12 text-center text-slate-400 text-xs">No IPOs found matching the selected filters.</div>';
+        return;
+      }
+
+      const now = new Date();
+
+      container.innerHTML = items.map(ipo => {
+        const score = ipo.score ? ipo.score.composite_score : null;
+        const scoreDisplay = score !== null ? score.toFixed(1) : '—';
+        const rec = ipo.score ? ipo.score.recommendation : 'NEUTRAL';
+        const recClean = rec.replace(' ', '_');
+        const gmp = ipo.latest_gmp;
+        const sub = ipo.latest_subscription;
+        const gmpDisplay = gmp ? `+₹${gmp.gmp_amount} (${gmp.gmp_percentage.toFixed(1)}%)` : 'N/A';
+        const totalSubDisplay = sub ? `${sub.total_multiple.toFixed(1)}x` : 'Awaiting Bids';
+
+        const isSME = (ipo.ipo_type || '').toUpperCase() === 'SME';
+        const typeBadge = isSME
+          ? `<span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 uppercase tracking-wider">SME</span>`
+          : `<span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 uppercase tracking-wider">MAINBOARD</span>`;
+
+        // Day X of Y
+        let dayLabel = '';
+        if (ipo.status === 'LIVE' && ipo.open_date && ipo.close_date) {
+          const open = new Date(ipo.open_date);
+          const close = new Date(ipo.close_date);
+          const totalDays = Math.round((close - open) / 86400000) + 1;
+          const dayNum = Math.min(totalDays, Math.max(1, Math.round((now - open) / 86400000) + 1));
+          dayLabel = `<span class="text-[9px] text-slate-500 dark:text-slate-400 font-medium">Day ${dayNum} of ${totalDays}</span>`;
+        }
+
+        // Updated N min ago
+        let updatedLabel = '';
+        let isStale = false;
+        const rawTime = (ipo.score && ipo.score.calculated_at)
+          || (ipo.latest_gmp && ipo.latest_gmp.recorded_at)
+          || ipo.updated_at;
+        let scrapeTime = null;
+        if (rawTime) {
+          let s = String(rawTime).trim();
+          if (s.includes('T') && !s.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(s)) {
+            s += 'Z';
+          }
+          const d = new Date(s);
+          if (!isNaN(d.getTime())) scrapeTime = d;
+        }
+        if (scrapeTime) {
+          const diffMs = Math.max(0, now - scrapeTime);
+          const diffMin = Math.round(diffMs / 60000);
+          isStale = diffMin > 45;
+          const timeAgo = diffMin < 1
+            ? 'just now'
+            : diffMin < 60
+              ? `${diffMin}m ago`
+              : diffMin < 1440
+                ? `${Math.round(diffMin / 60)}h ago`
+                : `${Math.round(diffMin / 1440)}d ago`;
+          updatedLabel = `<span class="text-[9px] text-slate-400 dark:text-slate-500">Updated ${timeAgo}</span>`;
+        }
+
+        // Stale warning badge
+        const staleWarning = isStale
+          ? `<div class="flex items-center gap-1 text-[9px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 rounded px-2 py-0.5">
+               <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+               Data may be stale (&gt;45 min)
+             </div>`
+          : '';
+
+        // SME note
+        const smeNote = isSME
+          ? `<p class="text-[9px] text-purple-600 dark:text-purple-400 leading-snug mt-0.5">SME: higher minimum bid, lower liquidity</p>`
+          : '';
+
+        // Apply button logic
+        let applyBtn = '';
+        if (ipo.can_apply) {
+          if (rec === 'AVOID') {
+            applyBtn = ''; // hidden for AVOID
+          } else if (rec === 'NEUTRAL') {
+            applyBtn = `<a href="${ipo.angelone_apply_url || ('/api/v1/ipos/' + ipo.id + '/apply/angelone')}" target="_blank"
+              class="px-2.5 py-1 rounded text-xs font-semibold border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">Apply ↗</a>`;
+          } else {
+            applyBtn = `<a href="${ipo.angelone_apply_url || ('/api/v1/ipos/' + ipo.id + '/apply/angelone')}" target="_blank"
+              class="px-2.5 py-1 rounded text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition">Apply ↗</a>`;
+          }
+        } else {
+          applyBtn = `<span class="text-[10px] text-slate-400">Closed</span>`;
+        }
+
+        return `
+          <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 flex flex-col justify-between space-y-3">
+            <div class="space-y-2">
+              <div class="flex justify-between items-start gap-1">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">${ipo.symbol}</span>
+                  ${typeBadge}
+                </div>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${ipo.status === 'LIVE' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}">${ipo.status}</span>
+              </div>
+              <div>
+                <h4 class="font-bold text-xs text-slate-900 dark:text-white line-clamp-1">${ipo.company_name}</h4>
+                ${smeNote}
+              </div>
+
+              ${staleWarning}
+
+              <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold badge-${recClean}">${rec}</span>
+                <span class="font-mono text-xs font-bold text-slate-800 dark:text-white">${scoreDisplay} <span class="text-[9px] text-slate-400">/100</span></span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-[11px]">
+                <div class="p-2 rounded bg-slate-50 dark:bg-slate-900"><span class="text-[10px] text-slate-400 block">GMP</span><strong class="font-mono text-emerald-600 dark:text-emerald-400">${gmpDisplay}</strong></div>
+                <div class="p-2 rounded bg-slate-50 dark:bg-slate-900"><span class="text-[10px] text-slate-400 block">Subscribed</span><strong class="font-mono text-slate-800 dark:text-white">${totalSubDisplay}</strong></div>
+              </div>
+
+              <div class="flex items-center justify-between text-[9px] text-slate-400">
+                ${dayLabel}
+                ${updatedLabel}
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <button onclick="openModal(${ipo.id})" class="text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Analysis ➔</button>
+              ${applyBtn}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Modal Details (IPO)
+    function openModal(ipoId) {
+      const ipo = allIpos.find(i => i.id === ipoId);
+      if (!ipo || !ipo.score) return;
+
+      document.getElementById('modal-company-name').textContent = ipo.company_name;
+      document.getElementById('modal-symbol').textContent = ipo.symbol;
+      
+      const isSME = (ipo.ipo_type || '').toUpperCase() === 'SME';
+      const typeBadge = isSME
+        ? `<span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 uppercase tracking-wider">SME</span>`
+        : `<span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 uppercase tracking-wider">MAINBOARD</span>`;
+      const typeContainer = document.getElementById('modal-ipo-type');
+      if (typeContainer) typeContainer.innerHTML = typeBadge;
+
+      document.getElementById('modal-score').textContent = ipo.score.composite_score;
+
+      const rec = ipo.score.recommendation;
+      const recClean = rec.replace(' ', '_');
+      const badge = document.getElementById('modal-rec-badge');
+      badge.textContent = rec;
+      badge.className = `px-2.5 py-1 rounded-lg font-bold text-xs badge-${recClean}`;
+
+      document.getElementById('modal-gmp-score').textContent = `${ipo.score.gmp_score} / 35`;
+      document.getElementById('modal-gmp-bar').style.width = `${(ipo.score.gmp_score / 35) * 100}%`;
+      document.getElementById('modal-sub-score').textContent = `${ipo.score.subscription_score} / 30`;
+      document.getElementById('modal-sub-bar').style.width = `${(ipo.score.subscription_score / 30) * 100}%`;
+      document.getElementById('modal-val-score').textContent = `${ipo.score.valuation_score} / 20`;
+      document.getElementById('modal-val-bar').style.width = `${(ipo.score.valuation_score / 20) * 100}%`;
+      document.getElementById('modal-struct-score').textContent = `${ipo.score.structure_score} / 15`;
+      document.getElementById('modal-struct-bar').style.width = `${(ipo.score.structure_score / 15) * 100}%`;
+
+      document.getElementById('modal-rev-growth').textContent = ipo.revenue_growth_yoy ? `+${ipo.revenue_growth_yoy}%` : '—';
+      document.getElementById('modal-pat-growth').textContent = ipo.pat_growth_yoy ? `+${ipo.pat_growth_yoy}%` : '—';
+      document.getElementById('modal-debt-equity').textContent = ipo.debt_to_equity ? `${ipo.debt_to_equity}x` : '—';
+
+      const rationale = ipo.score.rationale || {};
+      const pos = rationale.positive_factors || ["Sound issue fundamentals and valuation."];
+      const rsk = rationale.risk_factors || ["Subject to listing day broader market sentiment."];
+      document.getElementById('modal-positives').innerHTML = pos.map(p => `<li>• ${p}</li>`).join('');
+      document.getElementById('modal-risks').innerHTML = rsk.map(r => `<li>• ${r}</li>`).join('');
+
+      document.getElementById('score-modal').classList.remove('hidden');
+      refreshLucideIcons();
+    }
+
+    function closeModal() {
+      document.getElementById('score-modal').classList.add('hidden');
+    }
+
+    // Dropdown UI Helpers
+    function closeAllDropdowns() {
+      document.querySelectorAll('.custom-dropdown > div[id$="-menu"]').forEach(m => m.classList.add('hidden'));
+      const compPopover = document.getElementById('company-picker-popover');
+      if (compPopover) compPopover.classList.add('hidden');
+    }
+
+    function toggleDropdown(type) {
+      const menu = document.getElementById(`filter-${type}-menu`);
+      const isHidden = menu.classList.contains('hidden');
+      closeAllDropdowns();
+      if (isHidden) menu.classList.remove('hidden');
+    }
+
+    function selectDropdownOption(type, value, label) {
+      const hiddenInput = document.getElementById(`filter-${type}`);
+      if (hiddenInput) hiddenInput.value = value;
+      const labelEl = document.getElementById(`filter-${type}-label`);
+      if (labelEl) labelEl.textContent = label;
+      closeAllDropdowns();
+      applyFilters();
+    }
+
+    // Link Intime Registrar Dropdown
+    let registrarCompanies = [];
+    async function toggleCompanyPicker() {
+      if (!registrarCompanies || registrarCompanies.length === 0) {
+        await loadRegistrarCompanies();
+      }
+      const popover = document.getElementById('company-picker-popover');
+      const isHidden = popover.classList.contains('hidden');
+      closeAllDropdowns();
+      if (isHidden) {
+        popover.classList.remove('hidden');
+        const input = document.getElementById('company-search-input');
+        if (input) {
+          input.value = '';
+          filterCompanyOptions('');
+          setTimeout(() => input.focus(), 50);
+        }
+      }
+    }
+
+    function selectCompanyOption(companyId, companyName) {
+      document.getElementById('allotment-company-select').value = companyId;
+      const label = document.getElementById('company-picker-label');
+      label.textContent = companyName;
+      closeAllDropdowns();
+    }
+
+    function filterCompanyOptions(query) {
+      const q = query.toLowerCase().trim();
+      const filtered = registrarCompanies.filter(c => c.company_name.toLowerCase().includes(q));
+      renderCompanyList(filtered);
+    }
+
+    function renderCompanyList(companies) {
+      const listEl = document.getElementById('company-options-list');
+      const currentVal = document.getElementById('allotment-company-select').value;
+      if (!companies || companies.length === 0) {
+        listEl.innerHTML = '<div class="py-3 text-center text-xs text-slate-400">No issues found</div>';
+        return;
+      }
+      listEl.innerHTML = companies.map(c => `
+        <button type="button" onclick="selectCompanyOption('${c.company_id}', '${c.company_name.replace(/'/g, "\\'")}')"
+                class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left ${c.company_id === currentVal ? 'bg-blue-50 dark:bg-blue-950 font-bold text-blue-700 dark:text-blue-300' : ''}">
+          <span class="truncate">${c.company_name}</span>
+        </button>
+      `).join('');
+    }
+
+    async function loadRegistrarCompanies() {
+      try {
+        const res = await fetch('/api/v1/allotment/linkintime/companies');
+        if (res.ok) registrarCompanies = await res.json();
+      } catch (err) {
+        console.error("Registrar fetch failed:", err);
+      }
+      if (!registrarCompanies || registrarCompanies.length === 0) {
+        registrarCompanies = [
+          { company_id: "11959", company_name: "Runwal Enterprise Limited - IPO" },
+          { company_id: "11960", company_name: "Acevector Limited - IPO" },
+          { company_id: "11958", company_name: "Moneyview Limited - IPO" },
+          { company_id: "11957", company_name: "Swastika Infra Limited - IPO" },
+          { company_id: "11956", company_name: "Anand Seamless Limited - SME IPO" },
+          { company_id: "11954", company_name: "Vivekanand Cotspin Limited - SME IPO" },
+          { company_id: "11955", company_name: "FX Multitech Limited - SME IPO" },
+          { company_id: "11953", company_name: "National Stock Exchange Of India Limited - IPO" },
+        ];
+      }
+      renderCompanyList(registrarCompanies);
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.custom-dropdown') && !e.target.closest('#company-picker-wrapper')) {
+        closeAllDropdowns();
+      }
+      // Close modal on backdrop click
+      const aiModal = document.getElementById('ai-copilot-modal');
+      if (e.target === aiModal) {
+        closeAICopilotModal();
+      }
+      const scoreModal = document.getElementById('score-modal');
+      if (e.target === scoreModal) {
+        closeModal();
+      }
+      const addModal = document.getElementById('add-holding-modal');
+      if (e.target === addModal) {
+        closeAddHoldingModal();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeAICopilotModal();
+        closeModal();
+        closeAddHoldingModal();
+        closeAllDropdowns();
+      }
+    });
+
+    async function handleAllotmentSubmit(e) {
+      e.preventDefault();
+      const companyId = document.getElementById('allotment-company-select').value;
+      if (!companyId) {
+        alert('Please choose an IPO issue first.');
+        return;
+      }
+      const queryType = document.querySelector('input[name="query_type"]:checked').value;
+      const queryVal = document.getElementById('query-value').value.trim();
+      const btn = document.getElementById('allotment-submit-btn');
+      const spinner = document.getElementById('allotment-spinner');
+      const resultBox = document.getElementById('allotment-result');
+
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+
+      try {
+        const res = await fetch('/api/v1/allotment/linkintime/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ company_id: companyId, query_type: queryType, query_value: queryVal })
+        });
+        const data = await res.json();
+        resultBox.classList.remove('hidden');
+
+        if (!res.ok || data.status === 'ERROR' || data.success === false) {
+          resultBox.innerHTML = `
+            <div class="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+              <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 text-rose-500"></i>
+              <span>${data.message || 'Registrar unavailable, try again later'}</span>
+            </div>
+          `;
+          refreshLucideIcons();
+          return;
+        }
+
+        const isAllotted = data.status === 'ALLOTTED';
+
+        resultBox.innerHTML = `
+          <div class="p-4 rounded-xl ${isAllotted ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800'} space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">${data.company_name}</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded ${isAllotted ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}">${data.status}</span>
+            </div>
+            <p class="text-xs font-semibold text-slate-900 dark:text-white">${data.message}</p>
+            <div class="grid grid-cols-2 gap-2 text-[11px] bg-white dark:bg-[#121826] p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+              <div><span class="text-slate-400 block text-[10px]">Applied</span> ${data.shares_applied ?? '—'} sh</div>
+              <div><span class="text-slate-400 block text-[10px]">Allotted</span> <strong class="${isAllotted ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-300'}">${data.shares_allotted ?? 0} sh</strong></div>
+            </div>
+          </div>
+        `;
+        refreshLucideIcons();
+      } catch (err) {
+        resultBox.classList.remove('hidden');
+        resultBox.innerHTML = `
+          <div class="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+            <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 text-rose-500"></i>
+            <span>Registrar unavailable, try again later</span>
+          </div>
+        `;
+        refreshLucideIcons();
+      } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+      }
+    }
+
+    // Initialize App on DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      updateAuthUI();
+      loadPortfolio();
+      loadRegistrarCompanies();
+      initLiveSync();
+      refreshLucideIcons();
+    });
+  </script>
+
+</body>
+</html>
