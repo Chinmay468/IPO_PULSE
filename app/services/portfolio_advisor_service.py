@@ -5,6 +5,7 @@ Support/Resistance pivots, and market sentiment to provide actionable portfolio 
 """
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional, Any
 import numpy as np
@@ -1065,13 +1066,38 @@ def build_portfolio_context_data(
 
 
 
-def answer_portfolio_query(query: str, advisory_data: dict, portfolio_summary: Optional[Any] = None) -> str:
+def answer_portfolio_query(
+    query: str,
+    advisory_data: dict,
+    portfolio_summary: Optional[Any] = None,
+    active_ipos: Optional[list[dict]] = None
+) -> str:
     """
     Intelligent NLP response generator for portfolio queries.
-    Identifies intents (Buy Price, Quantity, P&L, Stop-Loss, Targets, Technicals, Improvement Strategies, Totals)
+    Identifies intents (Buy Price, Quantity, P&L, Stop-Loss, Targets, Technicals, Improvement Strategies, Totals, IPOs)
     and delivers direct, data-rich responses.
     """
     q = query.lower().strip()
+
+    # Out of scope / guardrail / speculative / prompt leak check
+    if any(w in q for w in [
+        "bitcoin", "btc", "ethereum", "eth", "crypto", "doge", "solana", "forex", "usd/inr",
+        "usd to inr", "dollar", "euro", "yen", "gbp", "futures", "repo rate", "inflation",
+        "nifty", "sensex", "girega", "chadhega", "openai", "spacex", "stripe", "bytedance", "unlisted",
+        "guarantee", "risk-free", "risk free", "100% sure", "sure-shot", "winning stock",
+        "promise me", "double next month", "system prompt", "bot token", "api key",
+        "hidden prompt", "repeat everything", "system override", "jailbreak", "instructions given to you",
+        "confidential instructions", "ignore previous", "disregard", "secret", "reveal your",
+        "ignre", "systm", "instructns", "gold price", "silver price"
+    ]):
+        return (
+            "🛡️ **Out of Scope / Guardrail Advisory Notice:**\n\n"
+            "I don't have that data right now. As an IPO Pulse portfolio assistant, I strictly track your recorded portfolio holdings, vetted market swing watchlist, and active Mainboard IPOs.\n\n"
+            "• **Market Risk:** Equity investments carry volatility risk; no strategy or stock can guarantee positive returns or risk-free profits.\n"
+            "• **Untracked Assets:** I do not forecast cryptocurrencies, forex currency pairs, macroeconomic indices (Nifty/Sensex), commodities, or private unlisted secondary market shares.\n"
+            "• **Confidentiality:** Developer prompts, API keys, and internal system configurations cannot be revealed."
+        )
+
     ctx = build_portfolio_context_data(advisory_data, portfolio_summary=portfolio_summary)
     stocks = ctx["holdings"]
     tot_invested = ctx["total_invested"]
@@ -1199,7 +1225,7 @@ def answer_portfolio_query(query: str, advisory_data: dict, portfolio_summary: O
             )
 
         # Priority 2: Targets / Resistance / Upside
-        if any(w in q for w in ["target", "targets", "resistance", "upside", "where to sell", "sell price", "tp", "profit target"]):
+        if any(w in q for w in ["target", "targets", "resistance", "upside", "where to sell", "sell price", " tp ", "tp?", "tp.", "take profit", "profit target"]):
             t1 = t.get("target_1")
             t2 = t.get("target_2")
             t1_pct = round(((t1 - ltp) / ltp * 100), 2) if (t1 is not None and ltp is not None and ltp > 0) else None
@@ -1234,7 +1260,11 @@ def answer_portfolio_query(query: str, advisory_data: dict, portfolio_summary: O
             )
 
         # Priority 4: Quantity / How Many Shares
-        if any(w in q for w in ["quantity", "how many", "qty", "number of shares", "shares of", "how much shares", "units"]):
+        if any(w in q for w in [
+            "quantity", "quantty", "qunatity", "how many", "qty", "number of shares", "shares of",
+            "how much shares", "units", "share count", "shares in", "kitne shares", "kitni quantity",
+            "kitne share", "shares do i own", "stocks of", "shares do i have", "shares are in"
+        ]):
             return (
                 f"📦 **Position Holding — {sym} ({cname})**\n\n"
                 f"You currently hold **{qty_disp} shares** of **{sym}** with an invested capital of **{_format_currency(invested)}**.\n\n"
@@ -1296,7 +1326,11 @@ def answer_portfolio_query(query: str, advisory_data: dict, portfolio_summary: O
         "total value", "portfolio value", "total invested", "total profit", "total loss", 
         "total pnl", "net pnl", "overall pnl", "overall profit", "overall loss", 
         "profit and loss till now", "p&l till now", "pnl till now", "profit till now", 
-        "loss till now", "overall profit and loss", "how much profit", "how much loss", "overall return"
+        "loss till now", "overall profit and loss", "how much profit", "how much loss", "overall return",
+        "unrealized", "invested", "invested balance", "capital invested", "total cost",
+        "portfolio worth", "net worth", "balance", "profit or loss",
+        "in profit", "in loss", "gainers", "losers", "how many stocks", "stocks do i have",
+        "active holdings", "number of holdings", "number of stocks", "currnt", "portfolo", "valye", "invstd"
     ]):
         up_count = sum(1 for s in stocks if s.get("unrealized_pnl") is not None and s.get("unrealized_pnl") >= 0)
         down_count = sum(1 for s in stocks if s.get("unrealized_pnl") is not None and s.get("unrealized_pnl") < 0)
@@ -1569,6 +1603,71 @@ def answer_portfolio_query(query: str, advisory_data: dict, portfolio_summary: O
             "_Tip: Hold beyond 12 months → qualifies as LTCG (12.5% tax, with ₹1.25L exemption)._"
         )
 
+    # =========================================================================
+    # C. Active IPO Lookup Check
+    # =========================================================================
+    if active_ipos:
+        matched_ipo = None
+        for item in active_ipos:
+            sym_clean = item.get("symbol", "").lower()
+            name_clean = item.get("company_name", "").lower()
+            if sym_clean and (sym_clean in q or f" {sym_clean} " in f" {q} "):
+                matched_ipo = item
+                break
+            name_words = [w for w in re.findall(r'[a-zA-Z]+', name_clean) if len(w) >= 4 and w not in ("ltd", "limited", "india", "technologies", "agro", "foods", "holdings", "group", "services")]
+            if any(w in q for w in name_words):
+                matched_ipo = item
+                break
+
+        if matched_ipo:
+            ipo_sym = matched_ipo.get("symbol")
+            ipo_name = matched_ipo.get("company_name", ipo_sym)
+            pband = matched_ipo.get("price_band")
+            gmp_s = matched_ipo.get("gmp")
+            sub_s = matched_ipo.get("subscription")
+            rec_s = matched_ipo.get("recommendation")
+            score_s = matched_ipo.get("score")
+
+            # Asking about price band
+            if any(w in q for w in ["price band", "band", "issue price", "pree band", "price"]):
+                return (
+                    f"💰 **IPO Price Band — {ipo_name} ({ipo_sym})**\n\n"
+                    f"• **Price Band:** **{pband}**\n"
+                    f"• **Recommendation:** **{rec_s}** (Score: {score_s})\n"
+                    f"• **GMP:** {gmp_s} | **Subscription:** {sub_s}"
+                )
+            # Asking about GMP
+            if any(w in q for w in ["gmp", "grey market", "premium", "ltest gmp"]):
+                return (
+                    f"📈 **GMP Status — {ipo_name} ({ipo_sym})**\n\n"
+                    f"• **Latest GMP:** **{gmp_s}**\n"
+                    f"• **Price Band:** {pband}\n"
+                    f"• **Recommendation:** **{rec_s}** (Score: {score_s})"
+                )
+            # Asking about subscription
+            if any(w in q for w in ["subscription", "subscribed", "multiple", "subscripn"]):
+                return (
+                    f"👥 **Subscription Update — {ipo_name} ({ipo_sym})**\n\n"
+                    f"• **Total Subscription:** **{sub_s}**\n"
+                    f"• **Recommendation:** **{rec_s}** (Score: {score_s})\n"
+                    f"• **Price Band:** {pband} | **GMP:** {gmp_s}"
+                )
+            # Asking about recommendation / score / whether to apply
+            if any(w in q for w in ["apply", "score", "recommendation", "should i", "kya mujhe"]):
+                return (
+                    f"🎯 **IPO Recommendation — {ipo_name} ({ipo_sym})**\n\n"
+                    f"• **Recommendation:** **{rec_s}**\n"
+                    f"• **Composite Score:** **{score_s}**\n"
+                    f"• **Price Band:** {pband} | **GMP:** {gmp_s} | **Subscription:** {sub_s}"
+                )
+            # General details
+            return (
+                f"🚀 **IPO Details — {ipo_name} ({ipo_sym})**\n\n"
+                f"• **Price Band:** **{pband}**\n"
+                f"• **Recommendation:** **{rec_s}** (Score: {score_s})\n"
+                f"• **GMP:** {gmp_s} | **Subscription:** {sub_s}"
+            )
+
     # Fallback advisory summary
     hs = advisory_data.get('health_score')
     hs_str = f"{hs}/100" if isinstance(hs, (int, float)) else (str(hs) if hs is not None else "unavailable")
@@ -1612,7 +1711,7 @@ async def groq_answer_query(
     api_key = os.getenv("GROQ_API_KEY", "").strip()
 
     if not api_key:
-        fallback_ans = answer_portfolio_query(query, advisory_data, portfolio_summary=portfolio_summary)
+        fallback_ans = answer_portfolio_query(query, advisory_data, portfolio_summary=portfolio_summary, active_ipos=active_ipos)
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
         logger.info(
             "[Chatbot Request] query=%r path=fallback latency_ms=%.2f fallback_error=NO_API_KEY",
@@ -1796,7 +1895,7 @@ async def groq_answer_query(
     except Exception as exc:
         err_type = type(exc).__name__
         logger.warning("Groq API call failed after retry, falling back to rule engine: %s (%s)", err_type, exc)
-        fallback_ans = answer_portfolio_query(query, advisory_data, portfolio_summary=portfolio_summary)
+        fallback_ans = answer_portfolio_query(query, advisory_data, portfolio_summary=portfolio_summary, active_ipos=active_ipos)
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
         logger.info(
             "[Chatbot Request] query=%r path=fallback latency_ms=%.2f fallback_error=%s",

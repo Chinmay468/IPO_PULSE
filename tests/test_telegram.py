@@ -6,14 +6,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.ipo import IPO, IPOScore, IPOGmp, IPOSubscription, IPOStatus, IPOType, RecommendationType
-from app.services.telegram_service import TelegramService, _ALERT_CACHE
+from app.services.telegram_service import TelegramService, _ALERT_CACHE, _RATE_LIMIT_CACHE
 
 
 @pytest.fixture(autouse=True)
-def clear_alert_cache():
+def clear_caches():
     _ALERT_CACHE.clear()
+    _RATE_LIMIT_CACHE.clear()
     yield
     _ALERT_CACHE.clear()
+    _RATE_LIMIT_CACHE.clear()
 
 
 def test_telegram_is_configured(monkeypatch):
@@ -356,9 +358,50 @@ async def test_webhook_unauthorized_user(client, db_session, monkeypatch):
         }
         resp = await client.post("/api/v1/telegram/webhook", json=payload)
         assert resp.status_code == 200
-        assert resp.json()["action"] == "unauthorized"
-        mock_send.assert_called_once()
-        assert "Access Denied" in mock_send.call_args[0][0]
+        assert resp.json()["action"] == "ignored_unauthorized"
+        # Bot ignores unauthorized users completely without sending any message back
+        mock_send.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_webhook_rate_limiting(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_bot_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+
+    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send, \
+         patch.object(TelegramService, "send_chat_action", new_callable=AsyncMock):
+        mock_send.return_value = (True, None)
+
+        # Simulate 20 requests rapidly
+        for i in range(20):
+            payload = {
+                "update_id": 200 + i,
+                "message": {
+                    "message_id": 10 + i,
+                    "chat": {"id": 123456789},
+                    "text": "/help"
+                }
+            }
+            resp = await client.post("/api/v1/telegram/webhook", json=payload)
+            assert resp.status_code == 200
+            assert resp.json()["action"] == "help"
+
+        # 21st request exceeds rate limit
+        payload = {
+            "update_id": 221,
+            "message": {
+                "message_id": 31,
+                "chat": {"id": 123456789},
+                "text": "/help"
+            }
+        }
+        resp = await client.post("/api/v1/telegram/webhook", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["action"] == "rate_limited"
+        # Verify rate limit warning was sent
+        sent_warning = mock_send.call_args[0][0]
+        assert "Rate Limit Exceeded" in sent_warning
 
 
 @pytest.mark.asyncio

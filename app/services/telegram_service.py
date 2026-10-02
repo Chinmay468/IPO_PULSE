@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 # Keeps alert states so users don't receive identical messages every 15 minutes.
 _ALERT_CACHE: Dict[int, str] = {}
 
+# In-memory sliding window for rate limiting: chat_id -> list of float timestamps
+_RATE_LIMIT_CACHE: Dict[str, List[float]] = {}
+RATE_LIMIT_WINDOW_SECONDS: int = 60
+RATE_LIMIT_MAX_MESSAGES: int = 20
+
 
 def markdown_to_telegram_html(md_text: str) -> str:
     """
@@ -180,7 +185,7 @@ class TelegramService:
         listing_str = ipo.listing_date.strftime("%d %b %Y") if ipo.listing_date else "TBA"
 
         msg_lines = [
-            f"🚀 <b>IPO PULSE ALERT: {comp_name}</b>",
+            f"🚀 <b>IPO PULSE ALERT: {comp_name} ({ipo.symbol})</b>",
             f"🏷️ <b>Category:</b> {ipo_type} | <b>Status:</b> {status_val.upper()}",
             "",
             f"📊 <b>AI Verdict:</b> {badge}",
@@ -453,9 +458,12 @@ class TelegramService:
         return card
 
     @classmethod
-    async def answer_ai_query(cls, query: str, session: AsyncSession) -> str:
+    async def answer_ai_query(
+        cls, query: str, session: AsyncSession, return_source: bool = False
+    ) -> str | Tuple[str, str]:
         """
         Uses PortfolioAdvisorService to answer investor questions with live holdings & IPO context.
+        Returns the answer string, or (answer, source) if return_source is True.
         """
         from app.services.portfolio_service import get_portfolio_summary
         from app.services.portfolio_advisor_service import generate_portfolio_advisory, groq_answer_query
@@ -466,10 +474,8 @@ class TelegramService:
         advisory_data = await generate_portfolio_advisory(holdings_dict)
         advisory_data["portfolio_summary"] = summary.model_dump()
 
-        # 2. Fetch active IPOs (filtered to Mainboard if configured)
+        # 2. Fetch active IPOs (both Mainboard and SME for comprehensive query answering)
         ipo_filters = [IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING])]
-        if settings.TELEGRAM_MAINBOARD_ONLY:
-            ipo_filters.append(IPO.ipo_type == IPOType.MAINBOARD)
 
         stmt = (
             select(IPO)
@@ -517,7 +523,7 @@ class TelegramService:
         from app.services.market_shares_service import get_vetted_swing_shares
         market_shares = await get_vetted_swing_shares()
 
-        answer, _source = await groq_answer_query(
+        answer, source = await groq_answer_query(
             query=query,
             advisory_data=advisory_data,
             chat_history=[],
@@ -527,12 +533,16 @@ class TelegramService:
             extra_system_instructions=extra_instructions,
             market_shares=market_shares
         )
+        logger.info("[Telegram AI Query] source=%s query=%r reply_preview=%r", source, query, answer[:200])
+        if return_source:
+            return answer, source
         return answer
 
     @classmethod
     async def handle_incoming_update(cls, update: Dict[str, Any], session: AsyncSession) -> Dict[str, Any]:
         """
         Processes an incoming Telegram webhook update and dispatches two-way responses.
+        Enforces chat ID authorization, in-memory rate limiting, and structured logging.
         """
         message = update.get("message") or update.get("edited_message")
         if not message:
@@ -545,15 +555,28 @@ class TelegramService:
         if not text:
             return {"ok": True, "action": "ignored_empty_text"}
 
-        # Security check: Only process messages from the authorized chat ID
-        configured_chat = str(settings.TELEGRAM_CHAT_ID or "")
-        if chat_id != configured_chat:
-            logger.warning(f"Unauthorized Telegram message received from chat_id={chat_id}")
+        # Security check: Only process messages from the authorized chat ID (read from env via settings)
+        configured_chat = str(settings.TELEGRAM_CHAT_ID or "").strip()
+        if not configured_chat or chat_id != configured_chat:
+            logger.warning(f"Unauthorized Telegram message ignored from chat_id={chat_id}")
+            return {"ok": True, "action": "ignored_unauthorized"}
+
+        # Rate limiting: Sliding window check per chat_id
+        now = datetime.now(timezone.utc).timestamp()
+        timestamps = [t for t in _RATE_LIMIT_CACHE.get(chat_id, []) if now - t < RATE_LIMIT_WINDOW_SECONDS]
+        if len(timestamps) >= RATE_LIMIT_MAX_MESSAGES:
+            _RATE_LIMIT_CACHE[chat_id] = timestamps
+            logger.warning(
+                "Rate limit exceeded for chat_id=%s (%d messages in last %ds)",
+                chat_id, len(timestamps), RATE_LIMIT_WINDOW_SECONDS
+            )
             await cls.send_message(
-                "🔒 <b>Access Denied</b>\n\nThis IPO Pulse AI bot is private to its configured account.",
+                "⏳ <b>Rate Limit Exceeded:</b> You are sending messages too quickly. Please wait a minute before sending another request.",
                 chat_id=chat_id
             )
-            return {"ok": True, "action": "unauthorized"}
+            return {"ok": True, "action": "rate_limited"}
+        timestamps.append(now)
+        _RATE_LIMIT_CACHE[chat_id] = timestamps
 
         # Show typing indicator
         await cls.send_chat_action("typing", chat_id=chat_id)
@@ -581,7 +604,8 @@ class TelegramService:
                 "Just reply with your question and I'll analyze live market data!"
             )
             await cls.send_message(help_text, chat_id=chat_id)
-            return {"ok": True, "action": "help"}
+            logger.info("[Telegram Handled] chat_id=%s source=system query=%r reply_preview=%r", chat_id, text, help_text[:150])
+            return {"ok": True, "action": "help", "source": "system"}
 
         # 2. /shares, /picks, /stocks, or direct request for share suggestions
         if (
@@ -596,12 +620,14 @@ class TelegramService:
             shares = await get_vetted_swing_shares()
             card = format_shares_summary_card(shares)
             await cls.send_message(card, chat_id=chat_id)
-            return {"ok": True, "action": "shares_suggested"}
+            logger.info("[Telegram Handled] chat_id=%s source=vetted_swing_shares query=%r reply_preview=%r", chat_id, text, card[:150])
+            return {"ok": True, "action": "shares_suggested", "source": "vetted_swing_shares"}
 
         # 3. /top, /best
         if clean_lower in ["/top", "/best", "top", "best ipo", "best ipos"]:
             digest_res = await cls.send_top_picks_digest(session)
-            return {"ok": True, "action": "top_picks", "result": digest_res}
+            logger.info("[Telegram Handled] chat_id=%s source=top_picks query=%r reply_preview=%r", chat_id, text, str(digest_res)[:150])
+            return {"ok": True, "action": "top_picks", "source": "top_picks", "result": digest_res}
 
         # 4. /portfolio, /pnl
         if clean_lower in ["/portfolio", "/pnl", "portfolio", "pnl", "my portfolio"]:
@@ -609,7 +635,8 @@ class TelegramService:
             summary = await get_portfolio_summary(session)
             card = cls.format_portfolio_summary_card(summary)
             await cls.send_message(card, chat_id=chat_id)
-            return {"ok": True, "action": "portfolio"}
+            logger.info("[Telegram Handled] chat_id=%s source=portfolio_summary query=%r reply_preview=%r", chat_id, text, card[:150])
+            return {"ok": True, "action": "portfolio", "source": "portfolio_summary"}
 
         # 5. /ipo <name or symbol>
         if clean_lower.startswith("/ipo "):
@@ -633,20 +660,21 @@ class TelegramService:
                 if found_ipo:
                     card = cls.format_ipo_lookup_card(found_ipo)
                     await cls.send_message(card, chat_id=chat_id)
-                    return {"ok": True, "action": "ipo_found"}
+                    logger.info("[Telegram Handled] chat_id=%s source=ipo_lookup query=%r reply_preview=%r", chat_id, text, card[:150])
+                    return {"ok": True, "action": "ipo_found", "source": "ipo_lookup"}
                 else:
-                    await cls.send_message(
-                        f"🔍 No IPO found matching <b>{html.escape(search_term)}</b> in active database.",
-                        chat_id=chat_id
-                    )
-                    return {"ok": True, "action": "ipo_not_found"}
+                    not_found_msg = f"🔍 No IPO found matching <b>{html.escape(search_term)}</b> in active database."
+                    await cls.send_message(not_found_msg, chat_id=chat_id)
+                    logger.info("[Telegram Handled] chat_id=%s source=ipo_lookup query=%r reply_preview=%r", chat_id, text, not_found_msg)
+                    return {"ok": True, "action": "ipo_not_found", "source": "ipo_lookup"}
 
-        # 5. Natural conversation / AI Copilot query
+        # 6. Natural conversation / AI Copilot query
         try:
-            ai_reply = await cls.answer_ai_query(text, session)
+            ai_reply, source = await cls.answer_ai_query(text, session, return_source=True)
             html_reply = markdown_to_telegram_html(ai_reply)
             await cls.send_message(html_reply, chat_id=chat_id)
-            return {"ok": True, "action": "ai_answered"}
+            logger.info("[Telegram Handled] chat_id=%s source=%s query=%r reply_preview=%r", chat_id, source, text, ai_reply[:150])
+            return {"ok": True, "action": "ai_answered", "source": source}
         except Exception as exc:
             logger.error(f"Error answering AI query on Telegram: {exc}", exc_info=True)
             await cls.send_message(
