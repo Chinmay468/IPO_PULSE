@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db, AsyncSessionLocal
-from app.routers import ipo_router, allotment_router, scraper_router, portfolio_router, auth_router
+from app.routers import ipo_router, allotment_router, scraper_router, portfolio_router, auth_router, telegram_router
 from app.services.scheduler import start_scheduler, stop_scheduler
 from app.services.scraper_service import ScraperService
 from app.rate_limiter import limiter
@@ -71,6 +71,7 @@ app.include_router(ipo_router, prefix=settings.API_V1_PREFIX)
 app.include_router(allotment_router, prefix=settings.API_V1_PREFIX)
 app.include_router(scraper_router, prefix=settings.API_V1_PREFIX)
 app.include_router(portfolio_router, prefix=settings.API_V1_PREFIX)
+app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
 
 
 from pathlib import Path

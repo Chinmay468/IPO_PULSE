@@ -19,6 +19,12 @@ async def scheduled_market_sync():
         async with AsyncSessionLocal() as session:
             result = await ScraperService.sync_market_data(session)
             logger.info(f"Scheduled market sync completed: {result}")
+
+            # Send real-time Telegram alerts for top-tier IPOs
+            from app.services.telegram_service import TelegramService
+            if TelegramService.is_configured():
+                alert_res = await TelegramService.send_best_ipo_alerts(session)
+                logger.info(f"Telegram alerts processed: {alert_res}")
     except Exception as exc:
         logger.error(f"Error during scheduled market sync: {exc}", exc_info=True)
 

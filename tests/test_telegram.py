@@ -1,0 +1,207 @@
+import pytest
+from datetime import date, datetime, timezone
+from unittest.mock import AsyncMock, patch
+from httpx import Response
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.models.ipo import IPO, IPOScore, IPOGmp, IPOSubscription, IPOStatus, IPOType, RecommendationType
+from app.services.telegram_service import TelegramService, _ALERT_CACHE
+
+
+@pytest.fixture(autouse=True)
+def clear_alert_cache():
+    _ALERT_CACHE.clear()
+    yield
+    _ALERT_CACHE.clear()
+
+
+def test_telegram_is_configured(monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", None)
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", None)
+    assert TelegramService.is_configured() is False
+
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+    assert TelegramService.is_configured() is True
+
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", False)
+    assert TelegramService.is_configured() is False
+
+
+def test_format_ipo_alert():
+    ipo = IPO(
+        company_name="Premier Energies Ltd & Co <Tech>",
+        symbol="PREMIERENE",
+        ipo_type=IPOType.MAINBOARD,
+        status=IPOStatus.LIVE,
+        price_band_low=427.0,
+        price_band_high=450.0,
+        open_date=date(2026, 10, 5),
+        close_date=date(2026, 10, 7),
+        listing_date=date(2026, 10, 12),
+    )
+    score = IPOScore(
+        composite_score=84.5,
+        recommendation=RecommendationType.STRONG_APPLY,
+        rationale={"positive_factors": ["Strong revenue growth > 40%", "Exceptional anchor book response"]}
+    )
+    gmp = IPOGmp(
+        gmp_amount=195.0,
+        gmp_percentage=43.3
+    )
+    sub = IPOSubscription(
+        total_multiple=18.4
+    )
+
+    alert_text = TelegramService.format_ipo_alert(ipo, score, gmp, sub)
+
+    assert "Premier Energies Ltd &amp; Co &lt;Tech&gt;" in alert_text
+    assert "STRONG APPLY" in alert_text
+    assert "84.5 / 100" in alert_text
+    assert "+₹195.00" in alert_text
+    assert "(+43.3%)" in alert_text
+    assert "18.40x" in alert_text
+    assert "05 Oct 2026" in alert_text
+    assert "Strong revenue growth &gt; 40%" in alert_text
+
+
+@pytest.mark.asyncio
+async def test_send_message_success(monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "test_bot_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "987654321")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = Response(200, json={"ok": True, "result": {"message_id": 101}})
+        success, err = await TelegramService.send_message("<b>Hello World</b>")
+        assert success is True
+        assert err is None
+        mock_post.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_send_message_api_failure(monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "bad_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "987654321")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = Response(401, json={"ok": False, "description": "Unauthorized: invalid bot token"})
+        success, err = await TelegramService.send_message("Test message")
+        assert success is False
+        assert "Unauthorized" in err
+
+
+@pytest.mark.asyncio
+async def test_send_test_message(monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+
+    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = (True, None)
+        res = await TelegramService.send_test_message()
+        assert res["success"] is True
+        assert "Test notification delivered successfully" in res["message"]
+
+
+@pytest.mark.asyncio
+async def test_send_best_ipo_alerts_deduplication(db_session: AsyncSession, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "test_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+    monkeypatch.setattr(settings, "TELEGRAM_MIN_SCORE", 65.0)
+    monkeypatch.setattr(settings, "TELEGRAM_MIN_GMP_PCT", 20.0)
+
+    # 1. Create a top-pick IPO
+    top_ipo = IPO(
+        company_name="Solarium Green Energy",
+        symbol="SOLARIUM",
+        ipo_type=IPOType.SME,
+        status=IPOStatus.LIVE,
+        open_date=date.today(),
+        created_at=datetime.now(timezone.utc)
+    )
+    db_session.add(top_ipo)
+    await db_session.flush()
+
+    top_score = IPOScore(
+        ipo_id=top_ipo.id,
+        composite_score=82.0,
+        recommendation=RecommendationType.STRONG_APPLY,
+        calculated_at=datetime.now(timezone.utc)
+    )
+    top_gmp = IPOGmp(
+        ipo_id=top_ipo.id,
+        gmp_amount=75.0,
+        gmp_percentage=45.0,
+        recorded_at=datetime.now(timezone.utc)
+    )
+    db_session.add_all([top_score, top_gmp])
+
+    # 2. Create an AVOID IPO (should be skipped)
+    avoid_ipo = IPO(
+        company_name="Laggard Ltd",
+        symbol="LAGGARD",
+        ipo_type=IPOType.MAINBOARD,
+        status=IPOStatus.LIVE,
+        created_at=datetime.now(timezone.utc)
+    )
+    db_session.add(avoid_ipo)
+    await db_session.flush()
+
+    avoid_score = IPOScore(
+        ipo_id=avoid_ipo.id,
+        composite_score=35.0,
+        recommendation=RecommendationType.AVOID,
+        calculated_at=datetime.now(timezone.utc)
+    )
+    db_session.add(avoid_score)
+    await db_session.commit()
+
+    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = (True, None)
+
+        # First run: should alert the top IPO once
+        result1 = await TelegramService.send_best_ipo_alerts(db_session)
+        assert result1["sent"] == 1
+        assert result1["skipped"] == 1  # Laggard Ltd skipped
+        mock_send.assert_awaited_once()
+
+        # Second run immediately without changes: should skip both due to deduplication
+        mock_send.reset_mock()
+        result2 = await TelegramService.send_best_ipo_alerts(db_session)
+        assert result2["sent"] == 0
+        assert result2["skipped"] == 2
+        mock_send.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_telegram_api_endpoints(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_bot_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+
+    # 1. Status endpoint
+    status_resp = await client.get("/api/v1/telegram/status", headers=auth_headers)
+    assert status_resp.status_code == 200
+    status_data = status_resp.json()
+    assert status_data["configured"] is True
+    assert status_data["chat_id_configured"] is True
+    assert "mock_bot_token" not in status_resp.text  # NEVER leak token
+
+    # 2. Test notification endpoint
+    with patch.object(TelegramService, "send_test_message", new_callable=AsyncMock) as mock_test:
+        mock_test.return_value = {"success": True, "message": "Delivered successfully"}
+        test_resp = await client.post("/api/v1/telegram/test", headers=auth_headers)
+        assert test_resp.status_code == 200
+        assert test_resp.json()["success"] is True
+
+    # 3. Digest endpoint
+    with patch.object(TelegramService, "send_top_picks_digest", new_callable=AsyncMock) as mock_digest:
+        mock_digest.return_value = {"success": True, "picks_count": 2}
+        digest_resp = await client.post("/api/v1/telegram/digest", headers=auth_headers)
+        assert digest_resp.status_code == 200
+        assert digest_resp.json()["picks_count"] == 2

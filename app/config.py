@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     ANGELONE_TOTP_SECRET: Optional[str] = None # Base32 TOTP secret from 2FA setup
     ANGELONE_PAN: Optional[str] = None         # PAN number for decrypting Excel statement exports
 
+    # ── Telegram Bot Notifications ──────────────────────────────────────────
+    TELEGRAM_BOT_TOKEN: Optional[str] = None
+    TELEGRAM_CHAT_ID: Optional[str] = None
+    TELEGRAM_NOTIFICATIONS_ENABLED: bool = True
+    TELEGRAM_MIN_SCORE: float = 65.0
+    TELEGRAM_MIN_GMP_PCT: float = 20.0
+
 
 settings = Settings()
 
