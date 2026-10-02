@@ -663,13 +663,28 @@
     <section id="tab-allotment" class="hidden max-w-xl mx-auto space-y-6">
       <div class="bg-white dark:bg-[#121826] p-6 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft">
         
-        <div class="flex items-center gap-3 mb-5">
+        <div class="flex items-center gap-3 mb-4">
           <div class="h-10 w-10 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
             <i data-lucide="building-2" class="w-5 h-5"></i>
           </div>
           <div>
             <h2 class="text-base font-bold text-slate-900 dark:text-white">Link Intime Allotment Status</h2>
             <p class="text-xs text-slate-400">Live proxy query by PAN, Application No, or DP Client ID</p>
+          </div>
+        </div>
+
+        <!-- Registrar Explanatory Note & Quick Links -->
+        <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mb-4 flex items-start gap-2">
+          <i data-lucide="info" class="w-4 h-4 text-blue-500 shrink-0 mt-0.5"></i>
+          <div>
+            <span>This live checker connects directly to <strong>Link Intime</strong>. Only IPOs where Link Intime was the assigned registrar appear here. For IPOs managed by other registrars:</span>
+            <div class="flex flex-wrap gap-2.5 mt-2">
+              <a href="https://kosmic.kfintech.com/ipostatus/" target="_blank" class="inline-flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400 hover:underline">KFintech Portal ↗</a>
+              <span class="text-slate-300 dark:text-slate-700">•</span>
+              <a href="https://ipo.bigshareonline.com/" target="_blank" class="inline-flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400 hover:underline">Bigshare Portal ↗</a>
+              <span class="text-slate-300 dark:text-slate-700">•</span>
+              <a href="https://www.bseindia.com/investors/appli_check.aspx" target="_blank" class="inline-flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400 hover:underline">BSE India Allotment ↗</a>
+            </div>
           </div>
         </div>
 
