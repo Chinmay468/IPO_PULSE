@@ -1513,14 +1513,20 @@
       }
 
       // Allocation Donut
-      const donutSvg = document.getElementById('donut-svg');
-      if (donutSvg) donutSvg.innerHTML = '<circle cx="18" cy="18" r="14" fill="transparent" stroke="#E2E8F0" stroke-width="4"></circle>';
+      const donutSvg = document.getElementById('donut-chart-svg') || document.getElementById('donut-svg');
+      if (donutSvg) donutSvg.innerHTML = '<circle cx="21" cy="21" r="15.915" fill="none" stroke="#E2E8F0" stroke-width="6"/>';
 
-      const donutVal = document.getElementById('donut-center-val');
+      const donutVal = document.getElementById('donut-total-val') || document.getElementById('donut-center-val');
       if (donutVal) donutVal.textContent = '—';
 
       const donutLegend = document.getElementById('donut-legend');
       if (donutLegend) donutLegend.innerHTML = `<div class="text-xs text-slate-400 text-center py-2">${isSignedOut ? 'Sign in to view allocation' : 'No holdings allocated'}</div>`;
+
+      // AI Strategic Priorities Checklist
+      const checklistEl = document.getElementById('adv-checklist');
+      if (checklistEl) {
+        checklistEl.innerHTML = `<div class="text-xs text-slate-400 text-center py-2">${isSignedOut ? 'Sign in to view strategic priorities' : 'No active alerts'}</div>`;
+      }
 
       // AI Portfolio Doctor
       const advScore = document.getElementById('adv-health-score');
