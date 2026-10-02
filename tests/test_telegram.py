@@ -205,3 +205,66 @@ async def test_telegram_api_endpoints(client, auth_headers, monkeypatch):
         digest_resp = await client.post("/api/v1/telegram/digest", headers=auth_headers)
         assert digest_resp.status_code == 200
         assert digest_resp.json()["picks_count"] == 2
+
+
+def test_markdown_to_telegram_html():
+    from app.services.telegram_service import markdown_to_telegram_html
+    md = "**Strong Buy** and *caution* on `TATAMOTORS`.\n# Heading\n- Item 1\n- Item 2"
+    res = markdown_to_telegram_html(md)
+    assert "<b>Strong Buy</b>" in res
+    assert "<i>caution</i>" in res
+    assert "<code>TATAMOTORS</code>" in res
+    assert "<b>Heading</b>" in res
+    assert "• Item 1" in res
+
+
+@pytest.mark.asyncio
+async def test_webhook_unauthorized_user(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_bot_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+
+    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send, \
+         patch.object(TelegramService, "send_chat_action", new_callable=AsyncMock):
+        mock_send.return_value = (True, None)
+
+        # Message from stranger chat_id 999999
+        payload = {
+            "update_id": 100,
+            "message": {
+                "message_id": 1,
+                "chat": {"id": 999999},
+                "text": "Hello"
+            }
+        }
+        resp = await client.post("/api/v1/telegram/webhook", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["action"] == "unauthorized"
+        mock_send.assert_called_once()
+        assert "Access Denied" in mock_send.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_webhook_start_command(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_bot_token")
+    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
+    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
+
+    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send, \
+         patch.object(TelegramService, "send_chat_action", new_callable=AsyncMock):
+        mock_send.return_value = (True, None)
+
+        payload = {
+            "update_id": 101,
+            "message": {
+                "message_id": 2,
+                "chat": {"id": 123456789},
+                "text": "/start"
+            }
+        }
+        resp = await client.post("/api/v1/telegram/webhook", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["action"] == "help"
+        mock_send.assert_called_once()
+        assert "Welcome to IPO Pulse AI Bot" in mock_send.call_args[0][0]
+

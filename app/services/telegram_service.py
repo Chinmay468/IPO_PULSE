@@ -1,5 +1,6 @@
 import logging
 import html
+import re
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 import httpx
@@ -17,6 +18,40 @@ logger = logging.getLogger(__name__)
 _ALERT_CACHE: Dict[int, str] = {}
 
 
+def markdown_to_telegram_html(md_text: str) -> str:
+    """
+    Safely converts Markdown text into Telegram-compliant HTML.
+    Converts bold, italic, code blocks, lists, and headers.
+    """
+    if not md_text:
+        return ""
+    
+    # 1. Escape basic HTML entities first
+    text = html.escape(md_text)
+    
+    # 2. Code blocks ```code``` -> <pre>code</pre>
+    text = re.sub(r'```(?:[a-zA-Z0-9_+-]+)?\n?(.*?)```', r'<pre>\1</pre>', text, flags=re.DOTALL)
+    
+    # 3. Inline code `code` -> <code>code</code>
+    text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+    
+    # 4. Bold **text** or __text__ -> <b>text</b>
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    text = re.sub(r'__(.+?)__', r'<b>\1</b>', text)
+    
+    # 5. Italic *text* or _text_ -> <i>text</i>
+    text = re.sub(r'(?<!\w)\*([^*]+?)\*(?!\w)', r'<i>\1</i>', text)
+    text = re.sub(r'(?<!\w)_([^_]+?)_(?!\w)', r'<i>\1</i>', text)
+    
+    # 6. Markdown headers (# Heading -> <b>Heading</b>)
+    text = re.sub(r'^(?:#{1,6})\s+(.+)$', r'<b>\1</b>', text, flags=re.MULTILINE)
+    
+    # 7. Unordered list bullets (- item or * item -> • item)
+    text = re.sub(r'^\s*[-*]\s+', r'• ', text, flags=re.MULTILINE)
+    
+    return text
+
+
 class TelegramService:
     @staticmethod
     def is_configured() -> bool:
@@ -27,12 +62,18 @@ class TelegramService:
         )
 
     @staticmethod
-    async def send_message(text: str, parse_mode: str = "HTML") -> Tuple[bool, Optional[str]]:
+    async def send_message(
+        text: str,
+        parse_mode: Optional[str] = "HTML",
+        chat_id: Optional[str] = None
+    ) -> Tuple[bool, Optional[str]]:
         """
-        Sends a message to the configured Telegram chat via the Bot API.
+        Sends a message to the configured or specified Telegram chat via the Bot API.
+        Automatically falls back to plain text if HTML entity parsing fails.
         Returns (success: bool, error_message: Optional[str]).
         """
-        if not settings.TELEGRAM_BOT_TOKEN or not settings.TELEGRAM_CHAT_ID:
+        target_chat = chat_id or settings.TELEGRAM_CHAT_ID
+        if not settings.TELEGRAM_BOT_TOKEN or not target_chat:
             return False, "Telegram bot token or chat ID is not configured."
 
         if not settings.TELEGRAM_NOTIFICATIONS_ENABLED:
@@ -44,24 +85,47 @@ class TelegramService:
 
         url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
         payload = {
-            "chat_id": settings.TELEGRAM_CHAT_ID,
+            "chat_id": target_chat,
             "text": text,
-            "parse_mode": parse_mode,
             "disable_web_page_preview": True,
         }
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(url, json=payload)
                 if resp.status_code == 200:
                     return True, None
                 err_data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
                 err_desc = err_data.get("description", f"HTTP {resp.status_code}")
+                # If Telegram HTML parsing failed, retry cleanly with plain text
+                if parse_mode == "HTML" and ("can't parse entities" in err_desc.lower() or "tag" in err_desc.lower()):
+                    payload.pop("parse_mode", None)
+                    resp_retry = await client.post(url, json=payload)
+                    if resp_retry.status_code == 200:
+                        return True, None
                 logger.error(f"Telegram API error: {err_desc}")
                 return False, err_desc
         except Exception as exc:
             logger.error(f"Failed to communicate with Telegram API: {exc}")
             return False, str(exc)
+
+    @staticmethod
+    async def send_chat_action(action: str = "typing", chat_id: Optional[str] = None) -> bool:
+        """
+        Sends a chat action (e.g. 'typing') to indicate the bot is working.
+        """
+        target_chat = chat_id or settings.TELEGRAM_CHAT_ID
+        if not settings.TELEGRAM_BOT_TOKEN or not target_chat:
+            return False
+        url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendChatAction"
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                await client.post(url, json={"chat_id": target_chat, "action": action})
+                return True
+        except Exception:
+            return False
 
     @staticmethod
     def format_ipo_alert(
@@ -318,3 +382,281 @@ class TelegramService:
 
         success, err = await cls.send_message(msg)
         return {"success": success, "error": err, "picks_count": len(picks)}
+
+    @staticmethod
+    def format_portfolio_summary_card(summary: Any) -> str:
+        """
+        Formats a clean, attractive portfolio summary card for Telegram.
+        """
+        inv = summary.total_invested or 0.0
+        cur = summary.current_value or 0.0
+        pnl = summary.total_unrealized_pnl or 0.0
+        pnl_pct = summary.total_pnl_pct or 0.0
+        day_chg = summary.day_change or 0.0
+        day_chg_pct = summary.day_change_pct or 0.0
+        count = summary.holdings_count or 0
+
+        pnl_emoji = "🟢" if pnl >= 0 else "🔴"
+        pnl_sign = "+" if pnl > 0 else ""
+        day_emoji = "▲" if day_chg >= 0 else "▼"
+        day_sign = "+" if day_chg > 0 else ""
+
+        lines = [
+            "💼 <b>IPO PULSE · PORTFOLIO SUMMARY</b>",
+            "",
+            f"💰 <b>Total Invested:</b> ₹{inv:,.2f}",
+            f"📈 <b>Current Value:</b> ₹{cur:,.2f}",
+            f"{pnl_emoji} <b>Overall P&L:</b> {pnl_sign}₹{pnl:,.2f} ({pnl_sign}{pnl_pct:.2f}%)",
+            f"📅 <b>Today's Move:</b> {day_sign}₹{day_chg:,.2f} ({day_sign}{day_chg_pct:.2f}%) {day_emoji}",
+            f"🎯 <b>Active Positions:</b> {count} stock(s)",
+        ]
+
+        if summary.holdings:
+            lines.append("")
+            lines.append("📋 <b>Top Holdings:</b>")
+            sorted_holdings = sorted(summary.holdings, key=lambda h: (h.current_value or 0.0), reverse=True)[:5]
+            for h in sorted_holdings:
+                h_pnl = h.unrealized_pnl or 0.0
+                h_pnl_pct = h.pnl_pct or 0.0
+                h_sign = "+" if h_pnl > 0 else ""
+                lines.append(f"• <b>{h.symbol}</b> ({h.quantity} sh): ₹{(h.current_value or 0.0):,.0f} | <i>{h_sign}{h_pnl_pct:.1f}%</i>")
+
+        lines.append("")
+        lines.append("💬 <i>Reply with any stock symbol (e.g. \"ARMEE\" or \"ITC\") for AI analysis.</i>")
+        return "\n".join(lines)
+
+    @staticmethod
+    def format_ipo_lookup_card(ipo: IPO) -> str:
+        """
+        Formats an in-depth scorecard for a specific IPO.
+        """
+        score = ipo.score
+        gmp = max(ipo.gmp_records, key=lambda g: getattr(g, "recorded_at", getattr(g, "created_at", None))) if ipo.gmp_records else None
+        sub = max(ipo.subscriptions, key=lambda s: getattr(s, "recorded_at", getattr(s, "created_at", None))) if ipo.subscriptions else None
+        return TelegramService.format_ipo_alert(ipo, score, gmp, sub)
+
+    @classmethod
+    async def answer_ai_query(cls, query: str, session: AsyncSession) -> str:
+        """
+        Uses PortfolioAdvisorService to answer investor questions with live holdings & IPO context.
+        """
+        from app.services.portfolio_service import portfolio_service as pf_svc
+        from app.services.portfolio_advisor_service import generate_portfolio_advisory, groq_answer_query
+
+        # 1. Fetch summary & advisory data
+        summary = await pf_svc.get_portfolio_summary(session)
+        holdings_dict = [h.model_dump() for h in summary.holdings]
+        advisory_data = await generate_portfolio_advisory(holdings_dict)
+        advisory_data["portfolio_summary"] = summary.model_dump()
+
+        # 2. Fetch active IPOs
+        stmt = (
+            select(IPO)
+            .where(IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]))
+            .options(
+                selectinload(IPO.subscriptions),
+                selectinload(IPO.gmp_records),
+                selectinload(IPO.score)
+            )
+            .order_by(IPO.open_date.asc().nulls_last())
+        )
+        active_ipos_objs = (await session.execute(stmt)).scalars().all()
+        ipos_data = []
+        for ipo in active_ipos_objs:
+            latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
+            latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
+
+            pband = f"₹{ipo.price_band_low:,.0f} - ₹{ipo.price_band_high:,.0f}" if (ipo.price_band_low and ipo.price_band_high) else (f"₹{ipo.issue_price:,.0f}" if ipo.issue_price else "TBA")
+            gmp_str = f"₹{latest_gmp.gmp_amount:,.0f} ({latest_gmp.gmp_percentage:.1f}%)" if latest_gmp else "N/A"
+            sub_str = f"{latest_sub.total_multiple:.1f}x" if latest_sub else "N/A"
+            score_str = f"{ipo.score.composite_score:.1f}/100" if ipo.score else "N/A"
+            rec_str = ipo.score.recommendation.value if ipo.score else "N/A"
+
+            ipos_data.append({
+                "symbol": ipo.symbol,
+                "company_name": ipo.company_name,
+                "status": ipo.status.value,
+                "price_band": pband,
+                "gmp": gmp_str,
+                "subscription": sub_str,
+                "score": score_str,
+                "recommendation": rec_str
+            })
+
+        answer, _source = await groq_answer_query(
+            query=query,
+            advisory_data=advisory_data,
+            chat_history=[],
+            active_ipos=ipos_data,
+            portfolio_summary=summary,
+            db=session
+        )
+        return answer
+
+    @classmethod
+    async def handle_incoming_update(cls, update: Dict[str, Any], session: AsyncSession) -> Dict[str, Any]:
+        """
+        Processes an incoming Telegram webhook update and dispatches two-way responses.
+        """
+        message = update.get("message") or update.get("edited_message")
+        if not message:
+            return {"ok": True, "action": "ignored_no_message"}
+
+        chat = message.get("chat", {})
+        chat_id = str(chat.get("id", ""))
+        text = (message.get("text") or "").strip()
+
+        if not text:
+            return {"ok": True, "action": "ignored_empty_text"}
+
+        # Security check: Only process messages from the authorized chat ID
+        configured_chat = str(settings.TELEGRAM_CHAT_ID or "")
+        if chat_id != configured_chat:
+            logger.warning(f"Unauthorized Telegram message received from chat_id={chat_id}")
+            await cls.send_message(
+                "🔒 <b>Access Denied</b>\n\nThis IPO Pulse AI bot is private to its configured account.",
+                chat_id=chat_id
+            )
+            return {"ok": True, "action": "unauthorized"}
+
+        # Show typing indicator
+        await cls.send_chat_action("typing", chat_id=chat_id)
+
+        clean_lower = text.lower()
+
+        # 1. /start, /help, help
+        if clean_lower in ["/start", "/help", "help"]:
+            help_text = (
+                "👋 <b>Welcome to IPO Pulse AI Bot!</b>\n\n"
+                "I am your real-time investment copilot and IPO intelligence assistant.\n\n"
+                "⚡ <b>Quick Commands:</b>\n"
+                "• 🚀 <b>/top</b> or <b>/best</b> - Current best IPOs to apply for\n"
+                "• 💼 <b>/portfolio</b> - Live portfolio summary & today's P&L\n"
+                "• 🔍 <b>/ipo &lt;name&gt;</b> - Instant scorecard & GMP for an IPO\n"
+                "• ❓ <b>/help</b> - View this command guide\n\n"
+                "💬 <b>Ask Me Any Question Directly:</b>\n"
+                "• <i>\"Should I apply for Solarium Green?\"</i>\n"
+                "• <i>\"How to make my portfolio green?\"</i>\n"
+                "• <i>\"What are the stop-loss levels for my stocks?\"</i>\n"
+                "• <i>\"Tell me dividends and trailing PE of ITC\"</i>\n\n"
+                "Just reply with your question and I'll analyze live market data!"
+            )
+            await cls.send_message(help_text, chat_id=chat_id)
+            return {"ok": True, "action": "help"}
+
+        # 2. /top, /best
+        if clean_lower in ["/top", "/best", "top", "best ipo", "best ipos"]:
+            digest_res = await cls.send_top_picks_digest(session)
+            return {"ok": True, "action": "top_picks", "result": digest_res}
+
+        # 3. /portfolio, /pnl
+        if clean_lower in ["/portfolio", "/pnl", "portfolio", "pnl", "my portfolio"]:
+            from app.services.portfolio_service import portfolio_service as pf_svc
+            summary = await pf_svc.get_portfolio_summary(session)
+            card = cls.format_portfolio_summary_card(summary)
+            await cls.send_message(card, chat_id=chat_id)
+            return {"ok": True, "action": "portfolio"}
+
+        # 4. /ipo <name or symbol>
+        if clean_lower.startswith("/ipo "):
+            search_term = text[5:].strip()
+            if search_term:
+                stmt = (
+                    select(IPO)
+                    .where(
+                        (IPO.symbol.ilike(f"%{search_term}%"))
+                        | (IPO.company_name.ilike(f"%{search_term}%"))
+                    )
+                    .options(
+                        selectinload(IPO.score),
+                        selectinload(IPO.gmp_records),
+                        selectinload(IPO.subscriptions)
+                    )
+                    .limit(1)
+                )
+                res = await session.execute(stmt)
+                found_ipo = res.scalar_one_or_none()
+                if found_ipo:
+                    card = cls.format_ipo_lookup_card(found_ipo)
+                    await cls.send_message(card, chat_id=chat_id)
+                    return {"ok": True, "action": "ipo_found"}
+                else:
+                    await cls.send_message(
+                        f"🔍 No IPO found matching <b>{html.escape(search_term)}</b> in active database.",
+                        chat_id=chat_id
+                    )
+                    return {"ok": True, "action": "ipo_not_found"}
+
+        # 5. Natural conversation / AI Copilot query
+        try:
+            ai_reply = await cls.answer_ai_query(text, session)
+            html_reply = markdown_to_telegram_html(ai_reply)
+            await cls.send_message(html_reply, chat_id=chat_id)
+            return {"ok": True, "action": "ai_answered"}
+        except Exception as exc:
+            logger.error(f"Error answering AI query on Telegram: {exc}", exc_info=True)
+            await cls.send_message(
+                f"⚠️ Sorry, I encountered an issue analyzing your query: {html.escape(str(exc))}",
+                chat_id=chat_id
+            )
+            return {"ok": False, "error": str(exc)}
+
+    @classmethod
+    async def set_webhook(cls, webhook_url: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+        """
+        Registers the incoming webhook URL with Telegram Bot API.
+        """
+        url_to_set = webhook_url or settings.TELEGRAM_WEBHOOK_URL
+        if not settings.TELEGRAM_BOT_TOKEN:
+            return False, "Telegram bot token is not configured."
+        if not url_to_set:
+            return False, "Webhook URL is not configured."
+
+        api_url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(api_url, json={"url": url_to_set, "drop_pending_updates": False})
+                data = resp.json() if resp.status_code == 200 else {}
+                if resp.status_code == 200 and data.get("ok"):
+                    logger.info(f"Telegram webhook registered successfully: {url_to_set}")
+                    return True, None
+                err = data.get("description", f"HTTP {resp.status_code}")
+                logger.error(f"Failed to set Telegram webhook: {err}")
+                return False, err
+        except Exception as exc:
+            logger.error(f"Exception setting Telegram webhook: {exc}")
+            return False, str(exc)
+
+    @classmethod
+    async def get_webhook_info(cls) -> Dict[str, Any]:
+        """
+        Fetches current webhook status from Telegram.
+        """
+        if not settings.TELEGRAM_BOT_TOKEN:
+            return {"configured": False, "error": "Bot token not configured."}
+        api_url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/getWebhookInfo"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(api_url)
+                return resp.json() if resp.status_code == 200 else {"error": f"HTTP {resp.status_code}"}
+        except Exception as exc:
+            return {"error": str(exc)}
+
+    @classmethod
+    async def delete_webhook(cls) -> Tuple[bool, Optional[str]]:
+        """
+        Deletes the registered webhook from Telegram.
+        """
+        if not settings.TELEGRAM_BOT_TOKEN:
+            return False, "Telegram bot token is not configured."
+        api_url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/deleteWebhook"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(api_url, json={"drop_pending_updates": False})
+                data = resp.json() if resp.status_code == 200 else {}
+                if resp.status_code == 200 and data.get("ok"):
+                    return True, None
+                return False, data.get("description", f"HTTP {resp.status_code}")
+        except Exception as exc:
+            return False, str(exc)
+
