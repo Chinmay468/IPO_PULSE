@@ -77,7 +77,13 @@ def parse_cas_pdf_bytes(pdf_bytes: bytes, password: Optional[str] = None) -> dic
     try:
         # Never log pwd or investor details
         data = casparser.read_cas_pdf(file_obj, password=pwd, output="dict")
-        return data
+        if hasattr(data, "model_dump"):
+            return data.model_dump()
+        elif hasattr(data, "dict") and callable(data.dict):
+            return data.dict()
+        elif isinstance(data, dict):
+            return data
+        return dict(data)
     except IncorrectPasswordError:
         raise ValueError("Incorrect password provided for the CAS PDF. Please provide the correct PDF password.")
     except (CASParseError, ParserException) as exc:
@@ -87,13 +93,23 @@ def parse_cas_pdf_bytes(pdf_bytes: bytes, password: Optional[str] = None) -> dic
         raise ValueError("The provided file could not be parsed as a valid CAMS/KFintech CAS statement.")
 
 
-async def import_parsed_cas(db: AsyncSession, cas_data: dict) -> dict:
+async def import_parsed_cas(db: AsyncSession, cas_data: Any) -> dict:
     """
     Imports parsed CAS dictionary into the database.
     - Creates or links schemes by AMFI code / ISIN / name.
     - Creates or links holdings by scheme + folio_hash.
     - De-duplicates transactions on (folio_hash, date, units, amount).
     """
+    if hasattr(cas_data, "model_dump"):
+        cas_data = cas_data.model_dump()
+    elif hasattr(cas_data, "dict") and callable(cas_data.dict):
+        cas_data = cas_data.dict()
+    elif not isinstance(cas_data, dict):
+        try:
+            cas_data = dict(cas_data)
+        except Exception:
+            pass
+
     folios = cas_data.get("folios", []) or []
     if not folios and "schemes" in cas_data:
         folios = [{"folio": "DEFAULT", "schemes": cas_data.get("schemes", [])}]

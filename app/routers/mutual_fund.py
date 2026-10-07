@@ -2,7 +2,10 @@
 Mutual Funds router:
 Handles CAS PDF imports, holdings, transactions, NAV history, and portfolio summary.
 """
+import logging
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,7 +76,11 @@ async def import_cas_pdf(
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process CAS statement.")
+        logger.exception("[CAS Import Exception] Failed to process CAS: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process CAS statement: {type(exc).__name__} - {str(exc)}"
+        )
 
 
 @router.get("/summary", response_model=MFSummaryResponse)
