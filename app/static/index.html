@@ -3331,18 +3331,26 @@
       const chartType = holdingChartType[symbol] || 'candle';
 
       // Update button visual styles
+      const activeRangeClasses = ['bg-indigo-600', 'text-white', 'font-bold'];
+      const inactiveRangeClasses = ['text-slate-500', 'hover:text-slate-900', 'dark:hover:text-white'];
+
       ['1m', '3m', '6m', '1y'].forEach(r => {
         const btn = document.getElementById(`btn-range-${r}-${symbol}`);
         const mbtn = document.getElementById(`mbtn-range-${r}-${symbol}`);
         [btn, mbtn].forEach(b => {
           if (!b) return;
           if (r === range) {
-            b.className = b.className.replace(/text-slate-500[^\s]*/, '').replace(/hover:[^\s]*/, '') + ' bg-indigo-600 text-white font-bold';
+            b.classList.remove(...inactiveRangeClasses);
+            b.classList.add(...activeRangeClasses);
           } else {
-            b.className = b.className.replace('bg-indigo-600 text-white font-bold', 'text-slate-500 hover:text-slate-900 dark:hover:text-white');
+            b.classList.remove(...activeRangeClasses);
+            b.classList.add(...inactiveRangeClasses);
           }
         });
       });
+
+      const activeTypeClasses = ['bg-white', 'dark:bg-slate-800', 'text-slate-900', 'dark:text-white', 'shadow-xs', 'font-bold'];
+      const inactiveTypeClasses = ['text-slate-500', 'hover:text-slate-900', 'dark:hover:text-white'];
 
       ['candle', 'line'].forEach(t => {
         const btn = document.getElementById(`btn-chart-type-${t}-${symbol}`);
@@ -3350,9 +3358,11 @@
         [btn, mbtn].forEach(b => {
           if (!b) return;
           if (t === chartType) {
-            b.className = b.className.replace(/text-slate-500[^\s]*/, '').replace(/hover:[^\s]*/, '') + ' bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs font-bold';
+            b.classList.remove(...inactiveTypeClasses);
+            b.classList.add(...activeTypeClasses);
           } else {
-            b.className = b.className.replace(/bg-white[^\s]*/, '').replace(/dark:bg-slate-800[^\s]*/, '').replace(/shadow-xs[^\s]*/, '').replace('font-bold', '') + ' text-slate-500 hover:text-slate-900 dark:hover:text-white';
+            b.classList.remove(...activeTypeClasses);
+            b.classList.add(...inactiveTypeClasses);
           }
         });
       });
