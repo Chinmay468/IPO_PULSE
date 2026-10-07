@@ -115,6 +115,21 @@ async def scheduled_mf_nav_sync():
         logger.error("Error during scheduled MF NAV sync: %s", exc, exc_info=True)
 
 
+async def scheduled_technical_diagnosis_evaluation():
+    """
+    Daily post-market job: updates open technical diagnoses using daily candles,
+    marking whether target or stop was hit first.
+    """
+    logger.info("Executing scheduled technical diagnosis evaluation job...")
+    try:
+        from app.services.technical_analysis_service import evaluate_open_diagnoses
+        async with AsyncSessionLocal() as session:
+            result = await evaluate_open_diagnoses(session)
+            logger.info("Scheduled technical diagnosis evaluation completed: %s", result)
+    except Exception as exc:
+        logger.error("Error during scheduled technical diagnosis evaluation: %s", exc, exc_info=True)
+
+
 def start_scheduler():
     if not settings.SCRAPER_ENABLED:
         logger.info("Background market scraper is disabled in settings.")
@@ -161,6 +176,13 @@ def start_scheduler():
             trigger=CronTrigger(hour=10, minute=45),  # 16:15 IST / 10:45 UTC
             id="daily_suggestion_evaluation",
             name="Evaluate Open Swing Suggestions Against Daily Candles",
+            replace_existing=True
+        )
+        scheduler.add_job(
+            scheduled_technical_diagnosis_evaluation,
+            trigger=CronTrigger(hour=10, minute=50),  # 16:20 IST / 10:50 UTC
+            id="daily_technical_diagnosis_evaluation",
+            name="Evaluate Open Technical Diagnoses Against Daily Price Movement",
             replace_existing=True
         )
         scheduler.add_job(

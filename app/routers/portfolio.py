@@ -320,10 +320,20 @@ async def ask_portfolio_advisor(request: Request, data: dict, db: AsyncSession =
 @router.get("/scorecard")
 async def get_swing_scorecard(db: AsyncSession = Depends(get_db)):
     """
-    Get the swing-stock suggestion scorecard (total picks, hit rate, avg return, vs Nifty).
-    Returns 'not_enough_data' if fewer than 30 closed picks are recorded.
+    Get the technical diagnosis scorecard (total diagnoses, hit rate, target hits, stop hits).
+    Shows collecting progress until at least 30 closed diagnoses exist.
     """
-    from app.services.market_shares_service import get_suggestion_scorecard
-    return await get_suggestion_scorecard(db)
+    from app.services.technical_analysis_service import get_technical_diagnosis_scorecard
+    return await get_technical_diagnosis_scorecard(db)
+
+
+@router.get("/technical-scorecard")
+async def get_technical_scorecard_endpoint(db: AsyncSession = Depends(get_db)):
+    """
+    Direct endpoint for technical diagnosis scorecard.
+    """
+    from app.services.technical_analysis_service import get_technical_diagnosis_scorecard
+    return await get_technical_diagnosis_scorecard(db)
+
 
 

@@ -581,7 +581,7 @@
 
           </div>
 
-          <!-- Card 2: Swing Strategy Scorecard -->
+          <!-- Card 2: Technical Diagnosis Scorecard -->
           <div id="pf-scorecard-card" class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 space-y-3">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
@@ -589,8 +589,8 @@
                   <i data-lucide="target" class="w-3.5 h-3.5"></i>
                 </span>
                 <div>
-                  <h4 class="text-xs font-bold text-slate-900 dark:text-white">Swing Scorecard</h4>
-                  <p class="text-[10px] text-slate-400">ATR 1:2 R:R Track Record</p>
+                  <h4 class="text-xs font-bold text-slate-900 dark:text-white">Technical Scorecard</h4>
+                  <p class="text-[10px] text-slate-400">Mechanical Hit Rate Track Record</p>
                 </div>
               </div>
               <span id="scorecard-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
@@ -602,14 +602,15 @@
               <div class="p-3 rounded-lg bg-slate-50/70 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 text-center space-y-1.5">
                 <div class="flex items-center justify-between text-[11px]">
                   <span class="text-slate-500 dark:text-slate-400">Sample Progress</span>
-                  <span id="scorecard-progress-text" class="font-mono font-bold text-slate-700 dark:text-slate-300">0 / 30 Picks</span>
+                  <span id="scorecard-progress-text" class="font-mono font-bold text-slate-700 dark:text-slate-300">0 / 30 Diagnoses</span>
                 </div>
                 <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                   <div id="scorecard-progress-bar" class="bg-emerald-500 h-full w-0 transition-all duration-500"></div>
                 </div>
                 <p id="scorecard-msg" class="text-[10px] text-slate-400 leading-tight">
-                  Statistical metrics (hit rate, avg return, vs Nifty) activate after 30 closed picks.
+                  Collecting data (0/30 closed diagnoses). Hit rate activates once 30+ diagnoses close.
                 </p>
+                <p class="text-[9px] text-slate-400 italic">Mechanical technical levels, not a forecast or investment advice.</p>
               </div>
             </div>
           </div>
@@ -2934,13 +2935,16 @@
 
         const hasRsi = tech.rsi !== null && tech.rsi !== undefined && !isNaN(Number(tech.rsi));
         const rsiVal = hasRsi ? Number(tech.rsi) : null;
-        let rsiStatus = tech.rsi_status || 'Neutral';
+        let rsiStatus = tech.rsi_status || 'Neutral / Range-bound';
         let rsiBadgeColor = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
         if (hasRsi) {
-          if (rsiVal <= 35) {
+          if (rsiVal < 30) {
             rsiStatus = 'Oversold';
             rsiBadgeColor = 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300';
-          } else if (rsiVal >= 65) {
+          } else if (rsiVal >= 40 && rsiVal <= 60) {
+            rsiStatus = 'Neutral / Range-bound';
+            rsiBadgeColor = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
+          } else if (rsiVal >= 70) {
             rsiStatus = 'Overbought';
             rsiBadgeColor = 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300';
           }
@@ -2948,6 +2952,7 @@
         const rsiDisplay = hasRsi ? `RSI ${rsiVal.toFixed(1)} · ${rsiStatus}` : `${rsiStatus}`;
 
         const slVal = tech.stop_loss || (h.avg_buy_price ? (h.avg_buy_price * 0.90) : null);
+        const tsVal = tech.trailing_stop || slVal;
         const t1Val = tech.target_1 || (h.avg_buy_price ? (h.avg_buy_price * 1.14) : null);
         const t2Val = tech.target_2 || (t1Val ? (t1Val * 1.08) : null);
 
@@ -3037,12 +3042,16 @@
                 </div>
               </div>
 
-              <!-- Horizontal Price Bar (Stop-Loss -> Avg Cost -> LTP -> Target 1 -> Target 2) -->
+              <!-- Horizontal Price Bar (Stop-Loss -> Trailing Stop -> Avg Cost -> LTP -> Target 1 -> Target 2) -->
               <div class="space-y-1.5 pt-1">
-                <div class="grid grid-cols-2 sm:grid-cols-5 text-center text-[10px] font-mono font-semibold gap-2">
+                <div class="grid grid-cols-2 sm:grid-cols-6 text-center text-[10px] font-mono font-semibold gap-2">
                   <div class="text-rose-600 dark:text-rose-400 sm:text-left">
-                    <span class="block text-[9px] text-slate-400 font-sans">Stop-Loss</span>
+                    <span class="block text-[9px] text-slate-400 font-sans">Stop-Loss (ATR)</span>
                     ${fmtINR(slVal)}
+                  </div>
+                  <div class="text-amber-600 dark:text-amber-400">
+                    <span class="block text-[9px] text-slate-400 font-sans">Trailing Stop</span>
+                    ${fmtINR(tsVal)}
                   </div>
                   <div class="text-slate-600 dark:text-slate-400">
                     <span class="block text-[9px] text-slate-400 font-sans">Avg Cost</span>
@@ -3053,25 +3062,27 @@
                     <span id="pf-exp-ltp-${h.symbol}">${fmtINR(ltp)}</span>
                   </div>
                   <div class="text-blue-600 dark:text-blue-400">
-                    <span class="block text-[9px] text-slate-400 font-sans">Target 1</span>
+                    <span class="block text-[9px] text-slate-400 font-sans">Target 1 <span class="italic text-[8px] opacity-75">(estimated)</span></span>
                     ${fmtINR(t1Val)}
                   </div>
                   <div class="text-indigo-600 dark:text-indigo-400 sm:text-right">
-                    <span class="block text-[9px] text-slate-400 font-sans">Target 2</span>
+                    <span class="block text-[9px] text-slate-400 font-sans">Target 2 <span class="italic text-[8px] opacity-75">(estimated)</span></span>
                     ${fmtINR(t2Val)}
                   </div>
                 </div>
                 <div class="relative h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex shadow-inner">
-                  <div class="h-full bg-rose-400" style="width: 20%" title="Stop-Loss Zone"></div>
-                  <div class="h-full bg-amber-400" style="width: 25%" title="Cost Zone"></div>
+                  <div class="h-full bg-rose-400" style="width: 15%" title="Stop-Loss Zone"></div>
+                  <div class="h-full bg-amber-400" style="width: 15%" title="Trailing Stop Zone"></div>
+                  <div class="h-full bg-yellow-400" style="width: 20%" title="Cost Zone"></div>
                   <div class="h-full bg-emerald-400" style="width: 25%" title="Target 1 Zone"></div>
-                  <div class="h-full bg-blue-500" style="width: 30%" title="Target 2 Zone"></div>
+                  <div class="h-full bg-blue-500" style="width: 25%" title="Target 2 Zone"></div>
                 </div>
               </div>
 
               <!-- AI Action Plan with Markdown Support -->
               <div class="p-3 rounded-lg bg-white dark:bg-[#121826] border border-slate-200/70 dark:border-slate-800 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">
                 <strong>💡 Action Plan:</strong> ${formatAIMarkdown(tech.strategy || 'Hold position. Maintain risk guardrail.')}
+                <p class="text-[10px] text-slate-400 dark:text-slate-500 italic mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">Mechanical technical levels, not a forecast or investment advice.</p>
               </div>
 
               <!-- TradingView Lightweight Charts (Price, EMAs, RSI) -->
@@ -3192,20 +3203,23 @@
                   <span class="text-[10px] text-slate-500 font-mono">${tech.pattern || 'Consolidation'}</span>
                 </div>
                 <div class="space-y-1">
-                  <div class="flex justify-between text-[9px] font-mono text-slate-400">
+                  <div class="flex justify-between text-[9px] font-mono text-slate-400 flex-wrap gap-1">
                     <span class="text-rose-600">SL: ${fmtINR(slVal)}</span>
+                    <span class="text-amber-600">Trail: ${fmtINR(tsVal)}</span>
                     <span class="text-emerald-600 font-bold">LTP: ${fmtINR(ltp)}</span>
-                    <span class="text-indigo-600">Tgt: ${fmtINR(t1Val)}</span>
+                    <span class="text-indigo-600">T1: ${fmtINR(t1Val)} (est)</span>
                   </div>
                   <div class="h-1.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full flex overflow-hidden">
-                    <div class="bg-rose-400 h-full" style="width: 25%"></div>
-                    <div class="bg-emerald-400 h-full" style="width: 45%"></div>
-                    <div class="bg-indigo-400 h-full" style="width: 30%"></div>
+                    <div class="bg-rose-400 h-full" style="width: 20%"></div>
+                    <div class="bg-amber-400 h-full" style="width: 20%"></div>
+                    <div class="bg-emerald-400 h-full" style="width: 35%"></div>
+                    <div class="bg-indigo-400 h-full" style="width: 25%"></div>
                   </div>
                 </div>
                 <p class="text-[10px] text-slate-600 dark:text-slate-300 leading-snug pt-1">
                   <strong>Action:</strong> ${formatAIMarkdown(tech.strategy || 'Hold. Maintain stop loss.')}
                 </p>
+                <p class="text-[9px] text-slate-400 italic text-center pt-1 border-t border-slate-200/60 dark:border-slate-800">Mechanical technical levels, not a forecast or investment advice.</p>
 
                 <!-- Mobile Technical Price Chart -->
                 <div class="p-2.5 rounded-lg bg-white dark:bg-[#121826] border border-slate-200/80 dark:border-slate-800 space-y-2 mt-2">
@@ -3515,6 +3529,16 @@
             title: `Stop Loss ₹${data.stop_loss.toFixed(2)}`,
           });
         }
+        if (data.trailing_stop) {
+          priceSeries.createPriceLine({
+            price: data.trailing_stop,
+            color: '#f59e0b',
+            lineWidth: 1.5,
+            lineStyle: LightweightCharts.LineStyle.Dotted,
+            axisLabelVisible: true,
+            title: `Trailing SL ₹${data.trailing_stop.toFixed(2)}`,
+          });
+        }
         if (data.target_1) {
           priceSeries.createPriceLine({
             price: data.target_1,
@@ -3522,7 +3546,7 @@
             lineWidth: 1.5,
             lineStyle: LightweightCharts.LineStyle.Dashed,
             axisLabelVisible: true,
-            title: `Target 1 ₹${data.target_1.toFixed(2)}`,
+            title: `Target 1 (estimated) ₹${data.target_1.toFixed(2)}`,
           });
         }
         if (data.target_2) {
@@ -3532,7 +3556,7 @@
             lineWidth: 1.5,
             lineStyle: LightweightCharts.LineStyle.Dashed,
             axisLabelVisible: true,
-            title: `Target 2 ₹${data.target_2.toFixed(2)}`,
+            title: `Target 2 (estimated) ₹${data.target_2.toFixed(2)}`,
           });
         }
 
@@ -3631,8 +3655,9 @@
           (lastRsi ? `RSI14: ${lastRsi.toFixed(1)}. ` : '') +
           (data.avg_cost ? `Avg Cost: ₹${data.avg_cost.toFixed(2)}, ` : '') +
           (data.stop_loss ? `Stop Loss: ₹${data.stop_loss.toFixed(2)}, ` : '') +
-          (data.target_1 ? `Target 1: ₹${data.target_1.toFixed(2)}, ` : '') +
-          (data.target_2 ? `Target 2: ₹${data.target_2.toFixed(2)}.` : '');
+          (data.trailing_stop ? `Trailing SL: ₹${data.trailing_stop.toFixed(2)}, ` : '') +
+          (data.target_1 ? `Target 1 (estimated): ₹${data.target_1.toFixed(2)}, ` : '') +
+          (data.target_2 ? `Target 2 (estimated): ₹${data.target_2.toFixed(2)}.` : '');
 
         if (summaryEl) summaryEl.textContent = summaryText;
         mainContainer.setAttribute('aria-label', summaryText);
@@ -4253,7 +4278,7 @@
       refreshLucideIcons();
     }
 
-    // Swing Strategy Scorecard Loader
+    // Technical Strategy Scorecard Loader
     async function loadScorecard() {
       try {
         const res = await fetch('/api/v1/portfolio/scorecard', { headers: getAuthHeaders() });
@@ -4263,9 +4288,11 @@
         const badgeEl = document.getElementById('scorecard-badge');
         if (!contentEl) return;
 
-        if (data.status === 'not_enough_data') {
-          const closed = data.closed_picks || 0;
-          const minReq = data.min_required || 30;
+        const closed = data.closed_diagnoses ?? data.closed_picks ?? 0;
+        const minReq = data.min_required || 30;
+        const total = data.total_diagnoses ?? data.total_picks ?? closed;
+
+        if (data.status === 'not_enough_data' || closed < minReq) {
           const pct = Math.min(100, Math.round((closed / minReq) * 100));
           if (badgeEl) {
             badgeEl.textContent = `${closed}/${minReq} Closed`;
@@ -4275,14 +4302,15 @@
             <div class="p-3 rounded-lg bg-slate-50/70 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 text-center space-y-1.5">
               <div class="flex items-center justify-between text-[11px]">
                 <span class="text-slate-500 dark:text-slate-400">Sample Progress</span>
-                <span class="font-mono font-bold text-slate-700 dark:text-slate-300">${closed} / ${minReq} Picks</span>
+                <span class="font-mono font-bold text-slate-700 dark:text-slate-300">${closed} / ${minReq} Diagnoses</span>
               </div>
               <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                 <div class="bg-emerald-500 h-full transition-all duration-500" style="width: ${pct}%"></div>
               </div>
               <p class="text-[10px] text-slate-400 leading-tight">
-                Not enough data. Full metrics (hit rate, avg return, vs Nifty) activate once 30+ picks close.
+                Collecting data (${closed}/${minReq} closed diagnoses). Hit rate activates once 30+ diagnoses close.
               </p>
+              <p class="text-[9px] text-slate-400 italic">Mechanical technical levels, not a forecast or investment advice.</p>
             </div>
           `;
         } else {
@@ -4290,32 +4318,20 @@
             badgeEl.textContent = 'Active Track Record';
             badgeEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300';
           }
-          const vsColor = (data.vs_nifty_pct >= 0) ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
-          const retColor = (data.avg_return_pct >= 0) ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
           contentEl.innerHTML = `
             <div class="grid grid-cols-2 gap-2 pt-1">
               <div class="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
                 <p class="text-[10px] text-slate-400 uppercase font-semibold">Hit Rate</p>
-                <p class="text-sm font-bold font-mono text-slate-900 dark:text-white mt-0.5">${data.hit_rate_pct}%</p>
-                <p class="text-[9px] text-slate-400">${data.target_hits} won / ${data.stop_hits} stop</p>
+                <p class="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">${data.hit_rate_pct}%</p>
+                <p class="text-[9px] text-slate-400">${data.target_hits || 0} won / ${data.stop_hits || 0} stop</p>
               </div>
               <div class="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
-                <p class="text-[10px] text-slate-400 uppercase font-semibold">Avg Return</p>
-                <p class="text-sm font-bold font-mono ${retColor} mt-0.5">${data.avg_return_pct > 0 ? '+' : ''}${data.avg_return_pct}%</p>
-                <p class="text-[9px] text-slate-400">${data.closed_picks} closed picks</p>
-              </div>
-              <div class="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 col-span-2 flex items-center justify-between">
-                <div>
-                  <p class="text-[10px] text-slate-400 uppercase font-semibold">vs Nifty 50</p>
-                  <p class="text-sm font-bold font-mono ${vsColor} mt-0.5">${data.vs_nifty_pct > 0 ? '+' : ''}${data.vs_nifty_pct}%</p>
-                </div>
-                <div class="text-right">
-                  <span class="text-[10px] text-slate-400">Total Picks Logged</span>
-                  <p class="text-xs font-bold font-mono text-slate-700 dark:text-slate-300">${data.total_picks}</p>
-                </div>
+                <p class="text-[10px] text-slate-400 uppercase font-semibold">Total Sample</p>
+                <p class="text-sm font-bold font-mono text-slate-900 dark:text-white mt-0.5">${closed}</p>
+                <p class="text-[9px] text-slate-400">${total} evaluated</p>
               </div>
             </div>
-            <p class="text-[9px] text-slate-400 text-center italic">14-day ATR mechanical levels · 45-day hard expiry</p>
+            <p class="text-[9px] text-slate-400 text-center italic mt-2">Mechanical technical levels, not a forecast or investment advice.</p>
           `;
         }
         refreshLucideIcons();

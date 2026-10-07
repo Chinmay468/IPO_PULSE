@@ -126,8 +126,12 @@ class HoldingHistoryResponse(BaseModel):
     rsi14: list[IndicatorPoint] = []
     avg_cost: Optional[float] = None
     stop_loss: Optional[float] = None
+    trailing_stop: Optional[float] = None
     target_1: Optional[float] = None
     target_2: Optional[float] = None
+    target_1_label: Optional[str] = "estimated"
+    target_2_label: Optional[str] = "estimated"
+    disclaimer: Optional[str] = "Mechanical technical levels, not a forecast or investment advice."
     insufficient_history: bool = False
     message: Optional[str] = None
 

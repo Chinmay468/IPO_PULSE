@@ -110,156 +110,10 @@ def _detect_candlestick_pattern(df: pd.DataFrame) -> dict:
 
 
 def _compute_technicals_for_stock(df: pd.DataFrame, avg_buy_price: float, weight_pct: float = 0.0) -> dict:
-    """Compute RSI, EMAs, Support/Resistance pivots, and action recommendations."""
-    if df.empty or len(df) < 10:
-        if weight_pct > 25.0:
-            action = "HOLD & MONITOR (OVER-CONCENTRATED)"
-            action_color = "amber"
-            strategy = "already over-concentrated, avoid adding more."
-            trend = "Over-Concentrated"
-        else:
-            action = "HOLD & ACCUMULATE"
-            action_color = "blue"
-            strategy = "Maintain positional hold; accumulate on dips towards support."
-            trend = "Accumulation"
-        return {
-            "rsi": None, "rsi_status": "Neutral (Base Building)",
-            "ema20": None, "ema50": None, "ema200": None,
-            "trend": trend, "pattern": "Base Building", "pattern_desc": "Stock is forming initial price history",
-            "pattern_sentiment": "NEUTRAL",
-            "support_1": None, "stop_loss": None,
-            "target_1": None, "target_2": None,
-            "action": action, "action_color": action_color,
-            "strategy": strategy,
-            "pnl_pct": None,
-        }
+    """Delegates technical computation to the unified technical analysis service."""
+    from app.services.technical_analysis_service import compute_technical_diagnosis
+    return compute_technical_diagnosis(df, avg_buy_price=avg_buy_price, weight_pct=weight_pct)
 
-    close = df['Close']
-    if isinstance(close, pd.DataFrame):
-        close = close.iloc[:, 0]
-    close = close.dropna()
-    cmp_price = float(close.iloc[-1])
-
-    # 1. RSI (14)
-    delta = close.diff()
-    gain = delta.where(delta > 0, 0).rolling(14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-    rs = gain / (loss + 1e-9)
-    rsi_raw = (100 - (100 / (1 + rs))).iloc[-1]
-    rsi_val = float(rsi_raw) if not pd.isna(rsi_raw) else None
-    if rsi_val is not None:
-        rsi_val = round(rsi_val, 1)
-
-    if rsi_val is None:
-        rsi_status = "Insufficient Data"
-    elif rsi_val <= 30:
-        rsi_status = "Oversold (Extreme Value Zone)"
-    elif rsi_val <= 45:
-        rsi_status = "Accumulation Dip"
-    elif rsi_val <= 65:
-        rsi_status = "Healthy Trend"
-    elif rsi_val <= 75:
-        rsi_status = "Strong Momentum"
-    else:
-        rsi_status = "Overbought (Take Partial Profit)"
-
-    # 2. Moving Averages
-    ema20 = float(close.ewm(span=20, adjust=False).mean().iloc[-1])
-    ema50 = float(close.ewm(span=min(50, len(close)), adjust=False).mean().iloc[-1])
-    ema200 = float(close.ewm(span=min(200, len(close)), adjust=False).mean().iloc[-1])
-
-    # 3. Candlestick Pattern
-    candle_info = _detect_candlestick_pattern(df)
-
-    # 4. Support & Resistance Pivots
-    low_col = df['Low']
-    if isinstance(low_col, pd.DataFrame):
-        low_col = low_col.iloc[:, 0]
-    recent_low = float(low_col.tail(20).min())
-
-    high_col = df['High']
-    if isinstance(high_col, pd.DataFrame):
-        high_col = high_col.iloc[:, 0]
-    recent_high = float(high_col.tail(20).max())
-
-    support_1 = round(max(recent_low, ema50 * 0.98), 2)
-    # Conservative Stop-Loss: 3-5% below support or EMA200
-    stop_loss = round(min(support_1 * 0.95, cmp_price * 0.92), 2)
-    
-    target_1 = round(max(recent_high, cmp_price * 1.06), 2)
-    target_2 = round(target_1 * 1.08, 2)
-
-    # 5. Trend Assessment & Action Decision
-    avg_buy = float(avg_buy_price) if avg_buy_price is not None else 0.0
-    pnl_pct = ((cmp_price - avg_buy) / avg_buy) * 100 if avg_buy > 0 else 0.0
-
-    if rsi_val <= 33:
-        if weight_pct > 25.0:
-            action = "HOLD & MONITOR (OVER-CONCENTRATED)"
-            action_color = "amber"
-            strategy = (
-                f"RSI ({rsi_val}) is in oversold territory, but position is already over-concentrated ({weight_pct:.1f}% > 25% allocation). "
-                f"already over-concentrated, avoid adding more. Honor stop-loss at ₹{stop_loss}."
-            )
-            trend = "Oversold Rebound Zone"
-        else:
-            action = "STRONG BUY / ACCUMULATE ON DIP"
-            action_color = "emerald"
-            strategy = (
-                f"RSI ({rsi_val}) is deeply oversold at primary demand zone ₹{support_1}. "
-                f"Average down or accumulate; expected mean-reversion bounce target: ₹{target_1}."
-            )
-            trend = "Oversold Rebound Zone"
-    elif cmp_price > ema20 and ema20 > ema50:
-        action = "HOLD & RIDE UPTREND"
-        action_color = "blue"
-        strategy = (
-            f"Trading above EMA 20 (₹{ema20:.1f}) & EMA 50 (₹{ema50:.1f}). "
-            f"Bullish momentum intact. Trail your Stop-Loss at ₹{stop_loss}."
-        )
-        trend = "Strong Bullish Uptrend"
-    elif cmp_price < ema50 and rsi_val > 60:
-        action = "TRIM / BOOK PARTIAL GAINS"
-        action_color = "amber"
-        strategy = f"Approaching overhead resistance ₹{target_1}. Lock in partial gains and trail SL."
-        trend = "Overhead Resistance"
-    else:
-        action = "HOLD & MONITOR SUPPORT"
-        action_color = "blue"
-        strategy = (
-            f"Holding base near ₹{support_1}. Safe to hold; upside targets ₹{target_1} & ₹{target_2}. "
-            f"Risk strictly defined at SL ₹{stop_loss}."
-        )
-        trend = "Consolidation / Base Formation"
-
-    # Strict guardrail: never suggest accumulating or dip buying if position weight > 25%
-    if weight_pct > 25.0 and any(w in action.upper() for w in ["ACCUMULATE", "BUY", "DIP"]):
-        action = "HOLD & MONITOR (OVER-CONCENTRATED)"
-        action_color = "amber"
-        strategy = (
-            f"Position is already over-concentrated ({weight_pct:.1f}% > 25% allocation). "
-            f"already over-concentrated, avoid adding more. Honor stop-loss at ₹{stop_loss}."
-        )
-
-    return {
-        "rsi": rsi_val,
-        "rsi_status": rsi_status,
-        "ema20": round(ema20, 2),
-        "ema50": round(ema50, 2),
-        "ema200": round(ema200, 2),
-        "trend": trend,
-        "pattern": candle_info["pattern"],
-        "pattern_desc": candle_info["desc"],
-        "pattern_sentiment": candle_info["sentiment"],
-        "support_1": support_1,
-        "stop_loss": stop_loss,
-        "target_1": target_1,
-        "target_2": target_2,
-        "action": action,
-        "action_color": action_color,
-        "strategy": strategy,
-        "pnl_pct": round(pnl_pct, 2),
-    }
 
 
 def _get_market_sentiment() -> dict:
@@ -554,6 +408,39 @@ async def generate_portfolio_advisory(holdings: list[dict]) -> dict:
             "technicals": tech
         })
 
+        # Log mechanical diagnosis for hit rate tracking
+        try:
+            if tech.get("stop_loss") is not None and tech.get("target_1") is not None:
+                from app.database import AsyncSessionLocal
+                from app.services.technical_analysis_service import log_technical_diagnosis
+
+                async def _log_diag(s_sym, s_price, s_sl, s_ts, s_t1, s_t2):
+                    try:
+                        async with AsyncSessionLocal() as db_sess:
+                            await log_technical_diagnosis(
+                                session=db_sess,
+                                symbol=s_sym,
+                                price=s_price,
+                                stop_loss=s_sl,
+                                trailing_stop=s_ts,
+                                target_1=s_t1,
+                                target_2=s_t2,
+                            )
+                            await db_sess.commit()
+                    except Exception as err:
+                        logger.debug("Background diagnosis log skipped: %s", err)
+
+                asyncio.create_task(_log_diag(
+                    h.get("symbol"),
+                    float(ltp if ltp is not None else (avg_buy or 0.0)),
+                    float(tech["stop_loss"]),
+                    float(tech["trailing_stop"]) if tech.get("trailing_stop") is not None else None,
+                    float(tech["target_1"]),
+                    float(tech["target_2"]) if tech.get("target_2") is not None else None,
+                ))
+        except Exception:
+            pass
+
     # =========================================================================
     # 3. Comprehensive 5-Pillar Portfolio Health Evaluation
     # =========================================================================
@@ -691,8 +578,8 @@ async def generate_portfolio_advisory(holdings: list[dict]) -> dict:
         "icon": "📈",
         "type": "profit",
         "title": "Profit Harvesting",
-        "badge": "Trail EMA",
-        "desc": "Allow green positions to ride towards Target 1 with trailing Stop-Losses at the 20-day EMA."
+        "badge": "Trail ATR",
+        "desc": "Allow green positions to ride towards Target 1 (estimated) with ratcheting trailing Stop-Losses at Highest Close minus 2×ATR14."
     })
 
     # Data-Driven Diagnostic Summary
@@ -723,9 +610,10 @@ async def generate_portfolio_advisory(holdings: list[dict]) -> dict:
         else:
             summary = (
                 f"Portfolio health is positive ({pnl_sign}{net_pnl_pct:.1f}% return), but has moderate concentration ({round(max_single_weight * 100)}% in {top_stock_symbol}). "
-                f"Maintain trailing stops at key EMA levels."
+                f"Maintain trailing stops at Highest Close minus 2x ATR."
             )
 
+    from app.services.technical_analysis_service import DISCLAIMER_TEXT
     return {
         "health_score": final_score,
         "health_verdict": verdict,
@@ -737,6 +625,7 @@ async def generate_portfolio_advisory(holdings: list[dict]) -> dict:
         "max_single_weight_pct": round(max_single_weight * 100, 1),
         "top_stock_symbol": top_stock_symbol,
         "summary": summary,
+        "disclaimer": DISCLAIMER_TEXT,
         "pillars": {
             "performance": round(pillar_perf, 1),
             "diversification": round(pillar_div, 1),
@@ -1362,26 +1251,32 @@ def answer_portfolio_query(
             "stp loss", "stp-loss", "stp l", "stoplss", "stpls", "stopp loss", "stop los"
         ]):
             sl = t.get("stop_loss")
+            ts = t.get("trailing_stop")
             sup = t.get("support_1")
             sl_pct = round(((sl - ltp) / ltp * 100), 2) if (sl is not None and ltp is not None and ltp > 0) else None
             sl_str = _format_currency(sl)
+            ts_str = _format_currency(ts)
             sup_str = _format_currency(sup)
             sl_pct_str = f" ({sl_pct}% from LTP {ltp_str})" if sl_pct is not None else ""
             ema20_disp = _format_currency(t.get('ema20'))
             ema50_disp = _format_currency(t.get('ema50'))
+            from app.services.technical_analysis_service import DISCLAIMER_TEXT
             return (
                 f"🛡️ **Stop-Loss & Risk — {sym} ({cname})**\n\n"
-                f"- **Hard Stop-Loss:** **{sl_str}**{sl_pct_str}\n"
+                f"- **Hard Stop-Loss (1.5x ATR):** **{sl_str}**{sl_pct_str}\n"
+                f"- **Ratcheting Trailing Stop (Highest Close - 2x ATR):** **{ts_str}**\n"
                 f"- **Primary Demand Support:** **{sup_str}**\n"
                 f"- **20 EMA:** **{ema20_disp}** | **50 EMA:** **{ema50_disp}**\n"
                 f"- **Current Stance:** `{t.get('action', 'HOLD & MONITOR')}`\n\n"
-                f"💡 **Capital Protection Rule:** If {sym} breaches {sl_str} on daily closing basis, exit to protect remaining capital."
+                f"💡 **Capital Protection Rule:** If {sym} breaches {sl_str} on daily closing basis, exit to protect remaining capital.\n\n"
+                f"*{DISCLAIMER_TEXT}*"
             )
 
         # Priority 2: Targets / Resistance / Upside
         if any(w in q for w in ["target", "targets", "resistance", "upside", "where to sell", "sell price", " tp ", "tp?", "tp.", "take profit", "profit target"]):
             t1 = t.get("target_1")
             t2 = t.get("target_2")
+            ts = t.get("trailing_stop")
             t1_pct = round(((t1 - ltp) / ltp * 100), 2) if (t1 is not None and ltp is not None and ltp > 0) else None
             t2_pct = round(((t2 - ltp) / ltp * 100), 2) if (t2 is not None and ltp is not None and ltp > 0) else None
             t1_str = _format_currency(t1)
@@ -1389,13 +1284,16 @@ def answer_portfolio_query(
             t1_pct_str = f" (+{t1_pct}% upside)" if t1_pct is not None else ""
             t2_pct_str = f" (+{t2_pct}% upside)" if t2_pct is not None else ""
             rsi_disp = f"{t.get('rsi'):.1f}" if t.get('rsi') is not None else "unavailable"
+            from app.services.technical_analysis_service import DISCLAIMER_TEXT
             return (
                 f"🎯 **Price Targets — {sym} ({cname})**\n\n"
-                f"- **Target 1 (First Pivot / Resistance):** **{t1_str}**{t1_pct_str}\n"
-                f"- **Target 2 (Extended Bullish Target):** **{t2_str}**{t2_pct_str}\n"
-                f"- **Trailing Stop-Loss:** **{_format_currency(t.get('stop_loss'))}**\n"
-                f"- **RSI (14):** **{rsi_disp}** ({t.get('rsi_status', 'Neutral')})\n\n"
-                f"💡 **Exit Plan:** Book 50% profits near **{t1_str}** and trail your Stop-Loss to average buy price (**{avg_buy_str}**) to ride risk-free."
+                f"- **Target 1 (estimated swing high):** **{t1_str}**{t1_pct_str}\n"
+                f"- **Target 2 (estimated 2:1 R:R / swing high):** **{t2_str}**{t2_pct_str}\n"
+                f"- **Initial Stop-Loss (1.5x ATR):** **{_format_currency(t.get('stop_loss'))}**\n"
+                f"- **Trailing Stop (Highest Close - 2x ATR):** **{_format_currency(ts)}**\n"
+                f"- **RSI (14 Wilder):** **{rsi_disp}** ({t.get('rsi_status', 'Neutral')})\n\n"
+                f"💡 **Exit Plan:** Book partial profits near **{t1_str}** (estimated) and trail your Stop-Loss to **{_format_currency(ts)}** to lock in gains.\n\n"
+                f"*{DISCLAIMER_TEXT}*"
             )
 
 
@@ -1441,15 +1339,18 @@ def answer_portfolio_query(
             )
 
         # General Technical Overview for Stock
+        from app.services.technical_analysis_service import DISCLAIMER_TEXT
         return (
             f"📊 **Technical & Candle Analysis — {sym} ({cname})**\n\n"
             f"- **Recommendation:** **{t.get('action', 'HOLD')}**\n"
             f"- **Candlestick Pattern:** `{t.get('pattern', 'Consolidation')}` — *{t.get('pattern_desc', '')}*\n"
-            f"- **RSI (14):** **{t.get('rsi', 'unavailable')}** ({t.get('rsi_status', 'Neutral')})\n"
+            f"- **RSI (14 Wilder):** **{t.get('rsi', 'unavailable')}** ({t.get('rsi_status', 'Neutral')})\n"
             f"- **Current Buy/LTP:** Buy {avg_buy_str} | LTP {ltp_str} ({pnl_str} / {pnl_pct_str})\n"
-            f"- **Stop-Loss:** **{_format_currency(t.get('stop_loss'))}** (Support: {_format_currency(t.get('support_1'))})\n"
-            f"- **Targets:** **T1: {_format_currency(t.get('target_1'))}** · **T2: {_format_currency(t.get('target_2'))}**\n\n"
-            f"💡 **Strategy:** {t.get('strategy', 'Maintain positional allocation.')}"
+            f"- **Stop-Loss (1.5x ATR):** **{_format_currency(t.get('stop_loss'))}** | **Trailing Stop:** **{_format_currency(t.get('trailing_stop'))}**\n"
+            f"- **Targets (estimated):** **T1: {_format_currency(t.get('target_1'))}** · **T2: {_format_currency(t.get('target_2'))}**\n"
+            f"- **6-Week Range:** {t.get('six_week_range', 'N/A')}\n\n"
+            f"💡 **Strategy:** {t.get('strategy', 'Maintain positional allocation.')}\n\n"
+            f"*{DISCLAIMER_TEXT}*"
         )
 
     # =========================================================================
@@ -1503,15 +1404,17 @@ def answer_portfolio_query(
             ltp = s.get("live_price")
             t = s.get("technicals", {})
             rows.append(
-                f"| **{sym}** | {_format_currency(s.get('avg_buy_price'))} | {_format_currency(ltp)} | **{_format_currency(t.get('stop_loss'))}** | **{_format_currency(t.get('target_1'))}** | {t.get('rsi', 'unavailable')} | `{t.get('action', 'HOLD')}` |"
+                f"| **{sym}** | {_format_currency(s.get('avg_buy_price'))} | {_format_currency(ltp)} | **{_format_currency(t.get('stop_loss'))}** | **{_format_currency(t.get('trailing_stop'))}** | **{_format_currency(t.get('target_1'))}** | {t.get('rsi', 'unavailable')} | `{t.get('action', 'HOLD')}` |"
             )
-        table_str = "\n".join(rows) if rows else "| No holdings | - | - | - | - | - | - |"
+        table_str = "\n".join(rows) if rows else "| No holdings | - | - | - | - | - | - | - |"
+        from app.services.technical_analysis_service import DISCLAIMER_TEXT
         return (
             "🛡️ **Risk & Target Matrix — All Holdings**\n\n"
-            "| Stock | Buy Price | LTP | Stop-Loss | Target 1 | RSI | Stance |\n"
-            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n"
+            "| Stock | Buy Price | LTP | Stop-Loss | Trailing Stop | Target 1 (est) | RSI | Stance |\n"
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n"
             f"{table_str}\n\n"
-            "💡 *Tip: Keep alerts near the Stop-Loss levels to act before significant trend breakdowns.*"
+            "💡 *Tip: Keep alerts near the Stop-Loss levels to act before significant trend breakdowns.*\n\n"
+            f"*{DISCLAIMER_TEXT}*"
         )
 
     # 2. Total Portfolio Value / Overall P&L Till Now

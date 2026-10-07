@@ -128,3 +128,36 @@ class PortfolioSnapshot(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+
+class TechnicalDiagnosis(Base):
+    """
+    Log of daily mechanical technical diagnoses for portfolio stocks.
+    Tracks price, ATR stop, trailing stop, targets, and whether target or stop was hit first.
+    """
+    __tablename__ = "technical_diagnoses"
+    __table_args__ = (
+        UniqueConstraint("symbol", "date", name="uq_technical_diagnosis_symbol_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    symbol: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    stop_loss: Mapped[float] = mapped_column(Float, nullable=False)
+    trailing_stop: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    target_1: Mapped[float] = mapped_column(Float, nullable=False)
+    target_2: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default="OPEN", nullable=False, index=True
+    )  # OPEN, TARGET_HIT, STOP_HIT, EXPIRED
+    closed_at_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    hit_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    hit_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # TARGET_1, TARGET_2, STOP_LOSS, TRAILING_STOP
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+

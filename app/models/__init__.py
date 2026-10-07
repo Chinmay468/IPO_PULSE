@@ -13,7 +13,8 @@ from app.models.portfolio import (
     TransactionType,
     Exchange,
     SuggestionLog,
-    PortfolioSnapshot
+    PortfolioSnapshot,
+    TechnicalDiagnosis
 )
 from app.models.prediction import (
     Prediction,
@@ -42,6 +43,7 @@ __all__ = [
     "Exchange",
     "SuggestionLog",
     "PortfolioSnapshot",
+    "TechnicalDiagnosis",
     "Prediction",
     "PredictionResult",
     "DirectionType",

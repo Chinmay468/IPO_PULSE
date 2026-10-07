@@ -16,7 +16,8 @@ from app.schemas.portfolio import (
     PortfolioSnapshotResponse, HoldingHistoryResponse, OHLCVItem, IndicatorPoint
 )
 from app.services.market_price_service import get_live_prices_bulk, _yf_symbol, _clean_ticker
-from app.services.portfolio_advisor_service import get_recent_closes_bulk, _compute_technicals_for_stock
+from app.services.portfolio_advisor_service import get_recent_closes_bulk
+from app.services.technical_analysis_service import compute_wilder_rsi, compute_technical_diagnosis, DISCLAIMER_TEXT
 
 logger = logging.getLogger(__name__)
 
@@ -396,20 +397,14 @@ async def get_holding_history(symbol: str, range_str: str, db: AsyncSession) -> 
             "message": "Fewer than 10 candles available"
         }
 
-    # Technical Indicators across full data
+    # Technical Indicators across full data using shared unified functions
     ema20_series = close.ewm(span=20, adjust=False).mean()
     ema50_series = close.ewm(span=min(50, len(close)), adjust=False).mean()
+    rsi14_series = compute_wilder_rsi(close, period=14)
 
-    delta = close.diff()
-    gain = delta.where(delta > 0, 0.0)
-    loss = -delta.where(delta < 0, 0.0)
-    avg_gain = gain.ewm(alpha=1/14, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1/14, adjust=False).mean()
-    rs = avg_gain / (avg_loss + 1e-9)
-    rsi14_series = 100 - (100 / (1 + rs))
-
-    tech = _compute_technicals_for_stock(df, avg_cost or float(close.iloc[-1]))
+    tech = compute_technical_diagnosis(df, avg_buy_price=avg_cost or float(close.iloc[-1]))
     stop_loss = tech.get("stop_loss")
+    trailing_stop = tech.get("trailing_stop")
     target_1 = tech.get("target_1")
     target_2 = tech.get("target_2")
 
@@ -455,8 +450,12 @@ async def get_holding_history(symbol: str, range_str: str, db: AsyncSession) -> 
         "rsi14": rsi14_list,
         "avg_cost": avg_cost,
         "stop_loss": stop_loss,
+        "trailing_stop": trailing_stop,
         "target_1": target_1,
         "target_2": target_2,
+        "target_1_label": "estimated",
+        "target_2_label": "estimated",
+        "disclaimer": DISCLAIMER_TEXT,
         "insufficient_history": insufficient_history,
         "message": "Fewer than 10 candles in range" if insufficient_history else None
     }
