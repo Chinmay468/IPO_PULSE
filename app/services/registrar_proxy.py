@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional
 import httpx
 from bs4 import BeautifulSoup
 from app.config import settings
-from app.schemas.allotment import (
+from app.schemas.ipo import (
     RegistrarCompanyItem,
     AllotmentQueryRequest,
     AllotmentResultResponse,

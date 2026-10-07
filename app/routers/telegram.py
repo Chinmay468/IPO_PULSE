@@ -1,3 +1,4 @@
+import hmac
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
@@ -128,7 +129,17 @@ async def telegram_webhook(
 ):
     """
     Public webhook receiver called by Telegram servers to dispatch 2-way bot interactions.
+    Validates X-Telegram-Bot-Api-Secret-Token header using constant-time comparison.
     """
+    expected_secret = settings.TELEGRAM_WEBHOOK_SECRET
+    if expected_secret:
+        secret_header = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        if not secret_header or not hmac.compare_digest(secret_header, expected_secret):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: Invalid or missing Telegram secret token"
+            )
+
     try:
         update = await request.json()
     except Exception:

@@ -249,8 +249,9 @@ async def test_groq_answer_query_fallback_on_exception(mock_advisory_data, monke
 @pytest.mark.asyncio
 async def test_groq_answer_query_no_api_key(mock_advisory_data, monkeypatch):
     from app.services.portfolio_advisor_service import groq_answer_query
+    from app.services.groq_client_service import groq_key_pool
 
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setattr(groq_key_pool, "get_all_keys", lambda: [])
     answer, source = await groq_answer_query(
         query="how can i improve health of my portfolio",
         advisory_data=mock_advisory_data
@@ -907,6 +908,108 @@ async def test_company_facts_24h_in_memory_cache(monkeypatch):
     facts2 = await get_company_facts("ASHOKLEY")
     assert facts2["sector"] == "Automobile"
     assert call_count == prev_calls  # No additional yfinance calls!
+
+
+@pytest.mark.asyncio
+async def test_key_cooldown_60s_and_shift_to_next_key(monkeypatch, mock_advisory_data):
+    """When key 1 hits 429, it gets 60s cooldown and immediately shifts to key 2 without getting stuck."""
+    import sys
+    from unittest.mock import MagicMock
+    from app.services.groq_client_service import groq_key_pool
+    from app.services.portfolio_advisor_service import groq_answer_query
+
+    key1 = "gsk_test_key_one_12345678"
+    key2 = "gsk_test_key_two_12345678"
+    monkeypatch.setattr(groq_key_pool, "get_all_keys", lambda: [key1, key2])
+    groq_key_pool.clear_cooldowns()
+
+    attempted_keys = []
+
+    def mock_groq_init(api_key):
+        attempted_keys.append(api_key)
+        client = MagicMock()
+        if api_key == key1:
+            client.chat.completions.create.side_effect = RuntimeError("Groq 429 Rate Limit Exceeded")
+        else:
+            choice = MagicMock()
+            choice.message.content = "Success from Key 2"
+            choice.message.tool_calls = None
+            resp = MagicMock()
+            resp.choices = [choice]
+            client.chat.completions.create.return_value = resp
+        return client
+
+    mock_mod = MagicMock()
+    mock_mod.Groq = mock_groq_init
+    monkeypatch.setitem(sys.modules, "groq", mock_mod)
+
+    answer, source = await groq_answer_query(
+        query="What is my P&L?",
+        advisory_data=mock_advisory_data
+    )
+
+    # Verified key 1 hit rate limit and got 60s cooldown
+    assert key1 in groq_key_pool._cooldowns
+    # Verified it immediately shifted to key 2
+    assert attempted_keys == [key1, key2]
+    assert source == "ai"
+    assert "Success from Key 2" in answer
+
+
+@pytest.mark.asyncio
+async def test_all_keys_groq_and_gemini_exhausted_waits_120s_and_retries(monkeypatch, mock_advisory_data):
+    """When all keys of Groq AND Gemini hit limits, triggers 120s cooldown period and retries."""
+    import sys
+    from unittest.mock import MagicMock
+    from app.services.groq_client_service import groq_key_pool
+    from app.services.gemini_client_service import gemini_key_pool
+    from app.services.portfolio_advisor_service import groq_answer_query
+
+    groq_key = "gsk_only_key_12345678"
+    monkeypatch.setattr(groq_key_pool, "get_all_keys", lambda: [groq_key])
+    monkeypatch.setattr(gemini_key_pool, "get_all_keys", lambda: ["fake_gemini_key_12345"])
+    groq_key_pool.clear_cooldowns()
+    gemini_key_pool.clear_cooldowns()
+
+    round_calls = 0
+
+    def mock_groq_init(api_key):
+        nonlocal round_calls
+        round_calls += 1
+        client = MagicMock()
+        if round_calls == 1:
+            # Round 0: Groq rate limited
+            client.chat.completions.create.side_effect = RuntimeError("Groq 429 Rate limit exceeded")
+        else:
+            # Round 1 (after 120s cooldown): Groq succeeds!
+            choice = MagicMock()
+            choice.message.content = "Recovered after 120s cooldown retry!"
+            choice.message.tool_calls = None
+            resp = MagicMock()
+            resp.choices = [choice]
+            client.chat.completions.create.return_value = resp
+        return client
+
+    mock_mod = MagicMock()
+    mock_mod.Groq = mock_groq_init
+    monkeypatch.setitem(sys.modules, "groq", mock_mod)
+
+    # Gemini also fails on round 0
+    async def mock_fail_gemini(*args, **kwargs):
+        raise RuntimeError("Gemini 429 ResourceExhausted")
+
+    monkeypatch.setattr("app.services.gemini_client_service.call_gemini", mock_fail_gemini)
+
+    answer, source = await groq_answer_query(
+        query="What is my P&L?",
+        advisory_data=mock_advisory_data
+    )
+
+    # Verifies both failed in round 0, waited 120s cooldown, retried in round 1, and succeeded
+    assert round_calls == 2
+    assert source == "ai"
+    assert "Recovered after 120s cooldown retry" in answer
+
 
 
 

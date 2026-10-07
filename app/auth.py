@@ -5,9 +5,12 @@ from typing import Optional
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.config import settings
 
 security_bearer = HTTPBearer(auto_error=False)
+limiter = Limiter(key_func=get_remote_address)
 
 
 def hash_password(plain_password: str) -> str:
@@ -84,4 +87,15 @@ async def require_auth(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    return payload
+
+
+async def require_admin(payload: dict = Depends(require_auth)) -> dict:
+    """FastAPI dependency requiring an authenticated admin user."""
+    configured_user = getattr(settings, "ADMIN_USERNAME", "admin")
+    if payload.get("sub") != configured_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
     return payload

@@ -1,3 +1,4 @@
+import enum
 from datetime import date, datetime
 from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -92,6 +93,7 @@ class IPOBase(BaseModel):
     price_band_low: Optional[float] = Field(default=None, ge=0)
     price_band_high: Optional[float] = Field(default=None, ge=0)
     issue_price: Optional[float] = Field(default=None, ge=0)
+    listing_price: Optional[float] = Field(default=None, ge=0)
     lot_size: Optional[int] = Field(default=None, ge=1)
 
     issue_size_crores: Optional[float] = Field(default=None, ge=0)
@@ -135,6 +137,7 @@ class IPOUpdate(BaseModel):
     price_band_low: Optional[float] = None
     price_band_high: Optional[float] = None
     issue_price: Optional[float] = None
+    listing_price: Optional[float] = None
     lot_size: Optional[int] = None
 
     issue_size_crores: Optional[float] = None
@@ -183,3 +186,45 @@ class IPODetailResponse(IPOResponse):
 class IPOListResponse(BaseModel):
     total: int
     items: List[IPOResponse]
+
+
+# ---------------- Allotment Schemas ----------------
+class AllotmentQueryType(str, enum.Enum):
+    PAN = "PAN"
+    APPLICATION_NO = "APPLICATION_NO"
+    DP_CLIENT_ID = "DP_CLIENT_ID"
+
+
+class AllotmentStatus(str, enum.Enum):
+    ALLOTTED = "ALLOTTED"
+    NOT_ALLOTTED = "NOT_ALLOTTED"
+    NOT_FOUND = "NOT_FOUND"
+    PENDING = "PENDING"
+    ERROR = "ERROR"
+
+
+class RegistrarCompanyItem(BaseModel):
+    company_id: str = Field(..., description="Unique company identifier on the registrar system")
+    company_name: str = Field(..., description="Company name as shown on registrar portal")
+
+
+class AllotmentQueryRequest(BaseModel):
+    company_id: str = Field(..., description="Company identifier on Link Intime (e.g. '1052' or 'TATATECH')")
+    query_type: AllotmentQueryType = Field(default=AllotmentQueryType.PAN, description="PAN, APPLICATION_NO, or DP_CLIENT_ID")
+    query_value: str = Field(..., description="The PAN number, application number, or DP ID / Client ID")
+
+
+class AllotmentResultResponse(BaseModel):
+    success: bool
+    status: AllotmentStatus
+    company_name: str
+    company_id: str
+    applicant_name: Optional[str] = None
+    pan: Optional[str] = None
+    application_no: Optional[str] = None
+    dp_client_id: Optional[str] = None
+    shares_applied: Optional[int] = None
+    shares_allotted: Optional[int] = None
+    refund_amount: Optional[float] = None
+    message: str
+    source_registrar: str = "Link Intime"

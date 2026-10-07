@@ -86,3 +86,75 @@ class PortfolioSummary(BaseModel):
     holdings: list[HoldingResponse]
     last_updated: Optional[datetime] = None
 
+
+# ── Snapshot Schemas ─────────────────────────────────────────────────────────
+
+class PortfolioSnapshotResponse(BaseModel):
+    id: int
+    date: date
+    invested: float
+    current_value: float
+    pnl: float
+    priced_count: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Holding History & Indicator Schemas ──────────────────────────────────────
+
+class OHLCVItem(BaseModel):
+    time: str  # YYYY-MM-DD IST date string for Lightweight Charts
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
+class IndicatorPoint(BaseModel):
+    time: str
+    value: float
+
+
+class HoldingHistoryResponse(BaseModel):
+    symbol: str
+    range: str
+    candles: list[OHLCVItem] = []
+    ema20: list[IndicatorPoint] = []
+    ema50: list[IndicatorPoint] = []
+    rsi14: list[IndicatorPoint] = []
+    avg_cost: Optional[float] = None
+    stop_loss: Optional[float] = None
+    target_1: Optional[float] = None
+    target_2: Optional[float] = None
+    insufficient_history: bool = False
+    message: Optional[str] = None
+
+
+# ── Angel One Diagnostic Schemas ─────────────────────────────────────────────
+
+class AngelOneEnvStatus(BaseModel):
+    api_key_set: bool
+    client_id_set: bool
+    password_set: bool
+    totp_secret_set: bool
+
+
+class AngelOneLastSyncStatus(BaseModel):
+    step: Optional[str] = None
+    error_class: Optional[str] = None
+    error_code: Optional[str] = None
+    timestamp: Optional[datetime] = None
+    success: Optional[bool] = None
+
+
+class AngelOneDiagnoseResponse(BaseModel):
+    egress_ipv4: Optional[str] = None
+    egress_ipv6: Optional[str] = None
+    time_offset_seconds: Optional[float] = None
+    ntp_sync_ok: bool = False
+    env_vars: AngelOneEnvStatus
+    last_failure: AngelOneLastSyncStatus
+
+

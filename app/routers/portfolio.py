@@ -1,28 +1,36 @@
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import require_auth
-from app.rate_limiter import limiter
+from app.auth import require_auth, require_admin, limiter
 from app.schemas.portfolio import (
     HoldingCreate, HoldingUpdate, HoldingResponse,
     TransactionCreate, TransactionResponse,
-    PortfolioSummary
+    PortfolioSummary, PortfolioSnapshotResponse, HoldingHistoryResponse,
+    AngelOneDiagnoseResponse
 )
+from app.schemas.mutual_fund import CombinedNetWorthResponse
 import app.services.portfolio_service as svc
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/portfolio", tags=["Portfolio"], dependencies=[Depends(require_auth)])
 
 
-# ── Summary ──────────────────────────────────────────────────────────────────
+# ── Summary & Net Worth ──────────────────────────────────────────────────────
 
 @router.get("/summary", response_model=PortfolioSummary)
 async def portfolio_summary(db: AsyncSession = Depends(get_db)):
     """Get full portfolio summary with live P&L for all holdings."""
     return await svc.get_portfolio_summary(db)
+
+
+@router.get("/net-worth", response_model=CombinedNetWorthResponse)
+async def portfolio_net_worth(db: AsyncSession = Depends(get_db)):
+    """Get combined net worth across equity stocks and mutual funds with separate breakdowns."""
+    from app.services.mutual_fund_service import get_combined_net_worth
+    return await get_combined_net_worth(db)
 
 
 # ── Holdings ─────────────────────────────────────────────────────────────────
@@ -60,6 +68,26 @@ async def delete_holding(holding_id: int, db: AsyncSession = Depends(get_db)):
     success = await svc.delete_holding(db, holding_id)
     if not success:
         raise HTTPException(status_code=404, detail="Holding not found")
+
+
+# ── Holding History & Snapshots ──────────────────────────────────────────────
+
+@router.get("/holdings/{symbol}/history", response_model=HoldingHistoryResponse)
+@limiter.limit("60/minute")
+async def get_holding_history(
+    request: Request,
+    symbol: str,
+    range: str = Query("3m", pattern="^(1m|3m|6m|1y)$", description="History range: 1m, 3m, 6m, 1y"),
+    db: AsyncSession = Depends(get_db)
+):
+    """Daily OHLCV candlestick history from yfinance with EMA20, EMA50, RSI14, avg cost, and advisory levels."""
+    return await svc.get_holding_history(symbol=symbol, range_str=range, db=db)
+
+
+@router.get("/snapshots", response_model=list[PortfolioSnapshotResponse])
+async def list_snapshots(db: AsyncSession = Depends(get_db)):
+    """Get chronological portfolio valuation history snapshots."""
+    return await svc.get_portfolio_snapshots(db)
 
 
 # ── Transactions ─────────────────────────────────────────────────────────────
@@ -123,6 +151,23 @@ async def angelone_status():
     return {"configured": _is_configured()}
 
 
+@router.get(
+    "/import/angelone/diagnose",
+    response_model=AngelOneDiagnoseResponse,
+    dependencies=[Depends(require_admin)],
+    summary="Diagnose Angel One connectivity, egress IPs, NTP offset, and login step status"
+)
+@limiter.limit("15/minute")
+async def angelone_diagnose(request: Request):
+    """
+    Returns server egress IPv4/IPv6, system time offset vs NTP server,
+    boolean presence of required environment variables, and last sync failure details.
+    Restricted to authenticated admin users only.
+    """
+    from app.services.angelone_sync_service import diagnose_angelone
+    return await diagnose_angelone()
+
+
 @router.post("/import/angelone")
 async def sync_angelone(db: AsyncSession = Depends(get_db)):
     """
@@ -131,25 +176,46 @@ async def sync_angelone(db: AsyncSession = Depends(get_db)):
     (and optionally ANGELONE_TOTP_SECRET) in your .env file.
     """
     try:
-        from app.services.angelone_sync_service import sync_angelone_to_portfolio, _is_configured
+        from app.services.angelone_sync_service import (
+            sync_angelone_to_portfolio,
+            _is_configured,
+            AngelOneSyncError
+        )
         if not _is_configured():
             raise HTTPException(
                 status_code=400,
-                detail=(
-                    "Angel One credentials are not configured. "
-                    "Add ANGELONE_API_KEY, ANGELONE_CLIENT_ID, and ANGELONE_PASSWORD "
-                    "to your .env file and restart the service."
-                )
+                detail={
+                    "error_class": "unknown",
+                    "message": "Angel One credentials are not configured. Add ANGELONE_API_KEY, ANGELONE_CLIENT_ID, and ANGELONE_PASSWORD in environment.",
+                    "error_code": "NOT_CONFIGURED",
+                    "step": "connect",
+                }
             )
         result = await sync_angelone_to_portfolio(db)
         return result
     except HTTPException:
         raise
-    except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+    except AngelOneSyncError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "error_class": exc.error_class,
+                "message": exc.user_message,
+                "error_code": exc.error_code,
+                "step": exc.step,
+            }
+        )
     except Exception as exc:
-        logger.exception("Angel One sync error")
-        raise HTTPException(status_code=500, detail=f"Sync failed: {exc}")
+        logger.error("[AngelOne Sync] Uncaught sync error: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_class": "unknown",
+                "message": "Sync failed due to an unexpected server error.",
+                "error_code": type(exc).__name__,
+                "step": "unknown",
+            }
+        )
 
 
 # ── AI Portfolio Doctor & Technical Advisory ─────────────────────────────────
@@ -249,4 +315,15 @@ async def ask_portfolio_advisor(request: Request, data: dict, db: AsyncSession =
         db=db
     )
     return {"query": query, "answer": answer, "source": source}
+
+
+@router.get("/scorecard")
+async def get_swing_scorecard(db: AsyncSession = Depends(get_db)):
+    """
+    Get the swing-stock suggestion scorecard (total picks, hit rate, avg return, vs Nifty).
+    Returns 'not_enough_data' if fewer than 30 closed picks are recorded.
+    """
+    from app.services.market_shares_service import get_suggestion_scorecard
+    return await get_suggestion_scorecard(db)
+
 

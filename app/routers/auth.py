@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from app.config import settings
-from app.auth import verify_password, create_access_token
-from app.rate_limiter import limiter
+from app.auth import verify_password, create_access_token, limiter
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 

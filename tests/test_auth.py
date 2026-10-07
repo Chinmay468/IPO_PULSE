@@ -111,10 +111,14 @@ async def test_login_rate_limiting(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_advisory_ask_rate_limiting(client: AsyncClient):
+async def test_advisory_ask_rate_limiting(client: AsyncClient, monkeypatch):
     """POST /portfolio/advisory/ask is rate limited to 10 requests per minute per IP."""
     token = create_access_token({"sub": "admin"})
     auth_headers = {"Authorization": f"Bearer {token}"}
+
+    async def mock_groq(*args, **kwargs):
+        return ("Mocked advisor response.", "ai")
+    monkeypatch.setattr("app.services.portfolio_advisor_service.groq_answer_query", mock_groq)
 
     responses = []
     for _ in range(13):

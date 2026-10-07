@@ -19,6 +19,7 @@ from app.schemas.ipo import (
 )
 from datetime import date
 from app.services.ipo_service import IPOService
+from app.services.scoring_service import ScoringService
 from app.auth import require_auth
 
 router = APIRouter(prefix="/ipos", tags=["IPOs & Suggestions"])
@@ -199,6 +200,32 @@ async def recalculate_score(id: int, db: AsyncSession = Depends(get_db)):
         return score
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get("/{id}/score/breakdown", summary="Get detailed pillar-by-pillar score breakdown and reasons")
+async def get_score_breakdown(id: int, db: AsyncSession = Depends(get_db)):
+    ipo = await IPOService.get_ipo_by_id(db, id)
+    if not ipo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"IPO with id {id} not found")
+
+    latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
+    latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
+    score_result = ScoringService.calculate_score(ipo, latest_sub, latest_gmp)
+
+    rec_val = score_result["recommendation"]
+    if hasattr(rec_val, "value"):
+        rec_val = rec_val.value
+
+    return {
+        "ipo_id": ipo.id,
+        "symbol": ipo.symbol,
+        "company_name": ipo.company_name,
+        "composite_score": score_result["composite_score"],
+        "recommendation": rec_val,
+        "pillars": score_result["rationale"]["pillars"],
+        "positive_factors": score_result["rationale"]["positive_factors"],
+        "risk_factors": score_result["rationale"]["risk_factors"]
+    }
 
 
 import re

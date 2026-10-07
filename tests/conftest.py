@@ -73,3 +73,21 @@ def auth_headers(monkeypatch) -> dict:
 async def auth_client(client: AsyncClient, auth_headers: dict) -> AsyncClient:
     client.headers.update(auth_headers)
     return client
+
+
+@pytest.fixture(autouse=True)
+def isolate_gemini_env(monkeypatch):
+    """Ensure developer's local GEMINI_API_KEY does not cause unintended live calls during tests."""
+    from app.config import settings
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("PRIMARY_LLM_PROVIDER", raising=False)
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", None)
+    monkeypatch.setattr(settings, "GOOGLE_API_KEY", None)
+    monkeypatch.setattr(settings, "PRIMARY_LLM_PROVIDER", "groq")
+    from app.services.groq_client_service import groq_key_pool
+    from app.services.gemini_client_service import gemini_key_pool
+    groq_key_pool.clear_cooldowns()
+    gemini_key_pool.clear_cooldowns()
+
+

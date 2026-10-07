@@ -7,6 +7,26 @@ from app.models.ipo import (
     IPOStatus,
     RecommendationType
 )
+from app.models.portfolio import (
+    Holding,
+    Transaction,
+    TransactionType,
+    Exchange,
+    SuggestionLog,
+    PortfolioSnapshot
+)
+from app.models.prediction import (
+    Prediction,
+    PredictionResult,
+    DirectionType
+)
+from app.models.mutual_fund import (
+    MFScheme,
+    MFHolding,
+    MFTransaction,
+    MFNavHistory,
+    MFTransactionType
+)
 
 __all__ = [
     "IPO",
@@ -16,4 +36,18 @@ __all__ = [
     "IPOType",
     "IPOStatus",
     "RecommendationType",
+    "Holding",
+    "Transaction",
+    "TransactionType",
+    "Exchange",
+    "SuggestionLog",
+    "PortfolioSnapshot",
+    "Prediction",
+    "PredictionResult",
+    "DirectionType",
+    "MFScheme",
+    "MFHolding",
+    "MFTransaction",
+    "MFNavHistory",
+    "MFTransactionType",
 ]

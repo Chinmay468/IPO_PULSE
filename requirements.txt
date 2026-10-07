@@ -25,3 +25,5 @@ pytest-asyncio>=0.23.0
 groq>=0.9.0
 pyjwt>=2.8.0
 slowapi>=0.1.9
+scikit-learn>=1.4.0
+casparser>=1.4.1

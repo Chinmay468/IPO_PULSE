@@ -58,6 +58,7 @@ class IPO(Base):
     price_band_low: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     price_band_high: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     issue_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    listing_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     lot_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # Size details in Crores INR

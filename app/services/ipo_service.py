@@ -202,12 +202,15 @@ class IPOService:
         latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
         score_data = ScoringService.calculate_score(ipo, latest_sub, latest_gmp)
 
+        valid_fields = {"composite_score", "recommendation", "gmp_score", "subscription_score", "valuation_score", "structure_score", "rationale"}
+        filtered_data = {k: v for k, v in score_data.items() if k in valid_fields}
+
         if ipo.score:
-            for k, v in score_data.items():
+            for k, v in filtered_data.items():
                 setattr(ipo.score, k, v)
             score_obj = ipo.score
         else:
-            score_obj = IPOScore(ipo_id=ipo_id, **score_data)
+            score_obj = IPOScore(ipo_id=ipo_id, **filtered_data)
             session.add(score_obj)
 
         await session.commit()

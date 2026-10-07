@@ -14,7 +14,7 @@ from app.schemas.ipo import (
     IPODetailResponse,
     IPOListResponse
 )
-from app.schemas.allotment import (
+from app.schemas.ipo import (
     AllotmentQueryType,
     AllotmentStatus,
     RegistrarCompanyItem,

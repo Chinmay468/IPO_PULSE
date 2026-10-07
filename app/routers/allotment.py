@@ -1,12 +1,12 @@
 from typing import List
 from fastapi import APIRouter, HTTPException, Request, status
-from app.schemas.allotment import (
+from app.schemas.ipo import (
     RegistrarCompanyItem,
     AllotmentQueryRequest,
     AllotmentResultResponse
 )
 from app.services.registrar_proxy import RegistrarProxyService
-from app.rate_limiter import limiter
+from app.auth import limiter
 
 router = APIRouter(prefix="/allotment", tags=["Registrar Allotment Proxy"])
 

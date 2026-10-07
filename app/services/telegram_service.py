@@ -22,6 +22,30 @@ _RATE_LIMIT_CACHE: Dict[str, List[float]] = {}
 RATE_LIMIT_WINDOW_SECONDS: int = 60
 RATE_LIMIT_MAX_MESSAGES: int = 20
 
+# In-memory rolling multi-turn chat history: chat_id -> list of role/content dicts (up to 6)
+_CHAT_HISTORY_CACHE: Dict[str, List[Dict[str, str]]] = {}
+
+
+def sanitize_log_text(text: str) -> str:
+    """
+    Sanitizes log text by masking PAN patterns, 10+ digit numbers, bot tokens, and API keys.
+    """
+    if not text:
+        return ""
+    # 1. Mask Bot tokens (e.g. 123456789:ABCdefGhI...)
+    text = re.sub(r'\b\d{8,11}:[A-Za-z0-9_-]{30,}\b', '[BOT_TOKEN_MASKED]', text)
+    # 2. Mask Prefixed API keys / tokens (Groq, OpenAI, GitHub, etc.)
+    text = re.sub(r'\b(?:gsk_|sk-|ghp_|gho_)[A-Za-z0-9_-]{16,}\b', '[API_KEY_MASKED]', text)
+    # 3. Mask Bearer tokens
+    text = re.sub(r'\bBearer\s+[A-Za-z0-9_.-]{20,}\b', 'Bearer [TOKEN_MASKED]', text, flags=re.IGNORECASE)
+    # 4. Mask PAN patterns (5 letters, 4 digits, 1 letter)
+    text = re.sub(r'\b[A-Za-z]{5}\d{4}[A-Za-z]\b', '[PAN_MASKED]', text)
+    # 5. Mask 10+ digit numbers (phone numbers, demat accounts, large numeric IDs)
+    text = re.sub(r'\b\d{10,}\b', '[NUM_MASKED]', text)
+    # 6. Mask long high-entropy alphanumeric strings (32+ chars)
+    text = re.sub(r'\b[A-Za-z0-9_-]{32,}\b', '[TOKEN_MASKED]', text)
+    return text
+
 
 def markdown_to_telegram_html(md_text: str) -> str:
     """
@@ -441,7 +465,54 @@ class TelegramService:
                 lines.append(f"• <b>{h.symbol}</b> ({h.quantity} sh): ₹{(h.current_value or 0.0):,.0f} | <i>{h_sign}{h_pnl_pct:.1f}%</i>")
 
         lines.append("")
-        lines.append("💬 <i>Reply with any stock symbol (e.g. \"ARMEE\" or \"ITC\") for AI analysis.</i>")
+        lines.append("💬 <i>Reply with any stock symbol (e.g. \"ARMEE\" or \"ITC\") for AI analysis. Type /mf for Mutual Funds.</i>")
+        return "\n".join(lines)
+
+    @staticmethod
+    def format_mf_summary_card(mf_summary: Any) -> str:
+        """
+        Formats a clean Mutual Funds summary card for Telegram with NAV as of date.
+        """
+        inv = mf_summary.total_invested or 0.0
+        cur = mf_summary.current_value or 0.0
+        pnl = mf_summary.total_pnl or 0.0
+        pnl_pct = mf_summary.total_pnl_pct or 0.0
+        xirr_str = f"{mf_summary.overall_xirr:.2f}%" if mf_summary.overall_xirr is not None else "N/A"
+        count = mf_summary.holdings_count or 0
+        nav_date = str(mf_summary.nav_as_of_date) if mf_summary.nav_as_of_date else "N/A"
+
+        pnl_emoji = "🟢" if pnl >= 0 else "🔴"
+        pnl_sign = "+" if pnl > 0 else ""
+
+        lines = [
+            "📊 <b>IPO PULSE · MUTUAL FUNDS SUMMARY</b>",
+            f"<i>NAV as of {nav_date}</i>",
+            "",
+            f"💰 <b>Total Invested:</b> ₹{inv:,.2f}",
+            f"📈 <b>Current Value:</b> ₹{cur:,.2f}",
+            f"{pnl_emoji} <b>Overall P&L:</b> {pnl_sign}₹{pnl:,.2f} ({pnl_sign}{pnl_pct:.2f}%)",
+            f"🚀 <b>Overall XIRR:</b> {xirr_str}",
+            f"🎯 <b>Active Funds:</b> {count} scheme(s)",
+        ]
+
+        if mf_summary.holdings:
+            lines.append("")
+            lines.append("📋 <b>Fund Holdings:</b>")
+            for h in mf_summary.holdings[:6]:
+                h_pnl_sign = "+" if h.pnl > 0 else ""
+                h_xirr = f"{h.xirr:.1f}%" if h.xirr is not None else "N/A"
+                stale_txt = " ⚠️(stale)" if h.is_nav_stale else ""
+                lines.append(f"• <b>{h.scheme_name}</b>{stale_txt}")
+                lines.append(f"  ₹{h.current_value:,.0f} | P&L: {h_pnl_sign}{h.pnl_pct:.1f}% | XIRR: {h_xirr} | NAV as of {h.latest_nav_date or 'N/A'}")
+
+        if mf_summary.category_allocation:
+            lines.append("")
+            lines.append("🏷️ <b>Asset Allocation:</b>")
+            for cat in mf_summary.category_allocation[:4]:
+                lines.append(f"• {cat.name}: {cat.percentage:.1f}% (₹{cat.value:,.0f})")
+
+        lines.append("")
+        lines.append("💬 <i>Reply with any mutual fund question for grounded analysis!</i>")
         return "\n".join(lines)
 
     @staticmethod
@@ -457,13 +528,58 @@ class TelegramService:
             card += "\n\n⚠️ <b>SME Notice:</b> This is an SME issue with large lot size requirement (typically ₹1,00,000+). Your alerts and recommendations are focused strictly on Mainboard IPOs (~₹15k)."
         return card
 
+    @staticmethod
+    def format_accuracy_card(report: Dict[str, Any]) -> str:
+        """
+        Formats a clean prediction accuracy card for Telegram bot /accuracy command.
+        Includes 95% confidence intervals, Brier score, baseline comparison, and mandatory disclaimer.
+        """
+        models = report.get("models", {})
+        lines = [
+            "🎯 <b>MODEL PREDICTION ACCURACY & EVALUATION</b>",
+            ""
+        ]
+
+        for m_name, m_data in models.items():
+            disp_name = {
+                "persistence": "Persistence Baseline",
+                "always_up": "Always UP Baseline",
+                "logistic_regression": "Logistic Regression",
+                "groq_llm": "Groq LLM"
+            }.get(m_name, m_name.replace("_", " ").title())
+
+            if m_data.get("status") == "not enough data":
+                n = m_data.get("total_predictions", 0)
+                lines.append(f"• <b>{disp_name}:</b> ⚠️ <i>Not enough data ({n}/300 minimum predictions required)</i>")
+            else:
+                acc = m_data.get("accuracy_pct", 0.0)
+                ci = m_data.get("confidence_interval_95", [0.0, 0.0])
+                brier = m_data.get("brier_score", 0.0)
+                tot = m_data.get("total_predictions", 0)
+                beats = " | 🏆 <b>BEATS BASELINES</b>" if m_data.get("beats_baselines") else ""
+
+                lines.append(
+                    f"• <b>{disp_name}:</b> <b>{acc:.1f}%</b> (95% CI: {ci[0]:.1f}% - {ci[1]:.1f}%) | "
+                    f"Brier: {brier:.3f} | N={tot}{beats}"
+                )
+
+        lines.append("")
+        lines.append("⚠️ <i>Disclaimer: Research and evaluation only, not investment or trading advice. Past model accuracy does not guarantee future results.</i>")
+        return "\n".join(lines)
+
     @classmethod
     async def answer_ai_query(
-        cls, query: str, session: AsyncSession, return_source: bool = False
-    ) -> str | Tuple[str, str]:
+        cls,
+        query: str,
+        session: AsyncSession,
+        return_source: bool = False,
+        chat_history: Optional[List[Dict[str, str]]] = None,
+        force_llm: bool = False,
+        return_model: bool = False
+    ) -> str | Tuple[str, str] | Tuple[str, str, str]:
         """
         Uses PortfolioAdvisorService to answer investor questions with live holdings & IPO context.
-        Returns the answer string, or (answer, source) if return_source is True.
+        Supports multi-turn chat_history and force_llm evaluation mode.
         """
         from app.services.portfolio_service import get_portfolio_summary
         from app.services.portfolio_advisor_service import generate_portfolio_advisory, groq_answer_query
@@ -499,11 +615,18 @@ class TelegramService:
             score_str = f"{ipo.score.composite_score:.1f}/100" if ipo.score else "N/A"
             rec_str = ipo.score.recommendation.value if ipo.score else "N/A"
 
+            open_str = ipo.open_date.strftime("%d %b %Y") if ipo.open_date else "TBA"
+            close_str = ipo.close_date.strftime("%d %b %Y") if ipo.close_date else "TBA"
+            listing_str = ipo.listing_date.strftime("%d %b %Y") if ipo.listing_date else "TBA"
+
             ipos_data.append({
                 "symbol": ipo.symbol,
                 "company_name": ipo.company_name,
                 "ipo_type": ipo.ipo_type.value if hasattr(ipo.ipo_type, "value") else str(ipo.ipo_type),
                 "status": ipo.status.value,
+                "open_date": open_str,
+                "close_date": close_str,
+                "listing_date": listing_str,
                 "price_band": pband,
                 "gmp": gmp_str,
                 "subscription": sub_str,
@@ -520,20 +643,33 @@ class TelegramService:
                 "If the user asks specifically about an SME IPO, inform them about the high lot size requirement (₹1L+) and that their preference is set to Mainboard only."
             )
 
-        from app.services.market_shares_service import get_vetted_swing_shares
-        market_shares = await get_vetted_swing_shares()
+        from app.services.market_shares_service import get_technical_swing_candidates
+        market_shares = await get_technical_swing_candidates()
 
-        answer, source = await groq_answer_query(
+        res = await groq_answer_query(
             query=query,
             advisory_data=advisory_data,
-            chat_history=[],
+            chat_history=chat_history or [],
             active_ipos=ipos_data,
             portfolio_summary=summary,
             db=session,
             extra_system_instructions=extra_instructions,
-            market_shares=market_shares
+            market_shares=market_shares,
+            force_llm=force_llm,
+            return_model=return_model
         )
-        logger.info("[Telegram AI Query] source=%s query=%r reply_preview=%r", source, query, answer[:200])
+        if return_model:
+            answer, source, used_model = res
+        else:
+            answer, source = res
+            used_model = "unknown"
+
+        logger.info(
+            "[Telegram AI Query] source=%s query=%r reply_preview=%r",
+            source, sanitize_log_text(query), sanitize_log_text(answer[:200])
+        )
+        if return_model:
+            return answer, source, used_model
         if return_source:
             return answer, source
         return answer
@@ -591,8 +727,11 @@ class TelegramService:
                 "I am your real-time investment copilot and IPO intelligence assistant.\n\n"
                 "⚡ <b>Quick Commands:</b>\n"
                 f"• 🚀 <b>/top</b> or <b>/best</b> - {best_cmd_label}\n"
-                "• 🎯 <b>/shares</b> or <b>/picks</b> - Vetted 2–3 month swing shares with entry, target & SL\n"
+                "• 🎯 <b>/shares</b> or <b>/picks</b> - Technical swing candidates with mechanical entry, target & SL\n"
+                "• 📈 <b>/scorecard</b> - Swing strategy performance track record vs Nifty\n"
                 "• 💼 <b>/portfolio</b> - Live portfolio summary & today's P&L\n"
+                "• 📈 <b>/mf</b> or <b>/mutualfunds</b> - Mutual Funds portfolio, XIRR & allocations\n"
+                "• 📊 <b>/accuracy</b> or <b>/eval</b> - Direction prediction accuracy & Brier evaluation score\n"
                 "• 🔍 <b>/ipo &lt;name&gt;</b> - Instant scorecard & GMP for an IPO\n"
                 "• ❓ <b>/help</b> - View this command guide\n\n"
                 "💬 <b>Ask Me Any Question Directly:</b>\n"
@@ -604,10 +743,28 @@ class TelegramService:
                 "Just reply with your question and I'll analyze live market data!"
             )
             await cls.send_message(help_text, chat_id=chat_id)
-            logger.info("[Telegram Handled] chat_id=%s source=system query=%r reply_preview=%r", chat_id, text, help_text[:150])
+            logger.info("[Telegram Handled] chat_id=%s source=system query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(help_text[:150]))
             return {"ok": True, "action": "help", "source": "system"}
 
-        # 2. /shares, /picks, /stocks, or direct request for share suggestions
+        # 2. /accuracy, /eval, accuracy
+        if clean_lower in ["/accuracy", "/eval", "accuracy", "model accuracy", "prediction accuracy"]:
+            from app.services.prediction_service import PredictionService
+            report = await PredictionService.get_model_performance(session)
+            card = cls.format_accuracy_card(report)
+            await cls.send_message(card, chat_id=chat_id)
+            logger.info("[Telegram Handled] chat_id=%s source=model_accuracy query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(card[:150]))
+            return {"ok": True, "action": "accuracy", "source": "model_accuracy"}
+
+        # 3. /scorecard, scorecard, trackrecord
+        if clean_lower in ["/scorecard", "scorecard", "/trackrecord", "track record", "/swingrecord"]:
+            from app.services.market_shares_service import get_suggestion_scorecard, format_scorecard_message
+            scorecard_data = await get_suggestion_scorecard(session)
+            card = format_scorecard_message(scorecard_data)
+            await cls.send_message(card, chat_id=chat_id)
+            logger.info("[Telegram Handled] chat_id=%s source=swing_scorecard query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(card[:150]))
+            return {"ok": True, "action": "scorecard", "source": "swing_scorecard"}
+
+        # 4. /shares, /picks, /stocks, or direct request for share suggestions
         if (
             clean_lower in ["/shares", "/picks", "/stocks", "shares", "picks", "stocks"]
             or any(p in clean_lower for p in [
@@ -616,17 +773,17 @@ class TelegramService:
                 "shares to buy", "stocks to buy", "share for 2-3 month", "share for 2-3 months"
             ])
         ):
-            from app.services.market_shares_service import get_vetted_swing_shares, format_shares_summary_card
-            shares = await get_vetted_swing_shares()
+            from app.services.market_shares_service import get_technical_swing_candidates, format_shares_summary_card
+            shares = await get_technical_swing_candidates(session=session)
             card = format_shares_summary_card(shares)
             await cls.send_message(card, chat_id=chat_id)
-            logger.info("[Telegram Handled] chat_id=%s source=vetted_swing_shares query=%r reply_preview=%r", chat_id, text, card[:150])
-            return {"ok": True, "action": "shares_suggested", "source": "vetted_swing_shares"}
+            logger.info("[Telegram Handled] chat_id=%s source=technical_swing_candidates query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(card[:150]))
+            return {"ok": True, "action": "shares_suggested", "source": "technical_swing_candidates"}
 
         # 3. /top, /best
         if clean_lower in ["/top", "/best", "top", "best ipo", "best ipos"]:
             digest_res = await cls.send_top_picks_digest(session)
-            logger.info("[Telegram Handled] chat_id=%s source=top_picks query=%r reply_preview=%r", chat_id, text, str(digest_res)[:150])
+            logger.info("[Telegram Handled] chat_id=%s source=top_picks query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(str(digest_res)[:150]))
             return {"ok": True, "action": "top_picks", "source": "top_picks", "result": digest_res}
 
         # 4. /portfolio, /pnl
@@ -635,8 +792,17 @@ class TelegramService:
             summary = await get_portfolio_summary(session)
             card = cls.format_portfolio_summary_card(summary)
             await cls.send_message(card, chat_id=chat_id)
-            logger.info("[Telegram Handled] chat_id=%s source=portfolio_summary query=%r reply_preview=%r", chat_id, text, card[:150])
+            logger.info("[Telegram Handled] chat_id=%s source=portfolio_summary query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(card[:150]))
             return {"ok": True, "action": "portfolio", "source": "portfolio_summary"}
+
+        # 4b. /mf, /mutualfunds
+        if clean_lower in ["/mf", "/mutualfunds", "/mutual_funds", "mf", "mutual funds", "my mutual funds", "mutual fund"]:
+            from app.services.mutual_fund_service import get_mf_summary
+            mf_summary = await get_mf_summary(session)
+            card = cls.format_mf_summary_card(mf_summary)
+            await cls.send_message(card, chat_id=chat_id)
+            logger.info("[Telegram Handled] chat_id=%s source=mf_summary query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(card[:150]))
+            return {"ok": True, "action": "mutual_funds", "source": "mf_summary"}
 
         # 5. /ipo <name or symbol>
         if clean_lower.startswith("/ipo "):
@@ -660,21 +826,35 @@ class TelegramService:
                 if found_ipo:
                     card = cls.format_ipo_lookup_card(found_ipo)
                     await cls.send_message(card, chat_id=chat_id)
-                    logger.info("[Telegram Handled] chat_id=%s source=ipo_lookup query=%r reply_preview=%r", chat_id, text, card[:150])
+                    logger.info("[Telegram Handled] chat_id=%s source=ipo_lookup query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(card[:150]))
                     return {"ok": True, "action": "ipo_found", "source": "ipo_lookup"}
                 else:
                     not_found_msg = f"🔍 No IPO found matching <b>{html.escape(search_term)}</b> in active database."
                     await cls.send_message(not_found_msg, chat_id=chat_id)
-                    logger.info("[Telegram Handled] chat_id=%s source=ipo_lookup query=%r reply_preview=%r", chat_id, text, not_found_msg)
+                    logger.info("[Telegram Handled] chat_id=%s source=ipo_lookup query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(not_found_msg))
                     return {"ok": True, "action": "ipo_not_found", "source": "ipo_lookup"}
 
         # 6. Natural conversation / AI Copilot query
         try:
-            ai_reply, source = await cls.answer_ai_query(text, session, return_source=True)
+            hist = _CHAT_HISTORY_CACHE.get(chat_id, [])
+            ai_reply, source = await cls.answer_ai_query(text, session, return_source=True, chat_history=hist)
+            # Update chat history rolling window (keep up to 6 messages)
+            _CHAT_HISTORY_CACHE[chat_id] = (hist + [
+                {"role": "user", "content": text},
+                {"role": "assistant", "content": ai_reply}
+            ])[-6:]
+
             html_reply = markdown_to_telegram_html(ai_reply)
             await cls.send_message(html_reply, chat_id=chat_id)
-            logger.info("[Telegram Handled] chat_id=%s source=%s query=%r reply_preview=%r", chat_id, source, text, ai_reply[:150])
+            logger.info("[Telegram Handled] chat_id=%s source=%s query=%r reply_preview=%r", chat_id, source, sanitize_log_text(text), sanitize_log_text(ai_reply[:150]))
             return {"ok": True, "action": "ai_answered", "source": source}
+        except Exception as exc:
+            logger.error(f"Error answering AI query on Telegram: {exc}", exc_info=True)
+            await cls.send_message(
+                f"⚠️ Sorry, I encountered an issue analyzing your query: {html.escape(str(exc))}",
+                chat_id=chat_id
+            )
+            return {"ok": False, "error": str(exc)}
         except Exception as exc:
             logger.error(f"Error answering AI query on Telegram: {exc}", exc_info=True)
             await cls.send_message(
@@ -684,20 +864,39 @@ class TelegramService:
             return {"ok": False, "error": str(exc)}
 
     @classmethod
-    async def set_webhook(cls, webhook_url: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+    async def set_webhook(
+        cls,
+        webhook_url: Optional[str] = None,
+        secret_token: Optional[str] = None
+    ) -> Tuple[bool, Optional[str]]:
         """
-        Registers the incoming webhook URL with Telegram Bot API.
+        Registers the incoming webhook URL with Telegram Bot API, including secret_token if configured.
         """
         url_to_set = webhook_url or settings.TELEGRAM_WEBHOOK_URL
+        sec_token = secret_token or settings.TELEGRAM_WEBHOOK_SECRET
+        if not sec_token:
+            import secrets
+            sec_token = secrets.token_urlsafe(32)
+            settings.TELEGRAM_WEBHOOK_SECRET = sec_token
+            try:
+                with open(".env", "a", encoding="utf-8") as f:
+                    f.write(f"\nTELEGRAM_WEBHOOK_SECRET={sec_token}\n")
+            except Exception:
+                pass
+
         if not settings.TELEGRAM_BOT_TOKEN:
             return False, "Telegram bot token is not configured."
         if not url_to_set:
             return False, "Webhook URL is not configured."
 
         api_url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook"
+        payload: Dict[str, Any] = {"url": url_to_set, "drop_pending_updates": False}
+        if sec_token:
+            payload["secret_token"] = sec_token
+
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(api_url, json={"url": url_to_set, "drop_pending_updates": False})
+                resp = await client.post(api_url, json=payload)
                 data = resp.json() if resp.status_code == 200 else {}
                 if resp.status_code == 200 and data.get("ok"):
                     logger.info(f"Telegram webhook registered successfully: {url_to_set}")

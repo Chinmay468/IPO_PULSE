@@ -1,6 +1,7 @@
 from datetime import date
 from typing import Optional, Dict, Any, List
 from app.models.ipo import IPO, IPOSubscription, IPOGmp, IPOType, RecommendationType
+from app.core.scoring_config import SCORING_CONFIG
 
 
 class ScoringService:
@@ -11,12 +12,14 @@ class ScoringService:
         latest_gmp: Optional[IPOGmp] = None
     ) -> Dict[str, Any]:
         """
-        Computes an institutional-grade multi-parameter composite score (0-100) and recommendation:
+        Computes an institutional-grade multi-parameter composite score (0-100) and recommendation
+        strictly aligned with SCORING_CONFIG:
         - 1. GMP Component (max 35) with SME vs Mainboard tier calibrations & market depth
-        - 2. Subscription Component (max 30) with Day-of-bidding awareness & category dynamics
-        - 3. Valuation & Financials (max 20) with P/E vs Industry, RoNW capital efficiency & loss-maker handling
-        - 4. Issue Structure (max 15) with Fresh Issue % vs OFS and liquidity sweet-spot scaling
+        - 2. Subscription Component (max 30) with Day-of-bidding awareness, smooth linear interpolation & category dynamics
+        - 3. Valuation & Financials (max 20) with P/E vs Industry, absolute P/E fallback & RoNW capital efficiency
+        - 4. Issue Structure (max 15) with Fresh Issue % vs OFS, ₹100-300 Cr Mainboard gap resolution & liquidity scaling
         """
+        weights = SCORING_CONFIG["weights"]
         positive_factors: List[str] = []
         risk_factors: List[str] = []
 
@@ -24,6 +27,7 @@ class ScoringService:
         today = date.today()
 
         # ---------------- 1. GMP Component (Max 35) ----------------
+        max_gmp_pts = weights["gmp"]["max_points"]
         gmp_score = 0.0
         gmp_pct: Optional[float] = None
 
@@ -63,14 +67,18 @@ class ScoringService:
             # Bonus for Kostak / Subject-to-sauda demand if recorded
             if latest_gmp.subject_to_sauda and latest_gmp.subject_to_sauda > 0:
                 positive_factors.append(f"Active Subject-to-Sauda premium (₹{latest_gmp.subject_to_sauda:.0f}) confirms firm retail buyer interest.")
-                gmp_score = min(35.0, gmp_score + 1.5)
+                gmp_score = min(max_gmp_pts, gmp_score + 1.5)
         else:
             # Baseline neutral estimation when GMP has not developed yet
             gmp_score = 15.0
             risk_factors.append("No active Grey Market Premium recorded yet; score reflects baseline neutral assumption.")
 
+        gmp_score = min(max_gmp_pts, max(0.0, gmp_score))
+
         # ---------------- 2. Subscription Component (Max 30) ----------------
+        max_sub_pts = weights["subscription"]["max_points"]
         subscription_score = 0.0
+
         if latest_subscription:
             qib = latest_subscription.qib_multiple
             retail = latest_subscription.retail_multiple
@@ -83,7 +91,7 @@ class ScoringService:
             elif ipo.open_date and today <= (ipo.open_date if hasattr(ipo.open_date, '__add__') else today):
                 is_early_bidding = True
 
-            # QIB Component (Max 16 pts) - Institutional endorsement
+            # QIB Component (Max 16 pts) - Institutional endorsement with continuous linear interpolation
             qib_pts = 0.0
             qib_target = 60.0 if is_sme else 30.0
 
@@ -91,21 +99,22 @@ class ScoringService:
                 if qib >= qib_target:
                     qib_pts = 16.0
                     positive_factors.append(f"Massive institutional interest with QIB subscribed {qib:.1f}x.")
-                elif qib >= (qib_target * 0.5):
-                    qib_pts = 13.0
-                    positive_factors.append(f"Strong QIB subscription of {qib:.1f}x demonstrates solid institutional backing.")
                 elif qib >= 5.0:
-                    qib_pts = 10.0
-                    positive_factors.append(f"Healthy QIB subscription of {qib:.1f}x.")
+                    # Linearly interpolate between 5x (10.0 pts) and target (16.0 pts)
+                    qib_pts = 10.0 + ((qib - 5.0) / (qib_target - 5.0)) * 6.0
+                    positive_factors.append(f"Strong QIB subscription of {qib:.1f}x demonstrates institutional backing.")
                 elif qib >= 1.0:
-                    qib_pts = 6.0
+                    # Linearly interpolate between 1.0x (6.0 pts) and 5.0x (10.0 pts)
+                    qib_pts = 6.0 + ((qib - 1.0) / 4.0) * 4.0
+                    positive_factors.append(f"Moderate QIB subscription of {qib:.1f}x.")
                 else:
                     if is_early_bidding:
                         # In India, QIBs almost exclusively bid on Day 3 afternoon. Do not prematurely penalize.
                         qib_pts = 5.0
                         positive_factors.append(f"Bidding in progress ({'Day ' + str(latest_subscription.day_number) if latest_subscription.day_number else 'initial window'}); institutional QIB surge expected on closing day.")
                     else:
-                        qib_pts = 1.0
+                        # Smooth linear interpolation for closing day undersubscription from 0x (1.0 pt) to 1.0x (6.0 pts)
+                        qib_pts = 1.0 + max(0.0, qib) * 5.0
                         risk_factors.append(f"Subdued QIB institutional demand ({qib:.2f}x).")
             else:
                 qib_pts = 5.0 if is_early_bidding else 3.0
@@ -152,19 +161,20 @@ class ScoringService:
             else:
                 total_pts = 2.0
 
-            subscription_score = min(30.0, qib_pts + retail_pts + total_pts)
+            subscription_score = min(max_sub_pts, qib_pts + retail_pts + total_pts)
         else:
             # For upcoming or newly opened IPOs before bidding numbers update
             subscription_score = 15.0
 
         # ---------------- 3. Valuation & Financials (Max 20) ----------------
+        max_val_pts = weights["valuation"]["max_points"]
         valuation_score = 0.0
         pe = ipo.pe_ratio
         ind_pe = ipo.industry_pe
         ronw = ipo.ronw
 
-        # PE vs Industry PE (Max 12 pts)
-        pe_pts = 6.0  # default
+        # PE vs Industry PE (Max 12 pts) with Absolute P/E Fallback
+        pe_pts = 6.0  # default neutral
         if pe is not None and ind_pe is not None and ind_pe > 0:
             if pe > 0:
                 pe_ratio_diff = (pe - ind_pe) / ind_pe
@@ -187,9 +197,11 @@ class ScoringService:
                 pe_pts = 2.0
                 risk_factors.append("Loss-making operations (negative P/E ratio).")
         elif pe is not None and pe > 0:
-            if pe < 25:
+            # Absolute P/E fallback when Industry P/E is not available
+            if pe < 25.0:
                 pe_pts = 9.0
-            elif pe < 45:
+                positive_factors.append(f"Reasonable absolute valuation: P/E of {pe:.1f} is under 25.")
+            elif pe < 45.0:
                 pe_pts = 6.5
             else:
                 pe_pts = 3.0
@@ -213,9 +225,10 @@ class ScoringService:
                 ronw_pts = 0.0
                 risk_factors.append("Negative Return on Net Worth reflects net losses.")
 
-        valuation_score = min(20.0, pe_pts + ronw_pts)
+        valuation_score = min(max_val_pts, pe_pts + ronw_pts)
 
         # ---------------- 4. Issue Structure (Max 15) ----------------
+        max_struct_pts = weights["structure"]["max_points"]
         structure_score = 0.0
         total_size = ipo.issue_size_crores
         fresh_size = ipo.fresh_issue_crores
@@ -256,18 +269,19 @@ class ScoringService:
                 else:
                     size_pts = 3.0
             else:
-                # Mainboard Liquidity Sweet Spot: ₹300 Cr to ₹5,000 Cr
+                # Mainboard Liquidity Sweet Spot: ₹300 Cr to ₹5,000 Cr; defined mid-size ₹100–300 Cr
                 if 300.0 <= total_size <= 5000.0:
                     size_pts = 5.0
+                elif 100.0 <= total_size < 300.0:
+                    size_pts = 4.0
                 elif total_size > 5000.0:
                     size_pts = 3.5
                 elif total_size < 100.0:
                     size_pts = 3.0
 
-        structure_score = min(15.0, fresh_pts + size_pts)
+        structure_score = min(max_struct_pts, fresh_pts + size_pts)
 
         # ---------------- Advanced Financial Health & Trend Analysis ----------------
-        # 1. Revenue & PAT Momentum
         rev_growth = getattr(ipo, "revenue_growth_yoy", None)
         pat_growth = getattr(ipo, "pat_growth_yoy", None)
         d_to_e = getattr(ipo, "debt_to_equity", None)
@@ -289,28 +303,24 @@ class ScoringService:
             elif rev_growth < 5.0:
                 risk_factors.append(f"Top-line Deceleration: Revenue growth slowed to {rev_growth:.1f}% YoY.")
 
-        # 2. Leverage & Balance Sheet Strength
         if d_to_e is not None:
             if d_to_e <= 0.35:
                 positive_factors.append(f"Conservative Leverage: Low Debt/Equity of {d_to_e:.2f}x provides strong balance sheet resilience.")
             elif d_to_e >= 1.2:
                 risk_factors.append(f"High Debt Burden: Debt/Equity of {d_to_e:.2f}x carries elevated interest servicing obligations.")
 
-        # 3. Margin Quality
         if margin is not None:
             if margin >= 12.0:
                 positive_factors.append(f"High Margin Profile: Healthy Net PAT Margin of {margin:.1f}%.")
             elif margin < 4.5:
                 risk_factors.append(f"Thin Margin Cushion: Low PAT Margin of {margin:.1f}% is vulnerable to input cost spikes.")
 
-        # 4. Promoter Commitment
         if promoter_post is not None:
             if promoter_post >= 65.0:
                 positive_factors.append(f"High Promoter Skin-in-the-Game: Promoters maintain strong {promoter_post:.1f}% post-issue stake.")
             elif promoter_post < 45.0:
                 risk_factors.append(f"Diluted Promoter Holding: Post-issue promoter stake reduces to {promoter_post:.1f}%.")
 
-        # 5. Sector & Business Dynamics
         if sector:
             sec_lower = sector.lower()
             if "gems" in sec_lower or "jewel" in sec_lower:
@@ -320,7 +330,6 @@ class ScoringService:
             elif "tech" in sec_lower or "software" in sec_lower:
                 positive_factors.append("Asset-Light Scalability: High operational leverage with minimal heavy machinery capex.")
 
-        # ---------------- Structural & Segment Risk Disclosures ----------------
         if is_sme:
             lot_val = ((ipo.issue_price or ipo.price_band_high or 100.0) * (ipo.lot_size or 1000)) / 100000.0
             risk_factors.append(
@@ -336,7 +345,7 @@ class ScoringService:
         composite_score = round(gmp_score + subscription_score + valuation_score + structure_score, 2)
         composite_score = max(0.0, min(100.0, composite_score))
 
-        # Determine Recommendation
+        # Determine Recommendation from cutoffs
         if composite_score >= 75.0:
             recommendation = RecommendationType.STRONG_APPLY
             summary_statement = "Strong Apply - High conviction opportunity backed by robust grey market premium, heavy subscription interest, or sound fundamentals."
@@ -350,14 +359,52 @@ class ScoringService:
             recommendation = RecommendationType.AVOID
             summary_statement = "Avoid - Unfavourable risk-reward ratio due to muted demand, negative/negligible GMP, or elevated valuation."
 
+        # Separate specific pillar reasons
+        gmp_reasons = [f for f in positive_factors + risk_factors if any(k in f for k in ["Grey Market", "GMP", "Subject-to-Sauda"])]
+        sub_reasons = [f for f in positive_factors + risk_factors if any(k in f for k in ["QIB", "retail", "Retail", "subscription", "oversubscription", "undersubscribed", "Bidding"])]
+        val_reasons = [f for f in positive_factors + risk_factors if any(k in f for k in ["P/E", "valuation", "Valuation", "RoNW", "Net Worth", "Loss-making", "pricing", "Margin", "PAT", "Revenue", "Debt"])]
+        struct_reasons = [f for f in positive_factors + risk_factors if any(k in f for k in ["fresh", "Fresh", "OFS", "Offer for Sale", "issue size", "Issue size", "Sweet Spot", "Micro-Cap", "Promoter", "SME Segment"])]
+
+        pillars = {
+            "gmp": {
+                "name": weights["gmp"]["name"],
+                "score": round(gmp_score, 2),
+                "max_score": max_gmp_pts,
+                "percentage": round((gmp_score / max_gmp_pts) * 100, 1),
+                "reasons": gmp_reasons or ["Baseline neutral market assumption."]
+            },
+            "subscription": {
+                "name": weights["subscription"]["name"],
+                "score": round(subscription_score, 2),
+                "max_score": max_sub_pts,
+                "percentage": round((subscription_score / max_sub_pts) * 100, 1),
+                "reasons": sub_reasons or ["Standard category participation."]
+            },
+            "valuation": {
+                "name": weights["valuation"]["name"],
+                "score": round(valuation_score, 2),
+                "max_score": max_val_pts,
+                "percentage": round((valuation_score / max_val_pts) * 100, 1),
+                "reasons": val_reasons or ["Fair valuation relative to peers."]
+            },
+            "structure": {
+                "name": weights["structure"]["name"],
+                "score": round(structure_score, 2),
+                "max_score": max_struct_pts,
+                "percentage": round((structure_score / max_struct_pts) * 100, 1),
+                "reasons": struct_reasons or ["Standard capital issue structure."]
+            }
+        }
+
         rationale = {
             "summary": summary_statement,
             "weights": {
-                "gmp_weight_max": 35.0,
-                "subscription_weight_max": 30.0,
-                "valuation_weight_max": 20.0,
-                "structure_weight_max": 15.0
+                "gmp_weight_max": max_gmp_pts,
+                "subscription_weight_max": max_sub_pts,
+                "valuation_weight_max": max_val_pts,
+                "structure_weight_max": max_struct_pts
             },
+            "pillars": pillars,
             "positive_factors": positive_factors,
             "risk_factors": risk_factors,
             "metrics_snapshot": {
@@ -380,4 +427,77 @@ class ScoringService:
             "valuation_score": round(valuation_score, 2),
             "structure_score": round(structure_score, 2),
             "rationale": rationale
+        }
+
+    @classmethod
+    def calculate_synthetic(
+        cls,
+        ipo_type: str = "MAINBOARD",
+        gmp_pct: Optional[float] = None,
+        subject_to_sauda: Optional[float] = None,
+        qib_multiple: Optional[float] = None,
+        retail_multiple: Optional[float] = None,
+        total_multiple: Optional[float] = None,
+        day_number: Optional[int] = 3,
+        pe_ratio: Optional[float] = None,
+        industry_pe: Optional[float] = None,
+        ronw: Optional[float] = None,
+        fresh_issue_pct: Optional[float] = None,
+        issue_size_crores: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Calculates a score and pillar breakdown for simulated or what-if inputs from the Score Calculator.
+        Uses the exact same scoring logic and thresholds.
+        """
+        is_sme = str(ipo_type).upper() == "SME"
+        enum_type = IPOType.SME if is_sme else IPOType.MAINBOARD
+
+        # Compute simulated fresh and OFS sizes if fresh_issue_pct is provided
+        size = issue_size_crores or 500.0
+        fresh_size = None
+        ofs_size = None
+        if fresh_issue_pct is not None:
+            pct_norm = max(0.0, min(100.0, fresh_issue_pct)) / 100.0
+            fresh_size = size * pct_norm
+            ofs_size = size * (1.0 - pct_norm)
+
+        # Mock IPO
+        dummy_ipo = IPO(
+            symbol="CALC_SIM",
+            company_name="Calculator Simulation Ltd",
+            ipo_type=enum_type,
+            issue_price=100.0,
+            issue_size_crores=size,
+            fresh_issue_crores=fresh_size,
+            ofs_crores=ofs_size,
+            pe_ratio=pe_ratio,
+            industry_pe=industry_pe,
+            ronw=ronw
+        )
+
+        # Mock GMP
+        dummy_gmp = None
+        if gmp_pct is not None or subject_to_sauda is not None:
+            dummy_gmp = IPOGmp(
+                ipo_id=0,
+                gmp_amount=(gmp_pct or 0.0),
+                gmp_percentage=gmp_pct if gmp_pct is not None else 0.0,
+                subject_to_sauda=subject_to_sauda
+            )
+
+        # Mock Subscription
+        dummy_sub = None
+        if any(v is not None for v in [qib_multiple, retail_multiple, total_multiple]):
+            dummy_sub = IPOSubscription(
+                ipo_id=0,
+                qib_multiple=qib_multiple,
+                retail_multiple=retail_multiple,
+                total_multiple=total_multiple if total_multiple is not None else (qib_multiple or 0.0) + (retail_multiple or 0.0),
+                day_number=day_number or 3
+            )
+
+        score_res = cls.calculate_score(dummy_ipo, dummy_sub, dummy_gmp)
+        return {
+            **score_res,
+            "pillars": score_res["rationale"]["pillars"]
         }

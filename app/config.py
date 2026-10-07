@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="allow"
     )
 
     APP_NAME: str = "IPO Enquiry & Suggester Service"
@@ -73,6 +73,22 @@ class Settings(BaseSettings):
     TELEGRAM_MIN_GMP_PCT: float = 20.0
     TELEGRAM_MAINBOARD_ONLY: bool = True
     TELEGRAM_WEBHOOK_URL: Optional[str] = "https://ipopulse-app.duckdns.org/api/v1/telegram/webhook"
+    TELEGRAM_WEBHOOK_SECRET: Optional[str] = None  # X-Telegram-Bot-Api-Secret-Token validation
+
+    # ── Groq LLM Settings ───────────────────────────────────────────────────
+    GROQ_API_KEY: Optional[str] = None
+    GROQ_API_KEY2: Optional[str] = None
+    GROQ_API_KEY3: Optional[str] = None
+    GROQ_API_KEY4: Optional[str] = None
+    GROQ_API_KEY5: Optional[str] = None
+    GROQ_API_KEYS: Optional[str] = None
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
+
+    # ── Gemini LLM Settings ─────────────────────────────────────────────────
+    GEMINI_API_KEY: Optional[str] = None
+    GOOGLE_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-3.1-flash-lite"
+    PRIMARY_LLM_PROVIDER: str = "gemini"  # "gemini" or "groq"
 
 
 settings = Settings()
