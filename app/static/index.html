@@ -762,50 +762,11 @@
         </div>
       </div>
 
-      <!-- Allocation Donuts Row: Category & AMC (Chart.js) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Category Allocation Card -->
-        <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 flex flex-col justify-between">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <span class="h-7 w-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
-                <i data-lucide="pie-chart" class="w-3.5 h-3.5"></i>
-              </span>
-              <div>
-                <h4 class="text-xs font-bold text-slate-900 dark:text-white">Category Allocation</h4>
-                <p class="text-[10px] text-slate-400">Distribution across Equity, Debt, and Hybrid</p>
-              </div>
-            </div>
-          </div>
-          <div class="relative w-full h-56 flex items-center justify-center">
-            <div id="mf-category-empty" class="text-center p-6 text-slate-400 text-xs">No category allocation data available.</div>
-            <div id="mf-category-chart-box" class="w-full h-full hidden">
-              <canvas id="mf-category-donut-chart" aria-label="Donut chart showing Mutual Fund allocation by category" role="img"></canvas>
-            </div>
-          </div>
-        </div>
+      <!-- 3. TWO-COLUMN LAYOUT: HOLDINGS (LEFT 75%) + ALLOCATION SIDEBAR (RIGHT 25%) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-        <!-- AMC Allocation Card -->
-        <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 flex flex-col justify-between">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <span class="h-7 w-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs">
-                <i data-lucide="building" class="w-3.5 h-3.5"></i>
-              </span>
-              <div>
-                <h4 class="text-xs font-bold text-slate-900 dark:text-white">AMC Exposure</h4>
-                <p class="text-[10px] text-slate-400">Concentration across Asset Management Companies</p>
-              </div>
-            </div>
-          </div>
-          <div class="relative w-full h-56 flex items-center justify-center">
-            <div id="mf-amc-empty" class="text-center p-6 text-slate-400 text-xs">No AMC allocation data available.</div>
-            <div id="mf-amc-chart-box" class="w-full h-full hidden">
-              <canvas id="mf-amc-donut-chart" aria-label="Donut chart showing Mutual Fund exposure by AMC" role="img"></canvas>
-            </div>
-          </div>
-        </div>
-      </div>
+        <!-- LEFT HERO COLUMN: HISTORICAL CHART & HOLDINGS TABLE (lg:col-span-8 xl:col-span-9) -->
+        <div class="lg:col-span-8 xl:col-span-9 space-y-4">
 
       <!-- Historical NAV Chart Panel (Expandable on fund select) -->
       <div id="mf-nav-chart-card" class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 hidden space-y-3">
@@ -960,6 +921,54 @@
             </tfoot>
           </table>
         </div>
+
+      </div>
+      </div>
+
+      <!-- RIGHT SIDEBAR (30%): ALLOCATION DONUTS -->
+      <div class="lg:col-span-4 xl:col-span-3 space-y-4">
+        <!-- Category Allocation Card -->
+        <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="h-7 w-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+                <i data-lucide="pie-chart" class="w-3.5 h-3.5"></i>
+              </span>
+              <div>
+                <h4 class="text-xs font-bold text-slate-900 dark:text-white">Category Allocation</h4>
+                <p class="text-[10px] text-slate-400">Equity, Debt &amp; Hybrid</p>
+              </div>
+            </div>
+          </div>
+          <div class="relative w-full h-52 flex items-center justify-center">
+            <div id="mf-category-empty" class="text-center p-4 text-slate-400 text-xs">No category allocation data.</div>
+            <div id="mf-category-chart-box" class="w-full h-full hidden">
+              <canvas id="mf-category-donut-chart" aria-label="Donut chart showing Mutual Fund allocation by category" role="img"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- AMC Allocation Card -->
+        <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="h-7 w-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs">
+                <i data-lucide="building" class="w-3.5 h-3.5"></i>
+              </span>
+              <div>
+                <h4 class="text-xs font-bold text-slate-900 dark:text-white">AMC Exposure</h4>
+                <p class="text-[10px] text-slate-400">Fund Houses</p>
+              </div>
+            </div>
+          </div>
+          <div class="relative w-full h-52 flex items-center justify-center">
+            <div id="mf-amc-empty" class="text-center p-4 text-slate-400 text-xs">No AMC exposure data.</div>
+            <div id="mf-amc-chart-box" class="w-full h-full hidden">
+              <canvas id="mf-amc-donut-chart" aria-label="Donut chart showing Mutual Fund exposure by AMC" role="img"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
 
       </div>
     </section>
@@ -6279,10 +6288,11 @@
             cutout: '68%',
             plugins: {
               legend: {
-                position: 'right',
+                position: 'bottom',
                 labels: {
-                  boxWidth: 10,
-                  boxHeight: 10,
+                  boxWidth: 8,
+                  boxHeight: 8,
+                  padding: 8,
                   font: { size: 10, family: 'Inter, system-ui' },
                   color: textColor
                 }
@@ -6332,10 +6342,11 @@
             cutout: '68%',
             plugins: {
               legend: {
-                position: 'right',
+                position: 'bottom',
                 labels: {
-                  boxWidth: 10,
-                  boxHeight: 10,
+                  boxWidth: 8,
+                  boxHeight: 8,
+                  padding: 8,
                   font: { size: 10, family: 'Inter, system-ui' },
                   color: textColor
                 }
