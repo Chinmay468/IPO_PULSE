@@ -267,44 +267,47 @@ async def ask_portfolio_advisor(request: Request, data: dict, db: AsyncSession =
     )
 
     # 2. Fetch live & upcoming IPOs with subscriptions, GMP records, and scores
-    stmt = (
-        select(IPO)
-        .where(IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]))
-        .options(
-            selectinload(IPO.subscriptions),
-            selectinload(IPO.gmp_records),
-            selectinload(IPO.score)
-        )
-        .order_by(IPO.open_date.asc().nulls_last())
-    )
-    active_ipos_objs = (await db.execute(stmt)).scalars().all()
     ipos_data = []
-    for ipo in active_ipos_objs:
-        latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
-        latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
+    try:
+        stmt = (
+            select(IPO)
+            .where(IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]))
+            .options(
+                selectinload(IPO.subscriptions),
+                selectinload(IPO.gmp_records),
+                selectinload(IPO.score)
+            )
+            .order_by(IPO.open_date.asc().nulls_last())
+        )
+        active_ipos_objs = (await db.execute(stmt)).scalars().all()
+        for ipo in active_ipos_objs:
+            latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
+            latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
 
-        if ipo.price_band_low and ipo.price_band_high:
-            pband = f"₹{ipo.price_band_low:,.0f} - ₹{ipo.price_band_high:,.0f}"
-        elif ipo.issue_price:
-            pband = f"₹{ipo.issue_price:,.0f}"
-        else:
-            pband = "TBA"
+            if ipo.price_band_low and ipo.price_band_high:
+                pband = f"₹{ipo.price_band_low:,.0f} - ₹{ipo.price_band_high:,.0f}"
+            elif ipo.issue_price:
+                pband = f"₹{ipo.issue_price:,.0f}"
+            else:
+                pband = "TBA"
 
-        gmp_str = f"₹{latest_gmp.gmp_amount:,.0f} ({latest_gmp.gmp_percentage:.1f}%)" if latest_gmp else "N/A"
-        sub_str = f"Total {latest_sub.total_multiple:.1f}x (QIB {latest_sub.qib_multiple or 0:.1f}x, Retail {latest_sub.retail_multiple or 0:.1f}x)" if latest_sub else "N/A"
-        score_str = f"{ipo.score.composite_score:.1f}/100" if ipo.score else "N/A"
-        rec_str = ipo.score.recommendation.value if ipo.score else "N/A"
+            gmp_str = f"₹{latest_gmp.gmp_amount:,.0f} ({latest_gmp.gmp_percentage:.1f}%)" if latest_gmp else "N/A"
+            sub_str = f"Total {latest_sub.total_multiple:.1f}x (QIB {latest_sub.qib_multiple or 0:.1f}x, Retail {latest_sub.retail_multiple or 0:.1f}x)" if latest_sub else "N/A"
+            score_str = f"{ipo.score.composite_score:.1f}/100" if ipo.score else "N/A"
+            rec_str = ipo.score.recommendation.value if ipo.score else "N/A"
 
-        ipos_data.append({
-            "symbol": ipo.symbol,
-            "company_name": ipo.company_name,
-            "status": ipo.status.value,
-            "price_band": pband,
-            "gmp": gmp_str,
-            "subscription": sub_str,
-            "score": score_str,
-            "recommendation": rec_str
-        })
+            ipos_data.append({
+                "symbol": ipo.symbol,
+                "company_name": ipo.company_name,
+                "status": ipo.status.value,
+                "price_band": pband,
+                "gmp": gmp_str,
+                "subscription": sub_str,
+                "score": score_str,
+                "recommendation": rec_str
+            })
+    except Exception as e:
+        logger.warning("Could not fetch active IPOs for advisory context: %s", e)
 
     answer, source = await groq_answer_query(
         query=query,
