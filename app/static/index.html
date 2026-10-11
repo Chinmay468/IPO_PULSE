@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="en" class="light">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The IPO Gazette — Primary Market Intelligence & Portfolio Doctor</title>
+  <title>IPO Pulse - Smart IPO Intelligence & Portfolio Doctor</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Google Fonts: Fraunces, IBM Plex Sans & IBM Plex Mono -->
+  <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400;1,9..144,700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -26,9 +26,8 @@
       theme: {
         extend: {
           fontFamily: {
-            headline: ['Fraunces', 'Georgia', 'serif'],
-            sans: ['IBM Plex Sans', '-apple-system', 'sans-serif'],
-            mono: ['IBM Plex Mono', 'monospace'],
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
           },
           colors: {
             brand: {
@@ -70,114 +69,120 @@
 
   <link rel="stylesheet" href="/static/css/styles.css">
 </head>
-<body class="min-h-screen flex flex-col antialiased">
+<body class="bg-[#FAF8F5] dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 min-h-screen flex flex-col antialiased transition-colors duration-150">
 
-  <div class="max-w-[1400px] w-full mx-auto px-3 sm:px-6">
-    <!-- Masthead Top Border Rules -->
-    <div class="top-heavy-rule"></div>
-    <div class="top-hairline-rule"></div>
-
-    <!-- Masthead Metadata Bar -->
-    <div class="masthead-meta-bar">
-      <span>Vol. IV · No. 284</span>
-      <span class="hidden sm:inline">Daily Financial Intelligence &amp; Bidding Journal</span>
-      <span>Mumbai · New Delhi · Bengaluru</span>
-    </div>
-
-    <!-- Masthead Main Title & Edition Switcher -->
-    <div class="masthead-title-wrap">
-      <div class="masthead-tagline">The Verified Authority on Primary Market Capital</div>
-      <h1 class="masthead-title cursor-pointer select-none" onclick="switchTab('ipos')" role="button" tabindex="0">The IPO Gazette</h1>
-      <div>
-        <button onclick="toggleTheme()" id="gazette-edition-toggle" class="masthead-edition-badge" title="Toggle between Morning and Evening Edition">
-          <span id="edition-name-display">Morning Edition</span> · <span>11 October 2026</span> ⇄ <span id="edition-switch-target" class="font-bold underline">Evening ☾</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Sub-Masthead Status Strip -->
-    <div class="masthead-bottom-bar">
-      <div>
-        <strong>IST CLOCK:</strong> <span id="gazette-ist-time">08:30 AM</span> · PRE-MARKET REVIEWS
-      </div>
-      <div class="text-center font-bold">
-        PRIMARY SESSIONS: <span id="stat-live" class="tabular-nums">-</span> LIVE · <span id="stat-upcoming" class="tabular-nums">-</span> UPCOMING · <span id="stat-apply" class="tabular-nums">-</span> APPLY SIGNALS
-      </div>
-      <div class="flex items-center justify-end gap-2.5">
-        <!-- 15s Live Sync Controller -->
-        <div onclick="toggleLiveSync()" id="live-sync-badge" title="refreshes every 15s" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')toggleLiveSync()"
-             class="flex items-center gap-1.5 px-2 py-0.5 border border-[var(--rule-medium)] text-[10px] cursor-pointer select-none">
-          <span class="relative flex h-2 w-2">
-            <span id="live-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent-green)] opacity-75"></span>
-            <span id="live-dot" class="relative inline-flex rounded-full h-2 w-2 bg-[var(--accent-green)]"></span>
-          </span>
-          <span id="live-sync-text" class="hidden sm:inline">Live: 15s</span>
-        </div>
-
-        <!-- Refresh Button -->
-        <button onclick="syncMarketData()" id="sync-btn" title="Refresh market feeds" class="p-1 border border-[var(--rule-medium)] hover:bg-[var(--bg-surface-tint)] transition cursor-pointer">
-          <i data-lucide="refresh-cw" id="sync-icon" class="w-3 h-3"></i>
-        </button>
-
-        <!-- Auth Status Button -->
-        <button onclick="handleAuthButtonClick()" id="auth-header-btn" title="Sign in" class="flex items-center gap-1 px-2 py-0.5 border border-[var(--rule-medium)] text-[10px] font-mono cursor-pointer">
-          <i data-lucide="lock" id="auth-header-icon" class="w-2.5 h-2.5 text-[var(--ink-muted)]"></i>
-          <span id="auth-header-label">Sign In</span>
-        </button>
-
-        <!-- More Dropdown -->
-        <div class="relative custom-dropdown" data-dropdown="more">
-          <button onclick="toggleDropdown('more')" title="More options" class="p-1 border border-[var(--rule-medium)] hover:bg-[var(--bg-surface-tint)] transition cursor-pointer">
-            <i data-lucide="more-vertical" class="w-3 h-3"></i>
-          </button>
-          <div id="filter-more-menu" class="hidden absolute right-0 mt-1 w-48 bg-[var(--bg-surface)] rounded-[2px] shadow-lg border border-[var(--rule-heavy)] p-1 z-50">
-            <button onclick="openAICopilotModal(); closeAllDropdowns();" id="header-ai-copilot-btn" class="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-mono hover:bg-[var(--bg-surface-tint)] text-left cursor-pointer">
-              <i data-lucide="sparkles" class="w-3 h-3 text-[var(--accent-vermilion)]"></i> AI Portfolio Copilot
-            </button>
-            <button onclick="openTelegramModal(); closeAllDropdowns();" id="header-telegram-btn" class="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-mono hover:bg-[var(--bg-surface-tint)] text-left cursor-pointer">
-              <i data-lucide="send" class="w-3 h-3 text-[var(--accent-green)]"></i> Telegram Bot Alerts
-            </button>
-            <button onclick="toggleTheme(); closeAllDropdowns();" id="theme-toggle-btn" class="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-mono hover:bg-[var(--bg-surface-tint)] text-left cursor-pointer">
-              <i data-lucide="moon" id="theme-icon-dark" class="w-3 h-3 hidden dark:block"></i>
-              <i data-lucide="sun" id="theme-icon-light" class="w-3 h-3 block dark:hidden"></i>
-              <span>Toggle Edition</span>
-            </button>
-            <a href="/docs" target="_blank" class="flex items-center gap-2 px-2.5 py-1.5 text-xs font-mono hover:bg-[var(--bg-surface-tint)]">
-              <i data-lucide="file-text" class="w-3 h-3"></i> API Docs ↗
-            </a>
+  <!-- ==================== 1. SLIM STICKY TOP BAR ==================== -->
+  <header class="bg-[#FAF8F5]/95 dark:bg-[#121826]/95 backdrop-blur-md border-b border-[#EAE3DA] dark:border-[#1F2937] sticky top-0 z-40 transition-colors duration-150">
+    <div class="max-w-[1536px] xl:max-w-[1600px] mx-auto px-4 sm:px-6">
+      <div class="flex justify-between items-center h-14 sm:h-16 gap-3">
+        
+        <!-- Left: Brand Logo -->
+        <div class="flex items-center gap-2.5 cursor-pointer select-none shrink-0" onclick="switchTab('portfolio')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('portfolio')">
+          <div class="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white shadow-sm font-bold text-sm">
+            <i data-lucide="trending-up" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <h1 class="text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-white leading-none">IPO Pulse</h1>
+              <span class="text-[9px] font-extrabold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 px-1.5 py-0.5 rounded uppercase tracking-wider">PRO</span>
+            </div>
           </div>
         </div>
+
+        <!-- Center: Underline-Style Navigation Tabs (Centered) -->
+        <nav class="hidden md:flex items-center justify-center gap-1 sm:gap-4 h-full flex-1">
+          <button onclick="switchTab('portfolio')" id="nav-portfolio" class="h-full px-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-500 transition-all flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="briefcase" class="w-3.5 h-3.5"></i> Stocks
+          </button>
+          <button onclick="switchTab('mf')" id="nav-mf" class="h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="layers" class="w-3.5 h-3.5"></i> Mutual Funds
+          </button>
+          <button onclick="switchTab('ipos')" id="nav-ipos" class="h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="compass" class="w-3.5 h-3.5"></i> IPO Suggester
+          </button>
+          <button onclick="switchTab('allotment')" id="nav-allotment" class="h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="search" class="w-3.5 h-3.5"></i> Check Allotment
+          </button>
+          <button onclick="switchTab('methodology')" id="nav-methodology" class="h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i> Scoring Formula
+          </button>
+          <!-- Circular AI Button with hover enlargement -->
+          <button onclick="openAICopilot()" id="nav-ai-btn" title="Ask AI Portfolio Doctor & Copilot" aria-label="Ask AI"
+                  class="self-center flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-tr from-violet-600 via-indigo-600 to-sky-500 text-white shadow-xs hover:shadow-md hover:shadow-indigo-500/30 transition-transform duration-200 ease-out hover:scale-120 active:scale-95 cursor-pointer shrink-0 ml-1">
+            <span class="text-[10px] font-black tracking-tight leading-none select-none">AI</span>
+          </button>
+        </nav>
+
+        <!-- Right: Telemetry & Actions (Live Dot, Icon-only Sync, ... Menu) -->
+        <div class="flex items-center gap-2 shrink-0">
+          
+          <!-- Live Dot (Tooltip: "refreshes every 15s") -->
+          <div onclick="toggleLiveSync()" id="live-sync-badge" title="refreshes every 15s" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')toggleLiveSync()"
+               class="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/60 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-400 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer select-none">
+            <span class="relative flex h-2 w-2">
+              <span id="live-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span id="live-dot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span id="live-sync-text" class="hidden sm:inline text-[11px]">Live</span>
+          </div>
+
+          <!-- Icon-Only Sync Button -->
+          <button onclick="syncMarketData()" id="sync-btn" title="Refresh market feeds & quotes"
+                  class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition active:scale-95 cursor-pointer">
+            <i data-lucide="refresh-cw" id="sync-icon" class="w-3.5 h-3.5"></i>
+          </button>
+
+          <!-- Auth Status Button (Admin/Sign In) -->
+          <button onclick="handleAuthButtonClick()" id="auth-header-btn" title="Sign in to manage portfolio"
+                  class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition active:scale-95 cursor-pointer">
+            <i data-lucide="lock" id="auth-header-icon" class="w-3.5 h-3.5 text-slate-400"></i>
+            <span id="auth-header-label">Sign In</span>
+          </button>
+
+          <!-- More Action Menu (...) holding API Docs & Theme Toggle -->
+          <div class="relative custom-dropdown" data-dropdown="more">
+            <button onclick="toggleDropdown('more')" title="More actions" aria-label="More options" class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition cursor-pointer">
+              <i data-lucide="more-vertical" class="w-3.5 h-3.5"></i>
+            </button>
+            <div id="filter-more-menu" class="hidden absolute right-0 mt-1.5 w-48 bg-white dark:bg-[#121826] rounded-xl shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] p-1 z-50">
+              <button onclick="openAICopilotModal(); closeAllDropdowns();" id="header-ai-copilot-btn" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition text-left cursor-pointer">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-500"></i> AI Portfolio Copilot
+              </button>
+              <button onclick="openTelegramModal(); closeAllDropdowns();" id="header-telegram-btn" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/50 transition text-left cursor-pointer">
+                <i data-lucide="send" class="w-3.5 h-3.5 text-sky-500"></i> Telegram Bot Alerts
+              </button>
+              <button onclick="toggleTheme(); closeAllDropdowns();" id="theme-toggle-btn" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition text-left cursor-pointer">
+                <i data-lucide="moon" id="theme-icon-dark" class="w-3.5 h-3.5 hidden dark:block"></i>
+                <i data-lucide="sun" id="theme-icon-light" class="w-3.5 h-3.5 block dark:hidden"></i>
+                <span>Toggle Theme</span>
+              </button>
+              <a href="/docs" target="_blank" class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition">
+                <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-400"></i> API Docs ↗
+              </a>
+            </div>
+          </div>
+
+        </div>
+
       </div>
     </div>
-
-    <!-- Navigation Ribbon -->
-    <nav class="editorial-nav">
-      <ul class="nav-links">
-        <li><button onclick="switchTab('ipos')" id="nav-ipos" class="nav-item">01. Market Dispatch (Suggester)</button></li>
-        <li><button onclick="switchTab('portfolio')" id="nav-portfolio" class="nav-item">02. Ledger (Portfolio Holdings)</button></li>
-        <li><button onclick="switchTab('mf')" id="nav-mf" class="nav-item">03. Mutual Funds Desk</button></li>
-        <li><button onclick="switchTab('allotment')" id="nav-allotment" class="nav-item">04. Registrar Desk (Allotment)</button></li>
-        <li><button onclick="switchTab('methodology')" id="nav-methodology" class="nav-item">05. Scoring Methodology &amp; Track Record</button></li>
-        <li><button onclick="openAICopilot()" id="nav-ai-btn" class="nav-item" style="color: var(--accent-vermilion);">06. Forensic Doctor [AI]</button></li>
-      </ul>
-      <div class="hidden lg:flex items-center gap-2 font-mono text-[11px] text-[var(--ink-muted)]">
-        <span>BSE / NSE: PRE-OPEN</span>
-      </div>
-    </nav>
-  </div>
+  </header>
 
   <!-- Mobile Tab Strip (Below 768px) -->
-  <div class="md:hidden flex items-center border-b border-[var(--rule-medium)] bg-[var(--bg-surface)] px-2 py-1 gap-1 overflow-x-auto">
-    <button onclick="switchTab('ipos')" id="mobile-nav-ipos" class="nav-item text-xs shrink-0 py-1 px-2 font-bold">IPOs</button>
-    <button onclick="switchTab('portfolio')" id="mobile-nav-portfolio" class="nav-item text-xs shrink-0 py-1 px-2">Stocks</button>
-    <button onclick="switchTab('mf')" id="mobile-nav-mf" class="nav-item text-xs shrink-0 py-1 px-2">MFs</button>
-    <button onclick="switchTab('allotment')" id="mobile-nav-allotment" class="nav-item text-xs shrink-0 py-1 px-2">Allotment</button>
-    <button onclick="switchTab('methodology')" id="mobile-nav-methodology" class="nav-item text-xs shrink-0 py-1 px-2">Formula</button>
-    <button onclick="openAICopilot()" id="mobile-nav-ai-btn" title="Ask AI Portfolio Doctor" class="nav-item text-xs shrink-0 py-1 px-2 font-bold" style="color: var(--accent-vermilion);">AI</button>
+  <div class="md:hidden flex items-center border-b border-[#E8EAEE] dark:border-[#1F2937] bg-white dark:bg-[#121826] px-3 py-1.5 gap-1 overflow-x-auto">
+    <button onclick="switchTab('portfolio')" id="mobile-nav-portfolio" class="flex-1 py-1.5 px-2.5 text-center text-xs font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 shrink-0 cursor-pointer">Stocks</button>
+    <button onclick="switchTab('mf')" id="mobile-nav-mf" class="flex-1 py-1.5 px-2.5 text-center text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 cursor-pointer">Mutual Funds</button>
+    <button onclick="switchTab('ipos')" id="mobile-nav-ipos" class="flex-1 py-1.5 px-2.5 text-center text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 cursor-pointer">IPOs</button>
+    <button onclick="switchTab('allotment')" id="mobile-nav-allotment" class="flex-1 py-1.5 px-2.5 text-center text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 cursor-pointer">Allotment</button>
+    <button onclick="switchTab('methodology')" id="mobile-nav-methodology" class="flex-1 py-1.5 px-2.5 text-center text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 cursor-pointer">Formula</button>
+    <button onclick="openAICopilot()" id="mobile-nav-ai-btn" title="Ask AI Portfolio Doctor & Copilot" aria-label="Ask AI"
+            class="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-tr from-violet-600 via-indigo-600 to-sky-500 text-white shadow-xs transition-transform duration-200 ease-out hover:scale-120 active:scale-95 shrink-0 ml-1 cursor-pointer">
+      <span class="text-[9px] font-black tracking-tight leading-none select-none">AI</span>
+    </button>
   </div>
 
   <!-- ==================== MAIN CONTENT WRAPPER ==================== -->
-  <main class="max-w-[1400px] w-full mx-auto px-3 sm:px-6 py-4 flex-1 space-y-6">
+  <main class="max-w-[1536px] xl:max-w-[1600px] mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
 
     <!-- ================================================================ -->
     <!-- ==================== TAB: MY PORTFOLIO (HERO) ================== -->
@@ -892,56 +897,120 @@
       </div>
     </section>
 
-    <!-- ==================== TAB: IPO SUGGESTER (THE MARKET DISPATCH) ==================== -->
+    <!-- ==================== TAB 2: IPO SUGGESTER ==================== -->
     <section id="tab-ipos" class="space-y-6 hidden">
-      <!-- Section Eyebrow -->
-      <div class="section-eyebrow">Front Page Lead Story · Primary Market Verdict</div>
-
-      <!-- Controls & Search Toolbar -->
-      <div class="ledger-controls-bar">
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="font-mono text-[10px] text-[var(--ink-muted)] font-bold uppercase tracking-wider">Filter Ledger:</span>
-          <select id="filter-status" onchange="applyFilters()" class="bg-[var(--bg-surface)] text-[var(--ink)] border border-[var(--rule-medium)] px-2 py-1 text-xs font-mono rounded-[2px] cursor-pointer">
-            <option value="">All Statuses</option>
-            <option value="LIVE">Live Issues</option>
-            <option value="UPCOMING">Upcoming DRHP</option>
-            <option value="CLOSED">Closed Issues</option>
-          </select>
-          <select id="filter-type" onchange="applyFilters()" class="bg-[var(--bg-surface)] text-[var(--ink)] border border-[var(--rule-medium)] px-2 py-1 text-xs font-mono rounded-[2px] cursor-pointer">
-            <option value="">All Categories</option>
-            <option value="MAINBOARD">Mainboard Only</option>
-            <option value="SME">SME Segment Only</option>
-          </select>
-          <select id="filter-rec" onchange="applyFilters()" class="bg-[var(--bg-surface)] text-[var(--ink)] border border-[var(--rule-medium)] px-2 py-1 text-xs font-mono rounded-[2px] cursor-pointer">
-            <option value="">All Recommendations</option>
-            <option value="STRONG APPLY">Strong Apply (≥75)</option>
-            <option value="APPLY">Apply (60-75)</option>
-            <option value="NEUTRAL">Neutral (45-60)</option>
-            <option value="AVOID">Avoid (&lt;45)</option>
-          </select>
+      <!-- Top Stat Metric Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div class="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active IPOs</p>
+            <h3 id="stat-live" class="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-0.5 tabular-nums">-</h3>
+          </div>
+          <span class="p-2 bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-lg"><i data-lucide="flame" class="w-4 h-4"></i></span>
         </div>
-        <div class="w-full sm:w-auto mt-2 sm:mt-0">
-          <input type="text" id="search-input" oninput="applyFilters()" placeholder="Search company, symbol..." 
-                 class="ledger-search-box w-full sm:w-64">
+        <div class="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Upcoming Issues</p>
+            <h3 id="stat-upcoming" class="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-0.5 tabular-nums">-</h3>
+          </div>
+          <span class="p-2 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-lg"><i data-lucide="clock" class="w-4 h-4"></i></span>
+        </div>
+        <div class="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Apply Signals</p>
+            <h3 id="stat-apply" class="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">-</h3>
+          </div>
+          <span class="p-2 bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-lg"><i data-lucide="target" class="w-4 h-4"></i></span>
+        </div>
+        <div class="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Live Scraper</p>
+            <h3 class="text-xs font-bold text-emerald-700 dark:text-emerald-400 mt-1 flex items-center gap-1.5">
+              <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span> Periodic (15m)
+            </h3>
+          </div>
+          <span class="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg"><i data-lucide="activity" class="w-4 h-4"></i></span>
         </div>
       </div>
 
       <!-- Discovery Freshness & Stale Audit Banner -->
-      <div id="discovery-freshness-bar" class="flex flex-col sm:flex-row sm:items-center justify-between text-[11px] font-mono px-3 py-2 border border-[var(--rule-medium)] bg-[var(--bg-surface)] text-[var(--ink-muted)] gap-2">
+      <div id="discovery-freshness-bar" class="flex flex-col sm:flex-row sm:items-center justify-between text-[11px] font-mono px-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#121826] rounded-xl shadow-soft text-slate-500 dark:text-slate-400 gap-2">
         <div class="flex items-center gap-2">
-          <span class="inline-block w-2 h-2 rounded-full bg-[var(--accent-green)] shrink-0" id="discovery-status-dot"></span>
-          <span>Last full sync: <strong id="discovery-last-sync-time" class="text-[var(--ink)] tabular-nums">Checking...</strong></span>
+          <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0" id="discovery-status-dot"></span>
+          <span>Last full sync: <strong id="discovery-last-sync-time" class="text-slate-900 dark:text-slate-100 tabular-nums">Checking...</strong></span>
         </div>
-        <div id="discovery-stale-banner" class="hidden flex items-center gap-1.5 text-[var(--accent-vermilion)] font-bold">
+        <div id="discovery-stale-banner" class="hidden flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-bold">
           <i data-lucide="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i>
           <span id="discovery-stale-msg">Warning: Chittorgarh discovery hasn't completed within 24 hours. Primary listings may be stale.</span>
         </div>
       </div>
 
-      <!-- Container: Lead Story + Official Ledger Table -->
-      <div id="ipos-container" class="space-y-6">
-        <div class="py-16 text-center text-[var(--ink-muted)] font-mono text-xs border border-[var(--rule-hairline)] bg-[var(--bg-surface)]">
-          <p>Compiling primary market dispatch...</p>
+      <!-- Integrated Search & Custom Filter Toolbar -->
+      <div class="bg-white dark:bg-[#121826] p-3 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex flex-col md:flex-row gap-2.5 justify-between items-center">
+        <div class="relative w-full md:w-72">
+          <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400"></i>
+          <input type="text" id="search-input" oninput="applyFilters()" placeholder="Search company or symbol..." 
+                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition">
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <!-- Category (Mainboard / SME) Dropdown -->
+          <div class="relative custom-dropdown" data-dropdown="type">
+            <input type="hidden" id="filter-type" value="">
+            <button type="button" onclick="toggleDropdown('type')" id="filter-type-btn"
+                    class="flex items-center gap-1.5 bg-slate-50 dark:bg-[#0B0F19] hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 transition cursor-pointer">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400" id="filter-type-dot"></span>
+              <span id="filter-type-label">All Categories</span>
+              <i data-lucide="chevron-down" id="filter-type-chevron" class="w-3 h-3 text-slate-400"></i>
+            </button>
+            <div id="filter-type-menu" class="hidden absolute right-0 mt-1 w-44 bg-white dark:bg-[#121826] rounded-xl shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] p-1 z-40 space-y-0.5">
+              <button type="button" onclick="selectDropdownOption('type', '', 'All Categories')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left cursor-pointer" data-val="">All Categories</button>
+              <button type="button" onclick="selectDropdownOption('type', 'MAINBOARD', 'Mainboard IPOs')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition text-left cursor-pointer" data-val="MAINBOARD">🏛️ Mainboard</button>
+              <button type="button" onclick="selectDropdownOption('type', 'SME', 'SME IPOs')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/50 transition text-left cursor-pointer" data-val="SME">🏢 SME</button>
+            </div>
+          </div>
+
+          <!-- Status Dropdown -->
+          <div class="relative custom-dropdown" data-dropdown="status">
+            <input type="hidden" id="filter-status" value="">
+            <button type="button" onclick="toggleDropdown('status')" id="filter-status-btn"
+                    class="flex items-center gap-1.5 bg-slate-50 dark:bg-[#0B0F19] hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 transition cursor-pointer">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400" id="filter-status-dot"></span>
+              <span id="filter-status-label">All Statuses</span>
+              <i data-lucide="chevron-down" id="filter-status-chevron" class="w-3 h-3 text-slate-400"></i>
+            </button>
+            <div id="filter-status-menu" class="hidden absolute left-0 sm:right-0 sm:left-auto mt-1 w-40 bg-white dark:bg-[#121826] rounded-xl shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] p-1 z-40 space-y-0.5">
+              <button type="button" onclick="selectDropdownOption('status', '', 'All Statuses')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left cursor-pointer" data-val="">All Statuses</button>
+              <button type="button" onclick="selectDropdownOption('status', 'LIVE', 'Live Now')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition text-left cursor-pointer" data-val="LIVE">● Live Now</button>
+              <button type="button" onclick="selectDropdownOption('status', 'UPCOMING', 'Upcoming')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition text-left cursor-pointer" data-val="UPCOMING">Upcoming</button>
+              <button type="button" onclick="selectDropdownOption('status', 'CLOSED', 'Closed')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition text-left cursor-pointer" data-val="CLOSED">Closed</button>
+            </div>
+          </div>
+
+          <!-- Suggestion Dropdown -->
+          <div class="relative custom-dropdown" data-dropdown="rec">
+            <input type="hidden" id="filter-rec" value="">
+            <button type="button" onclick="toggleDropdown('rec')" id="filter-rec-btn"
+                    class="flex items-center gap-1.5 bg-slate-50 dark:bg-[#0B0F19] hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 transition cursor-pointer">
+              <span id="filter-rec-label">All Recommendations</span>
+              <i data-lucide="chevron-down" id="filter-rec-chevron" class="w-3 h-3 text-slate-400"></i>
+            </button>
+            <div id="filter-rec-menu" class="hidden absolute right-0 mt-1 w-56 bg-white dark:bg-[#121826] rounded-xl shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] p-1 z-40 space-y-0.5">
+              <button type="button" onclick="selectDropdownOption('rec', '', 'All Recommendations')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left cursor-pointer" data-val="">All Recommendations</button>
+              <button type="button" onclick="selectDropdownOption('rec', 'STRONG APPLY', 'Strong Apply (≥75)')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition text-left cursor-pointer" data-val="STRONG APPLY">🚀 Strong Apply (≥75)</button>
+              <button type="button" onclick="selectDropdownOption('rec', 'APPLY', 'Apply (60-75)')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/50 transition text-left cursor-pointer" data-val="APPLY">✅ Apply (60-75)</button>
+              <button type="button" onclick="selectDropdownOption('rec', 'NEUTRAL', 'Neutral (45-60)')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition text-left cursor-pointer" data-val="NEUTRAL">⚖️ Neutral (45-60)</button>
+              <button type="button" onclick="selectDropdownOption('rec', 'AVOID', 'Avoid (<45)')" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition text-left cursor-pointer" data-val="AVOID">⚠️ Avoid (&lt;45)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- IPO Cards Grid -->
+      <div id="ipos-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="col-span-full py-16 text-center text-slate-400 text-xs">
+          <div class="animate-spin inline-block mb-2"><i data-lucide="loader-2" class="w-5 h-5 text-emerald-500"></i></div>
+          <p>Loading live IPO catalog...</p>
         </div>
       </div>
     </section>

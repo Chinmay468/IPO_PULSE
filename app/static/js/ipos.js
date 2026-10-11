@@ -141,265 +141,168 @@ function renderIpos(items) {
   const container = document.getElementById('ipos-container');
   if (!container) return;
   if (!items || items.length === 0) {
-    container.innerHTML = `
-      <div class="py-12 text-center text-slate-500 font-mono text-xs border border-[var(--rule-hairline)] bg-[var(--bg-surface)]">
-        NO MONITORED OFFERINGS FOUND MATCHING CURRENT FILTER PARAMETERS.
-      </div>`;
+    container.innerHTML = '<div class="col-span-full py-12 text-center text-slate-400 text-xs">No IPOs found matching the selected filters.</div>';
     return;
   }
 
   const now = new Date();
+  const filterStatus = document.getElementById('filter-status')?.value;
 
-  // Find lead candidate: top score among LIVE issues, or highest score overall
-  const liveItems = items.filter(i => i.status === 'LIVE' && i.score);
-  let lead = null;
-  if (liveItems.length > 0) {
-    lead = liveItems.slice().sort((a, b) => (b.score?.composite_score || 0) - (a.score?.composite_score || 0))[0];
+  // Group items: if UPCOMING, sort announced by open_date ASC, then TBA at the end.
+  // Otherwise standard items, then TBA at the end.
+  let standard = [];
+  let tba = [];
+  if (filterStatus === 'UPCOMING') {
+    standard = items.filter(i => !i.dates_tba && i.open_date);
+    tba = items.filter(i => i.dates_tba || !i.open_date);
+    standard.sort((a, b) => new Date(a.open_date) - new Date(b.open_date));
+    tba.sort((a, b) => a.company_name.localeCompare(b.company_name));
   } else {
-    lead = items.slice().sort((a, b) => (b.score?.composite_score || 0) - (a.score?.composite_score || 0))[0];
+    standard = items.filter(i => !i.dates_tba && i.open_date);
+    tba = items.filter(i => i.dates_tba || !i.open_date);
   }
 
-  // Generate Lead Story HTML
-  let leadHtml = '';
-  if (lead) {
-    const leadScore = lead.score ? lead.score.composite_score : null;
-    const leadScoreDisplay = leadScore !== null ? leadScore.toFixed(1) : '—';
-    const leadRec = lead.score ? lead.score.recommendation : 'NEUTRAL';
-    const leadRecClass = leadRec === 'STRONG APPLY' ? 'stamp-strong-apply' : leadRec === 'APPLY' ? 'stamp-apply' : leadRec === 'AVOID' ? 'stamp-avoid' : 'stamp-neutral';
-    const leadGmp = lead.latest_gmp;
-    const leadSub = lead.latest_subscription;
-    const leadGmpPct = leadGmp ? leadGmp.gmp_percentage.toFixed(1) : '0.0';
-    const leadGmpAmt = leadGmp ? leadGmp.gmp_amount.toFixed(2) : '0.00';
-    const leadSubMult = leadSub ? leadSub.total_multiple.toFixed(2) : (lead.status === 'UPCOMING' ? 'Awaiting Bids' : '0.00');
-    const isSme = (lead.ipo_type || '').toUpperCase() === 'SME';
-    const leadPrice = lead.issue_price || lead.price_band_high || lead.price_band_low || '—';
-    const leadSize = lead.issue_size_crores ? `₹${lead.issue_size_crores.toLocaleString('en-IN')} Cr` : '—';
-
-    let leadHeadline = '';
-    if (leadSub && leadSub.total_multiple > 1) {
-      leadHeadline = `${lead.company_name} Crosses ${leadSub.total_multiple.toFixed(1)}× Booked; GMP Implies +${leadGmpPct}% Listing Premium`;
-    } else if (leadGmp && leadGmp.gmp_percentage > 15) {
-      leadHeadline = `${lead.company_name} Demonstrates Strong Primary Conviction With +${leadGmpPct}% Grey Market Cushion`;
-    } else {
-      leadHeadline = `${lead.company_name}: Primary Market Intelligence & Forensic Score Review`;
-    }
-
-    const leadSummary = lead.score?.rationale?.summary || 'Algorithmic assessment of grey market sentiment, demand multiples, valuation metrics, and balance sheet quality.';
-
-    const pGmp = lead.score?.gmp_score || 0;
-    const pSub = lead.score?.subscription_score || 0;
-    const pVal = lead.score?.valuation_score || 0;
-    const pStruct = lead.score?.structure_score || 0;
-
-    leadHtml = `
-      <section class="lead-story-panel" role="region" aria-label="Lead Story">
-        <div>
-          <div class="lead-story-badge">TOP-RANKED ISSUE · ${isSme ? 'SME SEGMENT' : 'MAINBOARD'}</div>
-          <h2 class="lead-headline">${leadHeadline}</h2>
-          <p class="lead-verdict">${leadSummary}</p>
-
-          <div class="lead-metrics-row">
-            <div class="metric-cell">
-              <span class="metric-label">Issue Price &amp; Band</span>
-              <span class="metric-value tabular-nums">₹${leadPrice}</span>
-              <span class="metric-sub">Lot: ${lead.lot_size ? lead.lot_size.toLocaleString() + ' sh' : '—'}</span>
-            </div>
-            <div class="metric-cell">
-              <span class="metric-label">Grey Market Premium</span>
-              <span class="metric-value tabular-nums" style="color: var(--accent-green);">+₹${leadGmpAmt} (+${leadGmpPct}%)</span>
-              <span class="metric-sub">${leadGmp ? (leadGmp.source || 'Firm Kostak / Sauda') : 'OTC Sentiment'}</span>
-            </div>
-            <div class="metric-cell">
-              <span class="metric-label">Demand Multiple</span>
-              <span class="metric-value tabular-nums">${leadSubMult}${leadSub ? '×' : ''}</span>
-              <span class="metric-sub">QIB: ${leadSub?.qib_multiple ? leadSub.qib_multiple.toFixed(1) + 'x' : '—'} · NII: ${leadSub?.nii_multiple ? leadSub.nii_multiple.toFixed(1) + 'x' : '—'}</span>
-            </div>
-            <div class="metric-cell">
-              <span class="metric-label">Issue Capitalization</span>
-              <span class="metric-value tabular-nums">${leadSize}</span>
-              <span class="metric-sub">${lead.fresh_issue_crores ? Math.round((lead.fresh_issue_crores / (lead.issue_size_crores || 1)) * 100) + '% Fresh Issue' : 'Primary Offering'}</span>
-            </div>
-          </div>
-
-          <div class="pillars-container">
-            <div class="pillars-meta">
-              <span>Pillar Contributions: GMP ${pGmp.toFixed(1)}/35 · Sub ${pSub.toFixed(1)}/30 · Val ${pVal.toFixed(1)}/20 · Struct ${pStruct.toFixed(1)}/15</span>
-              <span class="tabular-nums">Total: ${leadScoreDisplay} / 100</span>
-            </div>
-            <div class="pillars-bar">
-              <div class="pillar-segment pillar-gmp" style="width: ${(pGmp / 35) * 35}%" title="GMP"></div>
-              <div class="pillar-segment pillar-sub" style="width: ${(pSub / 30) * 30}%" title="Subscription"></div>
-              <div class="pillar-segment pillar-val" style="width: ${(pVal / 20) * 20}%" title="Valuation"></div>
-              <div class="pillar-segment pillar-struct" style="width: ${(pStruct / 15) * 15}%" title="Structure"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="lead-scorecard">
-          <div>
-            <div class="scorecard-header">Algorithmic Confidence Rating</div>
-            <div class="score-huge tabular-nums">${leadScoreDisplay}</div>
-            <div class="score-denominator">OUT OF 100 MAXIMUM</div>
-            <div>
-              <span class="stamp-badge ${leadRecClass}">${leadRec}</span>
-            </div>
-          </div>
-
-          <div class="lead-actions">
-            ${lead.can_apply ? `<a href="${lead.angelone_apply_url || ('/api/v1/ipos/' + lead.id + '/apply/angelone')}" target="_blank" class="gazette-btn-primary">Apply via Angel One ↗</a>` : ''}
-            <button onclick="openModal(${lead.id})" class="gazette-btn-secondary">Inspect Forensic Audit ➔</button>
-          </div>
-        </div>
-      </section>
-    `;
-  }
-
-  function renderLedgerRow(ipo, now) {
+  function renderCard(ipo) {
     const score = ipo.score ? ipo.score.composite_score : null;
     const scoreDisplay = score !== null ? score.toFixed(1) : '—';
     const rec = ipo.score ? ipo.score.recommendation : 'NEUTRAL';
-    const recMiniClass = rec === 'STRONG APPLY' ? 'strong' : rec === 'APPLY' ? 'apply' : rec === 'AVOID' ? 'avoid' : 'neutral';
-    const isSme = (ipo.ipo_type || '').toUpperCase() === 'SME';
+    const recClean = rec.replace(' ', '_');
     const gmp = ipo.latest_gmp;
     const sub = ipo.latest_subscription;
-    const gmpPct = gmp ? gmp.gmp_percentage : 0;
-    const gmpAmt = gmp ? gmp.gmp_amount : 0;
-    const gmpClass = gmpPct > 10 ? 'positive' : gmpPct > 0 ? 'flat' : 'negative';
-    const totalSub = sub ? sub.total_multiple : 0;
+    const gmpDisplay = gmp ? `+₹${gmp.gmp_amount} (${gmp.gmp_percentage.toFixed(1)}%)` : 'N/A';
 
-    let timelineLabel = formatIpoDayLabel(ipo);
-    let pctProgress = 0;
-    const isOpen = ipo.open_date && ipo.close_date;
-    if (isOpen) {
-      const oDate = new Date(ipo.open_date + 'T00:00:00+05:30');
-      const cDate = new Date(ipo.close_date + 'T23:59:59+05:30');
-      if (now < oDate) pctProgress = 0;
-      else if (now > cDate) pctProgress = 100;
-      else {
-        pctProgress = Math.min(100, Math.max(5, Math.round(((now - oDate) / (cDate - oDate)) * 100)));
+    const isClosedOrListed = ipo.status === 'CLOSED' || ipo.status === 'LISTED';
+    const subLabel = isClosedOrListed ? 'Final Subscription' : 'Subscribed';
+    const totalSubDisplay = sub ? `${sub.total_multiple.toFixed(1)}x` : (ipo.status === 'UPCOMING' ? 'Awaiting Bids' : '0.0x');
+
+    const isSME = (ipo.ipo_type || '').toUpperCase() === 'SME';
+    const typeBadge = isSME
+      ? `<span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 uppercase tracking-wider">SME</span>`
+      : `<span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 uppercase tracking-wider">MAINBOARD</span>`;
+
+    // Timeline label
+    const dayLabel = `<span class="text-[9px] text-slate-500 dark:text-slate-400 font-medium">${formatIpoDayLabel(ipo)}</span>`;
+
+    // Updated N min ago
+    let updatedLabel = '';
+    let isStale = false;
+    const rawTime = (ipo.score && ipo.score.calculated_at)
+      || (ipo.latest_gmp && ipo.latest_gmp.recorded_at)
+      || ipo.updated_at;
+    let scrapeTime = null;
+    if (rawTime) {
+      let s = String(rawTime).trim();
+      if (s.includes('T') && !s.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(s)) {
+        s += 'Z';
       }
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) scrapeTime = d;
     }
-    const oDateStr = ipo.open_date ? new Date(ipo.open_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : (ipo.dates_tba ? 'TBA' : '—');
-    const cDateStr = ipo.close_date ? new Date(ipo.close_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : (ipo.dates_tba ? 'TBA' : '—');
-    const sizeStr = ipo.issue_size_crores ? `₹${ipo.issue_size_crores.toLocaleString('en-IN')} Cr` : '—';
+    if (scrapeTime) {
+      const diffMs = Math.max(0, now - scrapeTime);
+      const diffMin = Math.round(diffMs / 60000);
+      isStale = diffMin > 45 && ipo.status === 'LIVE';
+      const timeAgo = diffMin < 1
+        ? 'just now'
+        : diffMin < 60
+          ? `${diffMin}m ago`
+          : diffMin < 1440
+            ? `${Math.round(diffMin / 60)}h ago`
+            : `${Math.round(diffMin / 1440)}d ago`;
+      updatedLabel = `<span class="text-[9px] text-slate-400 dark:text-slate-500">Updated ${timeAgo}</span>`;
+    }
+
+    // Stale warning badge (only when LIVE and >45 min)
+    const staleWarning = isStale
+      ? `<div class="flex items-center gap-1 text-[9px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 rounded px-2 py-0.5">
+           <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+           Data may be stale (&gt;45 min)
+         </div>`
+      : '';
+
+    // SME note
+    const smeNote = isSME
+      ? `<p class="text-[9px] text-purple-600 dark:text-purple-400 leading-snug mt-0.5">SME: higher minimum bid, lower liquidity</p>`
+      : '';
+
+    // Apply button logic
+    let applyBtn = '';
+    if (ipo.can_apply && !isClosedOrListed) {
+      if (rec === 'AVOID') {
+        applyBtn = '';
+      } else if (rec === 'NEUTRAL') {
+        applyBtn = `<a href="${ipo.angelone_apply_url || ('/api/v1/ipos/' + ipo.id + '/apply/angelone')}" target="_blank"
+          class="px-2.5 py-1 rounded text-xs font-semibold border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">Apply ↗</a>`;
+      } else {
+        applyBtn = `<a href="${ipo.angelone_apply_url || ('/api/v1/ipos/' + ipo.id + '/apply/angelone')}" target="_blank"
+          class="px-2.5 py-1 rounded text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition">Apply ↗</a>`;
+      }
+    } else {
+      applyBtn = `<span class="text-[10px] text-slate-400 font-medium">${isClosedOrListed ? 'Closed' : 'Upcoming'}</span>`;
+    }
+
+    // Status pill
+    let statusClass = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
+    if (ipo.status === 'LIVE') {
+      statusClass = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-semibold';
+    } else if (ipo.status === 'UPCOMING') {
+      statusClass = 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-semibold';
+    }
 
     return `
-      <tr onclick="openModal(${ipo.id})" class="cursor-pointer">
-        <td data-label="Enterprise &amp; Sector">
-          <div class="company-cell">
-            <span class="company-symbol">${ipo.symbol}</span>
-            <span class="company-name" title="${ipo.company_name}">${ipo.company_name}</span>
-          </div>
-        </td>
-        <td data-label="Category">
-          <span class="badge-square ${isSme ? 'badge-sme' : 'badge-mainboard'}">${isSme ? 'SME' : 'MAINBOARD'}</span>
-          <span style="font-family: var(--font-mono); font-size: 0.625rem; color: var(--ink-muted); display: block; margin-top: 2px;">${sizeStr}</span>
-        </td>
-        <td data-label="Status &amp; Timeline">
-          <div class="timeline-strip">
-            <span style="font-size: 0.6875rem; font-weight: 600;" class="${ipo.status === 'LIVE' ? 'status-pip-live' : ipo.status === 'UPCOMING' ? 'status-pip-upcoming' : 'status-pip-closed'}">${ipo.status} · ${timelineLabel}</span>
-            <div class="timeline-bar-track">
-              <div class="timeline-bar-progress" style="width: ${pctProgress}%;"></div>
-              ${ipo.status === 'LIVE' ? `<div class="timeline-pin" style="left: ${pctProgress}%;"></div>` : ''}
+      <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 flex flex-col justify-between space-y-3 hover:border-slate-300 dark:hover:border-slate-700 transition">
+        <div class="space-y-2">
+          <div class="flex justify-between items-start gap-1">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">${ipo.symbol}</span>
+              ${typeBadge}
             </div>
-            <div class="timeline-labels">
-              <span>${oDateStr}</span>
-              <span>${cDateStr}</span>
-            </div>
+            <span class="text-[10px] px-2 py-0.5 rounded-full shrink-0 ${statusClass}">${ipo.status}</span>
           </div>
-        </td>
-        <td data-label="Grey Market (GMP)" class="num-col">
-          <div class="gmp-thermometer">
-            <span class="gmp-pct-val ${gmpClass} tabular-nums">${gmp ? `+₹${gmpAmt.toFixed(1)} (+${gmpPct.toFixed(1)}%)` : '—'}</span>
-            <div class="gmp-bar-wrap">
-              <div class="gmp-bar-fill" style="width: ${Math.min(100, Math.max(0, gmpPct * 1.5))}%; ${gmpPct < 5 ? 'background: var(--ink-muted);' : ''}"></div>
-            </div>
+          <div>
+            <h4 class="font-bold text-xs text-slate-900 dark:text-white line-clamp-1" title="${ipo.company_name}">${ipo.company_name}</h4>
+            ${smeNote}
           </div>
-        </td>
-        <td data-label="Subscription" class="num-col">
-          <div class="sub-bar-container">
-            <span class="sub-value-text tabular-nums" style="${totalSub < 0.2 && ipo.status === 'LIVE' ? 'color: var(--accent-vermilion);' : ''}">${sub ? `${totalSub.toFixed(2)}×` : 'Awaiting Bids'}</span>
-            <div class="sub-demarcation-track" title="${sub ? totalSub.toFixed(2) + 'x total book' : 'Awaiting bids'}">
-              <div class="sub-demarcation-fill" style="width: ${Math.min(100, totalSub * 25)}%; ${totalSub < 0.2 && ipo.status === 'LIVE' ? 'background: var(--accent-vermilion);' : ''}"></div>
-              <div class="sub-demarcation-1x" title="1.0x Threshold"></div>
-            </div>
-            <span class="sub-demarcation-label tabular-nums">${totalSub >= 1 ? '1.0x mark · Book full' : '1.0x threshold'}</span>
+
+          ${staleWarning}
+
+          <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold badge-${recClean}">${rec}</span>
+            <span class="font-mono text-xs font-bold text-slate-800 dark:text-white">${scoreDisplay} <span class="text-[9px] text-slate-400">/100</span></span>
           </div>
-        </td>
-        <td data-label="Algo Score" class="score-cell tabular-nums" style="${score !== null && score < 45 ? 'color: var(--accent-vermilion);' : ''}">
-          ${scoreDisplay}
-        </td>
-        <td data-label="Official Verdict" style="text-align: center;">
-          <span class="stamp-mini ${recMiniClass}">${rec}</span>
-        </td>
-      </tr>
+
+          <div class="grid grid-cols-2 gap-2 text-[11px]">
+            <div class="p-2 rounded bg-slate-50 dark:bg-slate-900"><span class="text-[10px] text-slate-400 block">GMP</span><strong class="font-mono text-emerald-600 dark:text-emerald-400">${gmpDisplay}</strong></div>
+            <div class="p-2 rounded bg-slate-50 dark:bg-slate-900"><span class="text-[10px] text-slate-400 block">${subLabel}</span><strong class="font-mono text-slate-800 dark:text-white">${totalSubDisplay}</strong></div>
+          </div>
+
+          <div class="flex items-center justify-between text-[9px] text-slate-400">
+            ${dayLabel}
+            ${updatedLabel}
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <button onclick="openModal(${ipo.id})" class="text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer">Analysis ➔</button>
+          ${applyBtn}
+        </div>
+      </div>
     `;
   }
 
-  // Generate Ledger Table with upcoming open_date ASC sorting and separate "Dates not announced" group
-  let ledgerRowsHtml = '';
-  const filterStatus = document.getElementById('filter-status')?.value;
-
-  if (filterStatus === 'UPCOMING') {
-    const announced = items.filter(i => !i.dates_tba && i.open_date);
-    const tba = items.filter(i => i.dates_tba || !i.open_date);
-    announced.sort((a, b) => new Date(a.open_date) - new Date(b.open_date));
-    tba.sort((a, b) => a.company_name.localeCompare(b.company_name));
-
-    let rows = announced.map(ipo => renderLedgerRow(ipo, now)).join('');
-    if (tba.length > 0) {
-      rows += `
-        <tr class="ledger-divider-row">
-          <td colspan="7" style="padding: 10px 14px; font-family: var(--font-mono); font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: var(--bg-surface-tint); color: var(--ink-muted); border-top: 1px solid var(--rule-medium); border-bottom: 1px solid var(--rule-medium);">
-            — DATES NOT YET ANNOUNCED (${tba.length} ISSUES · DRHP FILED / REGULATORY CLEARANCE PENDING) —
-          </td>
-        </tr>
-      `;
-      rows += tba.map(ipo => renderLedgerRow(ipo, now)).join('');
-    }
-    ledgerRowsHtml = rows;
-  } else {
-    const standard = items.filter(i => !i.dates_tba && i.open_date);
-    const tba = items.filter(i => i.dates_tba || !i.open_date);
-    let rows = standard.map(ipo => renderLedgerRow(ipo, now)).join('');
-    if (tba.length > 0) {
-      rows += `
-        <tr class="ledger-divider-row">
-          <td colspan="7" style="padding: 10px 14px; font-family: var(--font-mono); font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: var(--bg-surface-tint); color: var(--ink-muted); border-top: 1px solid var(--rule-medium); border-bottom: 1px solid var(--rule-medium);">
-            — DATES NOT YET ANNOUNCED (${tba.length} ISSUES · DRHP FILED / REGULATORY CLEARANCE PENDING) —
-          </td>
-        </tr>
-      `;
-      rows += tba.map(ipo => renderLedgerRow(ipo, now)).join('');
-    }
-    ledgerRowsHtml = rows;
+  let html = standard.map(ipo => renderCard(ipo)).join('');
+  if (tba.length > 0) {
+    html += `
+      <div class="col-span-full py-2.5 px-3.5 my-1 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 rounded-xl flex items-center justify-between">
+        <span>Dates Not Yet Announced (${tba.length} Issues · DRHP Filed)</span>
+        <span class="text-[10px] font-normal lowercase tracking-normal text-slate-400">awaiting exchange schedule</span>
+      </div>
+    `;
+    html += tba.map(ipo => renderCard(ipo)).join('');
   }
 
-  container.innerHTML = `
-    ${leadHtml}
-
-    <!-- SECTION: THE COMPLETE MARKET LEDGER -->
-    <section class="ledger-section" role="region" aria-label="Official Ledger">
-      <div class="section-eyebrow">The Official Ledger · All Monitored Offerings</div>
-
-      <table class="ledger-table" role="table">
-        <thead>
-          <tr>
-            <th style="width: 24%;">Enterprise &amp; Sector</th>
-            <th style="width: 10%;">Category</th>
-            <th style="width: 14%;">Status &amp; Timeline</th>
-            <th style="width: 14%; text-align: right;">Grey Market (GMP)</th>
-            <th style="width: 14%; text-align: right;">Subscription Multiple</th>
-            <th style="width: 10%; text-align: right;">Algo Score</th>
-            <th style="width: 14%; text-align: center;">Official Verdict</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${ledgerRowsHtml}
-        </tbody>
-      </table>
-    </section>
-  `;
+  container.innerHTML = html;
+  if (window.lucide) window.lucide.createIcons();
 }
 
 // ── Modal Details (IPO) ──

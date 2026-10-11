@@ -12,11 +12,11 @@ function switchTab(tabId) {
     const btn = document.getElementById('nav-' + t);
     const mBtn = document.getElementById('mobile-nav-' + t);
     if (t === tabId) {
-      if (btn) btn.className = "nav-item active";
-      if (mBtn) mBtn.className = "nav-item active text-xs font-bold";
+      if (btn) btn.className = "h-full px-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-500 transition-all flex items-center gap-1.5 cursor-pointer";
+      if (mBtn) mBtn.className = "flex-1 py-1.5 px-2.5 text-center text-xs font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 shrink-0 cursor-pointer";
     } else {
-      if (btn) btn.className = "nav-item";
-      if (mBtn) mBtn.className = "nav-item text-xs font-medium";
+      if (btn) btn.className = "h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5 cursor-pointer";
+      if (mBtn) mBtn.className = "flex-1 py-1.5 px-2.5 text-center text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 cursor-pointer";
     }
   });
 

@@ -26,27 +26,20 @@ let mfHistoryLineChart = null;
 let activeMFSchemeId = null;
 const API = '/api/v1/portfolio';
 
-// ==================== THEME MANAGEMENT (DUAL EDITION) ====================
-function updateEditionUI(isDark) {
-  const nameDisp = document.getElementById('edition-name-display');
-  const targetDisp = document.getElementById('edition-switch-target');
-  if (nameDisp) nameDisp.textContent = isDark ? 'Evening Edition' : 'Morning Edition';
-  if (targetDisp) targetDisp.textContent = isDark ? 'Morning ☀' : 'Evening ☾';
-}
-
+// ==================== THEME MANAGEMENT ====================
 function initTheme() {
   const urlParams = new URLSearchParams(window.location.search);
-  const queryParam = urlParams.get('edition') || urlParams.get('theme');
+  const queryParam = urlParams.get('theme');
   const saved = localStorage.getItem('ipo_theme');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   
-  let isDark = false;
+  let isDark = true;
   if (queryParam) {
-    isDark = (queryParam === 'evening' || queryParam === 'dark');
+    isDark = (queryParam === 'dark');
   } else if (saved) {
     isDark = (saved === 'dark');
   } else {
-    isDark = prefersDark;
+    isDark = true;
   }
 
   if (isDark) {
@@ -56,7 +49,6 @@ function initTheme() {
     document.documentElement.classList.remove('dark');
     document.documentElement.classList.add('light');
   }
-  updateEditionUI(isDark);
   refreshLucideIcons();
 }
 
@@ -64,7 +56,6 @@ function toggleTheme() {
   const isDark = document.documentElement.classList.toggle('dark');
   document.documentElement.classList.toggle('light', !isDark);
   localStorage.setItem('ipo_theme', isDark ? 'dark' : 'light');
-  updateEditionUI(isDark);
   refreshLucideIcons();
   if (typeof portfolioSnapshotsChart !== 'undefined' && portfolioSnapshotsChart) renderPortfolioSnapshotsChart();
   if (typeof pnlByStockChart !== 'undefined' && pnlByStockChart) renderPnlByStockChart(currentPortfolioHoldings);

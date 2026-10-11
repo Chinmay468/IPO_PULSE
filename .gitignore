@@ -44,3 +44,6 @@ scratch/
 
 # Exclude README from GitHub
 README.md
+
+# Backups
+app/backup_gazette/
