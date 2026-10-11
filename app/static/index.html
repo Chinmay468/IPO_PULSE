@@ -190,28 +190,28 @@
     <section id="tab-portfolio" class="space-y-6">
 
       <!-- Combined Net Worth Summary Strip (Stocks + MFs) -->
-      <div id="pf-net-worth-banner" class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-xl p-3.5 sm:p-4 shadow-sm border border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div id="pf-net-worth-banner" class="bg-white dark:bg-gradient-to-r dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 text-slate-900 dark:text-white rounded-xl p-3.5 sm:p-4 shadow-soft border border-[#E8EAEE] dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors">
         <div class="flex items-center gap-2.5">
-          <span class="h-8 w-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs border border-emerald-500/30">
+          <span class="h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs border border-emerald-200 dark:border-emerald-500/30">
             <i data-lucide="wallet" class="w-4 h-4"></i>
           </span>
           <div>
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Combined Net Worth</span>
-            <span id="pf-net-worth-total" class="text-lg sm:text-xl font-extrabold font-mono text-white tabular-nums">—</span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Combined Net Worth</span>
+            <span id="pf-net-worth-total" class="text-lg sm:text-xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">—</span>
           </div>
         </div>
         <div class="flex items-center gap-3 text-xs">
           <div class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span class="text-slate-400 text-[11px]">Stocks:</span>
-            <span id="pf-net-worth-stocks" class="font-mono font-bold text-white">—</span>
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span class="text-slate-500 dark:text-slate-400 text-[11px]">Stocks:</span>
+            <span id="pf-net-worth-stocks" class="font-mono font-bold text-slate-900 dark:text-white">—</span>
           </div>
           <div class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
-            <span class="text-slate-400 text-[11px]">Mutual Funds:</span>
-            <span id="pf-net-worth-mf" class="font-mono font-bold text-white">—</span>
+            <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+            <span class="text-slate-500 dark:text-slate-400 text-[11px]">Mutual Funds:</span>
+            <span id="pf-net-worth-mf" class="font-mono font-bold text-slate-900 dark:text-white">—</span>
           </div>
-          <button onclick="switchTab('mf')" class="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 underline ml-1 cursor-pointer">View MFs →</button>
+          <button onclick="switchTab('mf')" class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 underline ml-1 cursor-pointer">View MFs →</button>
         </div>
       </div>
 
@@ -610,32 +610,32 @@
     <section id="tab-mf" class="space-y-6 hidden">
 
       <!-- Combined Net Worth Header Banner -->
-      <div id="mf-combined-net-worth-banner" class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div id="mf-combined-net-worth-banner" class="bg-white dark:bg-gradient-to-r dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white rounded-2xl p-4 sm:p-5 shadow-soft border border-[#E8EAEE] dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+          <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-500/30">
             <i data-lucide="wallet" class="w-5 h-5"></i>
           </div>
           <div>
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Combined Net Worth</span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Total Combined Net Worth</span>
             <div class="flex items-baseline gap-2.5">
-              <h2 id="mf-total-net-worth" class="text-2xl sm:text-3xl font-extrabold font-mono text-white tabular-nums">—</h2>
+              <h2 id="mf-total-net-worth" class="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">—</h2>
               <span id="mf-total-pnl-chip" class="inline-flex items-center"></span>
             </div>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-3 text-xs">
-          <div class="bg-white/5 border border-white/10 rounded-xl px-3.5 py-2">
-            <span class="text-[10px] text-slate-400 block">Stocks Portfolio</span>
+          <div class="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-3.5 py-2">
+            <span class="text-[10px] text-slate-500 dark:text-slate-400 block">Stocks Portfolio</span>
             <div class="flex items-center gap-1.5 mt-0.5">
-              <span id="mf-combined-stocks-val" class="font-mono font-bold text-white">—</span>
-              <span id="mf-combined-stocks-pct" class="text-[10px] text-emerald-400 font-semibold">—%</span>
+              <span id="mf-combined-stocks-val" class="font-mono font-bold text-slate-900 dark:text-white">—</span>
+              <span id="mf-combined-stocks-pct" class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">—%</span>
             </div>
           </div>
-          <div class="bg-white/5 border border-white/10 rounded-xl px-3.5 py-2">
-            <span class="text-[10px] text-slate-400 block">Mutual Funds</span>
+          <div class="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-3.5 py-2">
+            <span class="text-[10px] text-slate-500 dark:text-slate-400 block">Mutual Funds</span>
             <div class="flex items-center gap-1.5 mt-0.5">
-              <span id="mf-combined-funds-val" class="font-mono font-bold text-white">—</span>
-              <span id="mf-combined-funds-pct" class="text-[10px] text-indigo-400 font-semibold">—%</span>
+              <span id="mf-combined-funds-val" class="font-mono font-bold text-slate-900 dark:text-white">—</span>
+              <span id="mf-combined-funds-pct" class="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">—%</span>
             </div>
           </div>
         </div>
