@@ -881,24 +881,25 @@ async def sync_chittorgarh_data(
 
     curr_yr = date.today().year
     urls_to_scrape = [
-        ("https://www.chittorgarh.com/ipo/ipo_dashboard.asp", IPOType.MAINBOARD),
-        ("https://www.chittorgarh.com/ipo/ipo_dashboard.asp?a=sme", IPOType.SME),
-        ("https://www.chittorgarh.com/report/ipo-in-india-list-main-board-sme/82/", IPOType.MAINBOARD),
-        (f"https://www.chittorgarh.com/report/ipo-in-india-list-main-board-sme/82/?year={curr_yr}", IPOType.MAINBOARD),
-        ("https://www.chittorgarh.com/report/upcoming-ipo-in-india-drhp-filed-sebi-approval/84/", IPOType.MAINBOARD),
+        ("https://www.chittorgarh.com/ipo/ipo_dashboard.asp", IPOType.MAINBOARD, True),
+        ("https://www.chittorgarh.com/ipo/ipo_dashboard.asp?a=sme", IPOType.SME, True),
+        ("https://www.chittorgarh.com/report/ipo-in-india-list-main-board-sme/82/", IPOType.MAINBOARD, False),
+        (f"https://www.chittorgarh.com/report/ipo-in-india-list-main-board-sme/82/?year={curr_yr}", IPOType.MAINBOARD, False),
+        ("https://www.chittorgarh.com/report/upcoming-ipo-in-india-drhp-filed-sebi-approval/84/", IPOType.MAINBOARD, False),
     ]
 
     discovered_items: List[Dict[str, Any]] = []
     reviews_map: Dict[str, Dict[str, int]] = {}
 
-    for dash_url, ipo_type in urls_to_scrape:
+    for dash_url, ipo_type, expect_table in urls_to_scrape:
         try:
             html_text = await client.fetch(dash_url)
             items = parse_dashboard_list(html_text, ipo_type=ipo_type)
             revs = parse_dashboard_reviews(html_text)
             reviews_map.update(revs)
             discovered_items.extend(items)
-            await detector.record_result("dashboard_list", len(items), dash_url)
+            if expect_table:
+                await detector.record_result("dashboard_list", len(items), dash_url)
         except Exception as exc:
             logger.error(f"Error fetching dashboard/report {dash_url}: {exc}")
             if isinstance(exc, (ChittorgarhRateLimitException, ChittorgarhStructureChangeException)):
