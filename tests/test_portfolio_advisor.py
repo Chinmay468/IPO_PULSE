@@ -342,15 +342,21 @@ def test_format_ai_markdown_long_multisection_reply():
     from pathlib import Path
 
     # Read formatAIMarkdown directly from app/static/index.html
-    html_path = Path("app/static/index.html")
-    assert html_path.exists()
-    content = html_path.read_text(encoding="utf-8")
-
-    # Extract formatAIMarkdown function
-    fn_start = content.find("function formatAIMarkdown(text) {")
-    assert fn_start != -1
-    fn_end = content.find("function filterHoldingsTable()", fn_start)
-    assert fn_end != -1
+    js_path = Path("app/static/js/technical_advisory.js")
+    if js_path.exists():
+        content = js_path.read_text(encoding="utf-8")
+        fn_start = content.find("function formatAIMarkdown(text) {")
+        assert fn_start != -1
+        fn_end = content.find("async function loadPortfolioAdvisory", fn_start)
+        assert fn_end != -1
+    else:
+        html_path = Path("app/static/index.html")
+        assert html_path.exists()
+        content = html_path.read_text(encoding="utf-8")
+        fn_start = content.find("function formatAIMarkdown(text) {")
+        assert fn_start != -1
+        fn_end = content.find("function filterHoldingsTable()", fn_start)
+        assert fn_end != -1
     fn_code = content[fn_start:fn_end].strip()
 
     long_reply = """## Portfolio Health & Rebalancing Plan

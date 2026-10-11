@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from datetime import datetime, date, timedelta, timezone
 from typing import List, Dict, Any, Optional
@@ -124,7 +125,14 @@ class ScraperService:
         """
         Seeds sample IPO master records, subscription data, and GMP records,
         then computes their initial scores.
+        Only allowed when ALLOW_SEED=1 environment variable is explicitly set.
         """
+        if os.getenv("ALLOW_SEED") != "1":
+            raise PermissionError(
+                "Market data seeding is prohibited in production. "
+                "Set ALLOW_SEED=1 environment variable to permit seeding."
+            )
+
         today = date.today()
         seed_ipos = [
             {
@@ -163,7 +171,7 @@ class ScraperService:
                 "symbol": "NITYASGEMS",
                 "company_name": "Nityas Gems & Jewellery Ltd",
                 "ipo_type": IPOType.MAINBOARD,
-                "status": IPOStatus.LIVE,
+                "status": IPOStatus.CLOSED,
                 "price_band_low": 210.0,
                 "price_band_high": 225.0,
                 "issue_price": 225.0,
@@ -171,7 +179,7 @@ class ScraperService:
                 "issue_size_crores": 410.0,
                 "fresh_issue_crores": 300.0,
                 "ofs_crores": 110.0,
-                "open_date": today,
+                "open_date": date(2026, 10, 1),
                 "close_date": date(2026, 10, 5),
                 "allotment_date": date(2026, 10, 8),
                 "listing_date": date(2026, 10, 12),
@@ -189,7 +197,7 @@ class ScraperService:
                 "promoter_holding_pre": 91.2,
                 "promoter_holding_post": 66.8,
                 "gmp": {"gmp_amount": 18.0, "gmp_percentage": 8.0, "source": "chittorgarh"},
-                "sub": {"qib_multiple": 0.05, "nii_multiple": 0.12, "retail_multiple": 0.22, "total_multiple": 0.14}
+                "sub": {"qib_multiple": 24.50, "nii_multiple": 14.80, "retail_multiple": 16.20, "total_multiple": 18.52}
             },
             {
                 "symbol": "NTPCGREEN",
@@ -652,12 +660,13 @@ class ScraperService:
             sub_info = item.pop("sub")
 
             if not existing:
-                ipo_obj = IPO(**item)
+                ipo_obj = IPO(**item, is_seed=True)
                 session.add(ipo_obj)
                 await session.flush()
                 count += 1
             else:
                 ipo_obj = existing
+                ipo_obj.is_seed = True
                 for k, v in item.items():
                     setattr(ipo_obj, k, v)
                 await session.flush()
@@ -730,15 +739,25 @@ class ScraperService:
         gmp_records = await cls.scrape_gmp_feed()
         sub_records = await cls.scrape_subscription_feed()
 
-        # Query all active or upcoming IPOs
-        stmt = select(IPO).where(IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]))
+        # Query all active or upcoming IPOs (excluding seed data)
+        stmt = select(IPO).where(
+            IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]),
+            IPO.is_seed.is_(False)
+        )
         result = await session.execute(stmt)
         active_ipos = result.scalars().all()
 
         now_sync = datetime.now(timezone.utc)
         updated_count = 0
         for ipo in active_ipos:
-            ipo.updated_at = now_sync
+            data_changed = False
+
+            # Existing latest records
+            gmp_stmt = select(IPOGmp).where(IPOGmp.ipo_id == ipo.id).order_by(IPOGmp.recorded_at.desc()).limit(1)
+            prev_gmp = (await session.execute(gmp_stmt)).scalar_one_or_none()
+
+            sub_stmt = select(IPOSubscription).where(IPOSubscription.ipo_id == ipo.id).order_by(IPOSubscription.recorded_at.desc()).limit(1)
+            prev_sub = (await session.execute(sub_stmt)).scalar_one_or_none()
 
             # Match GMP
             matched_gmp = next(
@@ -760,14 +779,25 @@ class ScraperService:
                 elif gmp_pct is None:
                     gmp_pct = 0.0
 
-                latest_gmp_obj = IPOGmp(
-                    ipo_id=ipo.id,
-                    gmp_amount=gmp_amt,
-                    gmp_percentage=gmp_pct,
-                    source=matched_gmp.get("source", "market"),
-                    recorded_at=now_sync
+                is_gmp_changed = (
+                    prev_gmp is None
+                    or prev_gmp.gmp_amount != gmp_amt
+                    or prev_gmp.gmp_percentage != gmp_pct
                 )
-                session.add(latest_gmp_obj)
+                if is_gmp_changed:
+                    latest_gmp_obj = IPOGmp(
+                        ipo_id=ipo.id,
+                        gmp_amount=gmp_amt,
+                        gmp_percentage=gmp_pct,
+                        source=matched_gmp.get("source", "market"),
+                        recorded_at=now_sync
+                    )
+                    session.add(latest_gmp_obj)
+                    data_changed = True
+                else:
+                    latest_gmp_obj = prev_gmp
+            else:
+                latest_gmp_obj = prev_gmp
 
             # Match Subscription
             matched_sub = next(
@@ -779,49 +809,61 @@ class ScraperService:
                 tot_mult = matched_sub.get("total_multiple")
                 if tot_mult is None:
                     tot_mult = 0.0
-                latest_sub_obj = IPOSubscription(
-                    ipo_id=ipo.id,
-                    qib_multiple=matched_sub["qib_multiple"],
-                    nii_multiple=matched_sub["nii_multiple"],
-                    retail_multiple=matched_sub["retail_multiple"],
-                    total_multiple=tot_mult,
-                    recorded_at=now_sync
+                qib_mult = matched_sub.get("qib_multiple")
+                nii_mult = matched_sub.get("nii_multiple")
+                ret_mult = matched_sub.get("retail_multiple")
+
+                is_sub_changed = (
+                    prev_sub is None
+                    or prev_sub.total_multiple != tot_mult
+                    or prev_sub.qib_multiple != qib_mult
+                    or prev_sub.nii_multiple != nii_mult
+                    or prev_sub.retail_multiple != ret_mult
                 )
-                session.add(latest_sub_obj)
-
-            await session.flush()
-
-            # Retrieve latest records if not updated in this cycle
-            if not latest_gmp_obj:
-                gmp_stmt = select(IPOGmp).where(IPOGmp.ipo_id == ipo.id).order_by(IPOGmp.recorded_at.desc()).limit(1)
-                latest_gmp_obj = (await session.execute(gmp_stmt)).scalar_one_or_none()
-
-            if not latest_sub_obj:
-                sub_stmt = select(IPOSubscription).where(IPOSubscription.ipo_id == ipo.id).order_by(IPOSubscription.recorded_at.desc()).limit(1)
-                latest_sub_obj = (await session.execute(sub_stmt)).scalar_one_or_none()
-
-            # Recalculate score
-            score_data = ScoringService.calculate_score(
-                ipo=ipo,
-                latest_subscription=latest_sub_obj,
-                latest_gmp=latest_gmp_obj
-            )
-
-            score_stmt = select(IPOScore).where(IPOScore.ipo_id == ipo.id)
-            score_obj = (await session.execute(score_stmt)).scalar_one_or_none()
-            if score_obj:
-                score_obj.composite_score = score_data["composite_score"]
-                score_obj.recommendation = score_data["recommendation"]
-                score_obj.gmp_score = score_data["gmp_score"]
-                score_obj.subscription_score = score_data["subscription_score"]
-                score_obj.valuation_score = score_data["valuation_score"]
-                score_obj.structure_score = score_data["structure_score"]
-                score_obj.rationale = score_data["rationale"]
-                score_obj.calculated_at = now_sync
+                if is_sub_changed:
+                    latest_sub_obj = IPOSubscription(
+                        ipo_id=ipo.id,
+                        qib_multiple=qib_mult,
+                        nii_multiple=nii_mult,
+                        retail_multiple=ret_mult,
+                        total_multiple=tot_mult,
+                        recorded_at=now_sync
+                    )
+                    session.add(latest_sub_obj)
+                    data_changed = True
+                else:
+                    latest_sub_obj = prev_sub
             else:
-                session.add(IPOScore(ipo_id=ipo.id, calculated_at=now_sync, **score_data))
+                latest_sub_obj = prev_sub
 
-            updated_count += 1
+            if data_changed:
+                ipo.updated_at = now_sync
+                await session.flush()
+
+                # Recalculate score
+                score_data = ScoringService.calculate_score(
+                    ipo=ipo,
+                    latest_subscription=latest_sub_obj,
+                    latest_gmp=latest_gmp_obj
+                )
+
+                score_stmt = select(IPOScore).where(IPOScore.ipo_id == ipo.id)
+                score_obj = (await session.execute(score_stmt)).scalar_one_or_none()
+                if score_obj:
+                    score_obj.composite_score = score_data["composite_score"]
+                    score_obj.recommendation = score_data["recommendation"]
+                    score_obj.gmp_score = score_data["gmp_score"]
+                    score_obj.subscription_score = score_data["subscription_score"]
+                    score_obj.valuation_score = score_data["valuation_score"]
+                    score_obj.structure_score = score_data["structure_score"]
+                    score_obj.rationale = score_data["rationale"]
+                    score_obj.calculated_at = now_sync
+                else:
+                    valid_keys = {"composite_score", "recommendation", "gmp_score", "subscription_score", "valuation_score", "structure_score", "rationale"}
+                    filtered_score = {k: v for k, v in score_data.items() if k in valid_keys}
+                    session.add(IPOScore(ipo_id=ipo.id, calculated_at=now_sync, **filtered_score))
+
+                updated_count += 1
 
         await session.commit()
         return {

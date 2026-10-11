@@ -39,5 +39,8 @@ scripts/*.xls
 logs/
 *.log
 
+# Scratch directory
+scratch/
+
 # Exclude README from GitHub
 README.md

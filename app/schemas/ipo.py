@@ -123,6 +123,60 @@ class IPOBase(BaseModel):
     promoter_holding_pre: Optional[float] = None
     promoter_holding_post: Optional[float] = None
 
+    source: Optional[str] = None
+    source_url: Optional[str] = None
+    source_id: Optional[int] = None
+    fetched_at: Optional[datetime] = None
+    data_quality: Optional[Dict[str, Any]] = None
+    is_seed: bool = False
+    dates_tba: bool = False
+
+
+# ---------------- Scraper Child Entities Schemas ----------------
+class IPODocumentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ipo_id: int
+    type: str
+    url: str
+    created_at: datetime
+
+
+class IPOAnchorResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ipo_id: int
+    investor: str
+    amount: Optional[float] = None
+    lock_in_end: Optional[date] = None
+    created_at: datetime
+
+
+class IPOReviewsSummaryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ipo_id: int
+    apply: int = 0
+    may_apply: int = 0
+    neutral: int = 0
+    avoid: int = 0
+    not_rated: int = 0
+    fetched_at: datetime
+
+
+class IPOListingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ipo_id: int
+    listing_price: Optional[float] = None
+    listing_gain_pct: Optional[float] = None
+    listing_date: Optional[date] = None
+    fetched_at: datetime
+
 
 class IPOCreate(IPOBase):
     pass
@@ -174,6 +228,15 @@ class IPOResponse(IPOBase):
     angelone_apply_url: Optional[str] = None
     can_apply: bool = False
     is_pre_apply: bool = False
+    data_incomplete: bool = False
+    day_label: Optional[str] = None
+    is_dates_unavailable: bool = False
+
+    # Scraper relations
+    documents: List[IPODocumentResponse] = Field(default_factory=list)
+    anchor_investors: List[IPOAnchorResponse] = Field(default_factory=list)
+    reviews_summary: Optional[IPOReviewsSummaryResponse] = None
+    listing_info: Optional[IPOListingResponse] = None
 
 
 class IPODetailResponse(IPOResponse):

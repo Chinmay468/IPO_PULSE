@@ -80,16 +80,20 @@ async def get_track_record(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]
     segmented by recommendation tier (STRONG APPLY, APPLY, NEUTRAL, AVOID).
     Strictly reports 'not enough data' for any tier with fewer than 20 IPOs.
     """
-    # Query all IPOs with their associated score
+    from sqlalchemy.orm import selectinload
     stmt = (
-        select(IPO, IPOScore)
-        .outerjoin(IPOScore, IPO.id == IPOScore.ipo_id)
+        select(IPO)
+        .options(
+            selectinload(IPO.score),
+            selectinload(IPO.listing_info),
+        )
         .where(
-            (IPO.status == IPOStatus.LISTED) | (IPO.listing_price.isnot(None))
+            ((IPO.status == IPOStatus.LISTED) | (IPO.listing_price.isnot(None))),
+            IPO.is_seed.is_(False)
         )
     )
     result = await db.execute(stmt)
-    rows = result.all()
+    ipos = result.scalars().all()
 
     tiers_data: Dict[str, Dict[str, Any]] = {
         "STRONG APPLY": {"count": 0, "gains": [], "badge": "badge-STRONG_APPLY"},
@@ -99,17 +103,21 @@ async def get_track_record(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]
     }
 
     total_listed = 0
-    for ipo, score in rows:
+    for ipo in ipos:
         base_price = ipo.issue_price or ipo.price_band_high or ipo.price_band_low
-        listing_price = getattr(ipo, "listing_price", None)
+        gain_pct = None
+        if ipo.listing_info and ipo.listing_info.listing_gain_pct is not None:
+            gain_pct = ipo.listing_info.listing_gain_pct
+        elif ipo.listing_info and ipo.listing_info.listing_price and base_price and base_price > 0:
+            gain_pct = round(((ipo.listing_info.listing_price - base_price) / base_price) * 100.0, 2)
+        elif ipo.listing_price is not None and base_price and base_price > 0:
+            gain_pct = round(((ipo.listing_price - base_price) / base_price) * 100.0, 2)
 
-        if listing_price is not None and base_price is not None and base_price > 0:
+        if gain_pct is not None:
             total_listed += 1
-            gain_pct = round(((listing_price - base_price) / base_price) * 100.0, 2)
-
             rec_tier = "AVOID"
-            if score and score.recommendation:
-                rec_val = score.recommendation.value if hasattr(score.recommendation, "value") else str(score.recommendation)
+            if ipo.score and ipo.score.recommendation:
+                rec_val = ipo.score.recommendation.value if hasattr(ipo.score.recommendation, "value") else str(ipo.score.recommendation)
                 if rec_val in tiers_data:
                     rec_tier = rec_val
 

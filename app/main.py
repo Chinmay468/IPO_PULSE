@@ -91,8 +91,11 @@ app.include_router(mutual_fund_router, prefix=settings.API_V1_PREFIX)
 
 from pathlib import Path
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 STATIC_DIR = Path(__file__).parent / "static"
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/", response_class=HTMLResponse, tags=["Dashboard"])

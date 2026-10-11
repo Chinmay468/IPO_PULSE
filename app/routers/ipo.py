@@ -21,6 +21,7 @@ from datetime import date
 from app.services.ipo_service import IPOService
 from app.services.scoring_service import ScoringService
 from app.auth import require_auth
+from app.core.ipo_timeline import derive_ipo_status, compute_day_label, get_ist_today
 
 router = APIRouter(prefix="/ipos", tags=["IPOs & Suggestions"])
 
@@ -32,14 +33,17 @@ def _check_apply_eligibility(ipo) -> tuple[bool, bool]:
     - is_pre_apply: True if UPCOMING and within 2 days of open_date.
     - LISTED or CLOSED IPOs are strictly NEVER biddable.
     """
-    if ipo.status in [IPOStatus.LISTED, IPOStatus.CLOSED]:
+    is_tba = getattr(ipo, "dates_tba", False)
+    derived_status = derive_ipo_status(ipo.open_date, ipo.close_date, ipo.listing_date, dates_tba=is_tba)
+
+    if derived_status in [IPOStatus.LISTED, IPOStatus.CLOSED]:
         return False, False
 
-    if ipo.status == IPOStatus.LIVE:
+    if derived_status == IPOStatus.LIVE:
         return True, False
 
-    if ipo.status == IPOStatus.UPCOMING:
-        today = date.today()
+    if derived_status == IPOStatus.UPCOMING:
+        today = get_ist_today()
         if ipo.open_date:
             days_to_open = (ipo.open_date - today).days
             if 0 <= days_to_open <= 2:
@@ -51,6 +55,15 @@ def _check_apply_eligibility(ipo) -> tuple[bool, bool]:
 
 def _format_ipo_response(ipo) -> IPOResponse:
     resp = IPOResponse.model_validate(ipo)
+    is_tba = getattr(ipo, "dates_tba", False)
+    derived_status = derive_ipo_status(ipo.open_date, ipo.close_date, ipo.listing_date, dates_tba=is_tba)
+    resp.status = derived_status
+    day_lbl = compute_day_label(ipo.open_date, ipo.close_date, ipo.listing_date, dates_tba=is_tba)
+    resp.day_label = day_lbl
+    if day_lbl in ["Dates unavailable", "Dates to be announced"] and not is_tba:
+        resp.is_dates_unavailable = True
+        resp.data_incomplete = True
+
     if ipo.gmp_records and len(ipo.gmp_records) > 0:
         resp.latest_gmp = GMPResponse.model_validate(ipo.gmp_records[0])
     if ipo.subscriptions and len(ipo.subscriptions) > 0:
@@ -62,11 +75,26 @@ def _format_ipo_response(ipo) -> IPOResponse:
     resp.can_apply = can_apply
     resp.is_pre_apply = is_pre_apply
     resp.angelone_apply_url = f"/api/v1/ipos/{ipo.id}/apply/angelone" if can_apply else None
+
+    if ipo.data_quality and ipo.data_quality.get("status") == "incomplete":
+        resp.data_incomplete = True
+    elif ipo.score and ipo.score.rationale and isinstance(ipo.score.rationale, dict) and ipo.score.rationale.get("data_incomplete"):
+        resp.data_incomplete = True
+
     return resp
 
 
 def _format_ipo_detail_response(ipo) -> IPODetailResponse:
     detail = IPODetailResponse.model_validate(ipo)
+    is_tba = getattr(ipo, "dates_tba", False)
+    derived_status = derive_ipo_status(ipo.open_date, ipo.close_date, ipo.listing_date, dates_tba=is_tba)
+    detail.status = derived_status
+    day_lbl = compute_day_label(ipo.open_date, ipo.close_date, ipo.listing_date, dates_tba=is_tba)
+    detail.day_label = day_lbl
+    if day_lbl in ["Dates unavailable", "Dates to be announced"] and not is_tba:
+        detail.is_dates_unavailable = True
+        detail.data_incomplete = True
+
     if ipo.gmp_records and len(ipo.gmp_records) > 0:
         detail.latest_gmp = GMPResponse.model_validate(ipo.gmp_records[0])
     if ipo.subscriptions and len(ipo.subscriptions) > 0:
@@ -78,6 +106,12 @@ def _format_ipo_detail_response(ipo) -> IPODetailResponse:
     detail.can_apply = can_apply
     detail.is_pre_apply = is_pre_apply
     detail.angelone_apply_url = f"/api/v1/ipos/{ipo.id}/apply/angelone" if can_apply else None
+
+    if ipo.data_quality and ipo.data_quality.get("status") == "incomplete":
+        detail.data_incomplete = True
+    elif ipo.score and ipo.score.rationale and isinstance(ipo.score.rationale, dict) and ipo.score.rationale.get("data_incomplete"):
+        detail.data_incomplete = True
+
     return detail
 
 
@@ -90,6 +124,7 @@ async def list_ipos(
     search: Optional[str] = Query(None, description="Search across symbol or company name"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    include_seed: bool = Query(False, description="Include internal seed rows"),
     db: AsyncSession = Depends(get_db)
 ):
     items, total = await IPOService.list_ipos(
@@ -100,7 +135,8 @@ async def list_ipos(
         min_score=min_score,
         search=search,
         skip=skip,
-        limit=limit
+        limit=limit,
+        include_seed=include_seed
     )
     formatted_items = [_format_ipo_response(ipo) for ipo in items]
     return IPOListResponse(total=total, items=formatted_items)

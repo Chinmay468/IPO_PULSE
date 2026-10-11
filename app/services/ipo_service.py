@@ -1,7 +1,8 @@
 from typing import List, Optional, Tuple
-from sqlalchemy import select, func, desc, or_
+from sqlalchemy import select, func, desc, asc, or_, case
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.ipo_timeline import get_ist_today
 
 from app.models.ipo import (
     IPO,
@@ -25,7 +26,11 @@ class IPOService:
             .options(
                 selectinload(IPO.subscriptions),
                 selectinload(IPO.gmp_records),
-                selectinload(IPO.score)
+                selectinload(IPO.score),
+                selectinload(IPO.documents),
+                selectinload(IPO.anchor_investors),
+                selectinload(IPO.reviews_summary),
+                selectinload(IPO.listing_info),
             )
         )
         result = await session.execute(stmt)
@@ -39,7 +44,11 @@ class IPOService:
             .options(
                 selectinload(IPO.subscriptions),
                 selectinload(IPO.gmp_records),
-                selectinload(IPO.score)
+                selectinload(IPO.score),
+                selectinload(IPO.documents),
+                selectinload(IPO.anchor_investors),
+                selectinload(IPO.reviews_summary),
+                selectinload(IPO.listing_info),
             )
         )
         result = await session.execute(stmt)
@@ -54,7 +63,8 @@ class IPOService:
         min_score: Optional[float] = None,
         search: Optional[str] = None,
         skip: int = 0,
-        limit: int = 50
+        limit: int = 50,
+        include_seed: bool = False
     ) -> Tuple[List[IPO], int]:
         stmt = (
             select(IPO)
@@ -62,15 +72,32 @@ class IPOService:
             .options(
                 selectinload(IPO.subscriptions),
                 selectinload(IPO.gmp_records),
-                selectinload(IPO.score)
+                selectinload(IPO.score),
+                selectinload(IPO.documents),
+                selectinload(IPO.anchor_investors),
+                selectinload(IPO.reviews_summary),
+                selectinload(IPO.listing_info),
             )
         )
 
         count_stmt = select(func.count(IPO.id)).outerjoin(IPO.score)
 
+        # 1. Hide seed rows from user-facing queries unless explicitly requested
+        if not include_seed:
+            stmt = stmt.where(IPO.is_seed.is_(False))
+            count_stmt = count_stmt.where(IPO.is_seed.is_(False))
+
+        # 2. Status filtering & upcoming boundary enforcement
         if status:
             stmt = stmt.where(IPO.status == status)
             count_stmt = count_stmt.where(IPO.status == status)
+
+            if status == IPOStatus.UPCOMING:
+                today = get_ist_today()
+                # The 'Upcoming' filter returns only IPOs with open_date >= today or dates_tba
+                upcoming_cond = or_(IPO.open_date >= today, IPO.dates_tba.is_(True))
+                stmt = stmt.where(upcoming_cond)
+                count_stmt = count_stmt.where(upcoming_cond)
         else:
             stmt = stmt.where(IPO.status != IPOStatus.LISTED)
             count_stmt = count_stmt.where(IPO.status != IPOStatus.LISTED)
@@ -97,7 +124,16 @@ class IPOService:
 
         total_count = (await session.execute(count_stmt)).scalar() or 0
 
-        stmt = stmt.order_by(desc(IPO.open_date), desc(IPO.created_at)).offset(skip).limit(limit)
+        # 3. Sorting: Upcoming sorted by open_date ascending, with "Dates not announced" group at the end
+        if status == IPOStatus.UPCOMING:
+            stmt = stmt.order_by(
+                case((IPO.dates_tba.is_(True), 1), (IPO.open_date.is_(None), 1), else_=0).asc(),
+                asc(IPO.open_date),
+                desc(IPO.created_at)
+            ).offset(skip).limit(limit)
+        else:
+            stmt = stmt.order_by(desc(IPO.open_date), desc(IPO.created_at)).offset(skip).limit(limit)
+
         result = await session.execute(stmt)
         items = result.scalars().all()
 
@@ -105,13 +141,43 @@ class IPOService:
 
     @staticmethod
     async def create_ipo(session: AsyncSession, data: IPOCreate) -> IPO:
-        ipo = IPO(**data.model_dump())
+        ipo_dict = data.model_dump()
+        open_d = ipo_dict.get("open_date")
+        close_d = ipo_dict.get("close_date")
+        dq = ipo_dict.get("data_quality") or {}
+        if close_d and open_d and close_d < open_d:
+            ipo_dict["open_date"] = None
+            ipo_dict["close_date"] = None
+            missing = dq.get("missing_fields", [])
+            if "invalid_dates" not in missing:
+                missing.append("invalid_dates")
+            dq["missing_fields"] = missing
+            dq["status"] = "incomplete"
+            ipo_dict["data_quality"] = dq
+
+        from app.core.ipo_timeline import derive_ipo_status
+        if ipo_dict.get("open_date") and ipo_dict.get("close_date"):
+            ipo_dict["status"] = derive_ipo_status(
+                ipo_dict.get("open_date"),
+                ipo_dict.get("close_date"),
+                ipo_dict.get("listing_date")
+            )
+        elif not ipo_dict.get("status"):
+            ipo_dict["status"] = derive_ipo_status(
+                ipo_dict.get("open_date"),
+                ipo_dict.get("close_date"),
+                ipo_dict.get("listing_date")
+            )
+
+        ipo = IPO(**ipo_dict)
         session.add(ipo)
         await session.flush()
 
         # Compute initial baseline score
         score_data = ScoringService.calculate_score(ipo=ipo)
-        score_obj = IPOScore(ipo_id=ipo.id, **score_data)
+        valid_keys = {"composite_score", "recommendation", "gmp_score", "subscription_score", "valuation_score", "structure_score", "rationale"}
+        score_dict = {k: v for k, v in score_data.items() if k in valid_keys}
+        score_obj = IPOScore(ipo_id=ipo.id, **score_dict)
         session.add(score_obj)
         await session.commit()
         await session.refresh(ipo)
@@ -122,18 +188,35 @@ class IPOService:
         update_dict = data.model_dump(exclude_unset=True)
         for key, val in update_dict.items():
             setattr(ipo, key, val)
+
+        if ipo.close_date and ipo.open_date and ipo.close_date < ipo.open_date:
+            ipo.open_date = None
+            ipo.close_date = None
+            dq = ipo.data_quality or {}
+            missing = dq.get("missing_fields", [])
+            if "invalid_dates" not in missing:
+                missing.append("invalid_dates")
+            dq["missing_fields"] = missing
+            dq["status"] = "incomplete"
+            ipo.data_quality = dq
+
+        from app.core.ipo_timeline import derive_ipo_status
+        if ipo.open_date and ipo.close_date:
+            ipo.status = derive_ipo_status(ipo.open_date, ipo.close_date, ipo.listing_date)
         await session.flush()
 
         # Recalculate score on update
         latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
         latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
         score_data = ScoringService.calculate_score(ipo, latest_sub, latest_gmp)
+        valid_keys = {"composite_score", "recommendation", "gmp_score", "subscription_score", "valuation_score", "structure_score", "rationale"}
+        score_dict = {k: v for k, v in score_data.items() if k in valid_keys}
 
         if ipo.score:
-            for k, v in score_data.items():
+            for k, v in score_dict.items():
                 setattr(ipo.score, k, v)
         else:
-            ipo.score = IPOScore(ipo_id=ipo.id, **score_data)
+            ipo.score = IPOScore(ipo_id=ipo.id, **score_dict)
 
         await session.commit()
         await session.refresh(ipo)
@@ -157,12 +240,14 @@ class IPOService:
         # Recalculate score
         latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
         score_data = ScoringService.calculate_score(ipo, sub, latest_gmp)
+        valid_keys = {"composite_score", "recommendation", "gmp_score", "subscription_score", "valuation_score", "structure_score", "rationale"}
+        score_dict = {k: v for k, v in score_data.items() if k in valid_keys}
 
         if ipo.score:
-            for k, v in score_data.items():
+            for k, v in score_dict.items():
                 setattr(ipo.score, k, v)
         else:
-            session.add(IPOScore(ipo_id=ipo_id, **score_data))
+            session.add(IPOScore(ipo_id=ipo_id, **score_dict))
 
         await session.commit()
         await session.refresh(sub)
@@ -181,12 +266,14 @@ class IPOService:
         # Recalculate score
         latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
         score_data = ScoringService.calculate_score(ipo, latest_sub, gmp)
+        valid_keys = {"composite_score", "recommendation", "gmp_score", "subscription_score", "valuation_score", "structure_score", "rationale"}
+        score_dict = {k: v for k, v in score_data.items() if k in valid_keys}
 
         if ipo.score:
-            for k, v in score_data.items():
+            for k, v in score_dict.items():
                 setattr(ipo.score, k, v)
         else:
-            session.add(IPOScore(ipo_id=ipo_id, **score_data))
+            session.add(IPOScore(ipo_id=ipo_id, **score_dict))
 
         await session.commit()
         await session.refresh(gmp)

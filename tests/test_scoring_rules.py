@@ -218,15 +218,19 @@ async def test_page_data_equals_config(client: AsyncClient):
     rules_data = rules_res.json()
     assert rules_data == SCORING_CONFIG
 
-    # 2. Verify index.html contains dynamic containers and fetches the config
+    # 2. Verify index.html and modular static JS contain dynamic containers and fetch config
     page_res = await client.get("/")
     assert page_res.status_code == 200
     html = page_res.text
 
-    assert "/api/v1/scoring/rules" in html
-    assert "/api/v1/scoring/track-record" in html
-    assert "/api/v1/scoring/calculate" in html
-    assert "/score/breakdown" in html
+    # Include modular scripts served under /static/js/
+    ipos_res = await client.get("/static/js/ipos.js")
+    full_content = html + (ipos_res.text if ipos_res.status_code == 200 else "")
+
+    assert "/api/v1/scoring/rules" in full_content
+    assert "/api/v1/scoring/track-record" in full_content
+    assert "/api/v1/scoring/calculate" in full_content
+    assert "/score/breakdown" in full_content
     assert "dynamic-pillars-container" in html
     assert "dynamic-track-record-container" in html
     assert "dynamic-cutoffs-container" in html

@@ -5,7 +5,11 @@ from app.models.ipo import (
     IPOScore,
     IPOType,
     IPOStatus,
-    RecommendationType
+    RecommendationType,
+    IPODocument,
+    IPOAnchor,
+    IPOReviewsSummary,
+    IPOListing
 )
 from app.models.portfolio import (
     Holding,
@@ -37,6 +41,10 @@ __all__ = [
     "IPOType",
     "IPOStatus",
     "RecommendationType",
+    "IPODocument",
+    "IPOAnchor",
+    "IPOReviewsSummary",
+    "IPOListing",
     "Holding",
     "Transaction",
     "TransactionType",

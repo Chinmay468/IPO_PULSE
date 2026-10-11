@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The IPO Gazette — Evening Edition (Mockup)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400;1,9..144,700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-page: #0F1626;
+      --bg-surface: #151E33;
+      --bg-surface-tint: #1C2742;
+      --ink: #E9E3D3;
+      --ink-muted: #A6A091;
+      --ink-subtle: #7A7467;
+      --rule-hairline: rgba(233, 227, 211, 0.14);
+      --rule-medium: rgba(233, 227, 211, 0.32);
+      --rule-heavy: #E9E3D3;
+      --accent-vermilion: #EA543E;
+      --accent-green: #32A36C;
+      --font-headline: 'Fraunces', Georgia, serif;
+      --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-page);
+      color: var(--ink);
+      font-family: var(--font-body);
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      padding: 0 1.5rem 3rem 1.5rem;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1, "zero" 1;
+      font-family: var(--font-mono);
+    }
+
+    /* Container */
+    .gazette-container {
+      max-width: 1360px;
+      margin: 0 auto;
+    }
+
+    /* Top Masthead */
+    .top-heavy-rule {
+      height: 4px;
+      background-color: var(--rule-heavy);
+      margin-top: 1rem;
+    }
+
+    .top-hairline-rule {
+      height: 1px;
+      background-color: var(--rule-medium);
+      margin-top: 2px;
+    }
+
+    .masthead-meta-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.4rem 0;
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink-muted);
+      border-bottom: 1px solid var(--rule-hairline);
+    }
+
+    .masthead-title-wrap {
+      text-align: center;
+      padding: 1.25rem 0 0.75rem 0;
+      position: relative;
+    }
+
+    .masthead-tagline {
+      font-size: 0.6875rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      color: var(--ink-muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .masthead-title {
+      font-family: var(--font-headline);
+      font-size: 3.75rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 1;
+      color: var(--ink);
+      text-transform: uppercase;
+    }
+
+    .masthead-edition-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border: 1px solid var(--ink);
+      background: var(--bg-surface);
+      color: var(--ink);
+      text-transform: uppercase;
+      margin-top: 0.5rem;
+      letter-spacing: 0.05em;
+    }
+
+    .masthead-bottom-bar {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0.4rem 0;
+      font-size: 0.6875rem;
+      letter-spacing: 0.06em;
+      color: var(--ink-muted);
+      border-top: 1px solid var(--rule-medium);
+      border-bottom: 2px solid var(--rule-heavy);
+      margin-bottom: 1.25rem;
+    }
+
+    /* Navigation Ribbon */
+    .editorial-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--rule-hairline);
+      margin-bottom: 1.5rem;
+      font-size: 0.75rem;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .nav-item {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--ink-muted);
+      text-decoration: none;
+      padding-bottom: 2px;
+      cursor: pointer;
+    }
+
+    .nav-item.active {
+      color: var(--ink);
+      border-bottom: 2px solid var(--accent-vermilion);
+    }
+
+    .nav-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      color: var(--ink-muted);
+    }
+
+    .cadence-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .pulse-pip {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--accent-green);
+      display: inline-block;
+    }
+
+    /* 12-Column Grid Layout */
+    .gazette-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1.5rem;
+    }
+
+    /* Section Headers */
+    .section-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent-vermilion);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .section-eyebrow::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--rule-hairline);
+    }
+
+    .section-heading {
+      font-family: var(--font-headline);
+      font-size: 1.625rem;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: var(--ink);
+      line-height: 1.15;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Lead Story Box */
+    .lead-story-panel {
+      grid-column: span 12;
+      border: 1px solid var(--rule-medium);
+      background-color: var(--bg-surface);
+      padding: 1.25rem 1.5rem;
+      display: grid;
+      grid-template-columns: 8fr 4fr;
+      gap: 2rem;
+      position: relative;
+      margin-bottom: 0.5rem;
+    }
+
+    .lead-story-badge {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background-color: var(--ink);
+      color: var(--bg-page);
+      padding: 0.15rem 0.45rem;
+      display: inline-block;
+      margin-bottom: 0.5rem;
+    }
+
+    .lead-headline {
+      font-family: var(--font-headline);
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1.12;
+      color: var(--ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .lead-verdict {
+      font-size: 0.875rem;
+      color: var(--ink-muted);
+      line-height: 1.45;
+      margin-bottom: 1rem;
+      max-width: 95%;
+    }
+
+    .lead-metrics-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem;
+      padding: 0.75rem 0;
+      border-top: 1px solid var(--rule-hairline);
+      border-bottom: 1px solid var(--rule-hairline);
+      margin-bottom: 1rem;
+    }
+
+    .metric-cell {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .metric-label {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-subtle);
+    }
+
+    .metric-value {
+      font-family: var(--font-mono);
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-top: 0.1rem;
+    }
+
+    .metric-sub {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      color: var(--ink-muted);
+    }
+
+    /* Pillars Stacked Bar */
+    .pillars-container {
+      margin-top: 0.5rem;
+    }
+
+    .pillars-meta {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--ink-muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .pillars-bar {
+      height: 8px;
+      display: flex;
+      border: 1px solid var(--rule-medium);
+      background-color: var(--bg-page);
+    }
+
+    .pillar-segment {
+      height: 100%;
+      position: relative;
+    }
+
+    .pillar-gmp { background-color: var(--accent-green); width: 35%; }
+    .pillar-sub { background-color: #4A6E94; width: 30%; }
+    .pillar-val { background-color: #B38F56; width: 18%; }
+    .pillar-struct { background-color: #9C5D76; width: 14%; }
+
+    /* Scorecard Column */
+    .lead-scorecard {
+      border-left: 1px solid var(--rule-hairline);
+      padding-left: 2rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      text-align: center;
+    }
+
+    .scorecard-header {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-subtle);
+    }
+
+    .score-huge {
+      font-family: var(--font-headline);
+      font-size: 4.75rem;
+      font-weight: 800;
+      line-height: 0.9;
+      color: var(--ink);
+      margin: 0.35rem 0 0.1rem 0;
+    }
+
+    .score-denominator {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--ink-subtle);
+      margin-bottom: 1rem;
+    }
+
+    /* Rubber Stamp */
+    .stamp-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.85rem;
+      border: 2px solid;
+      border-radius: 2px;
+      transform: rotate(-3.5deg);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.05);
+      animation: stamp-in 0.35s ease-out;
+    }
+
+    .stamp-strong-apply {
+      color: var(--accent-green);
+      border-color: var(--accent-green);
+      background-color: rgba(50, 163, 108, 0.12);
+    }
+
+    .stamp-apply {
+      color: #49B880;
+      border-color: #49B880;
+      background-color: rgba(73, 184, 128, 0.10);
+    }
+
+    .stamp-neutral {
+      color: #9BA3B5;
+      border-color: #9BA3B5;
+      background-color: rgba(155, 163, 181, 0.10);
+    }
+
+    .stamp-avoid {
+      color: var(--accent-vermilion);
+      border-color: var(--accent-vermilion);
+      background-color: rgba(234, 84, 62, 0.12);
+    }
+
+    @keyframes stamp-in {
+      0% { transform: scale(1.3) rotate(-12deg); opacity: 0; }
+      100% { transform: scale(1) rotate(-3.5deg); opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .stamp-badge {
+        animation: none;
+      }
+    }
+
+    .lead-actions {
+      margin-top: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .gazette-btn-primary {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0.5rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background-color: var(--ink);
+      color: var(--bg-page);
+      border: 1px solid var(--ink);
+      border-radius: 2px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+
+    .gazette-btn-primary:hover {
+      background-color: #FFFFFF;
+    }
+
+    .gazette-btn-secondary {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0.4rem 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+      background: transparent;
+      border: 1px solid var(--rule-medium);
+      border-radius: 2px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .gazette-btn-secondary:hover {
+      background-color: var(--bg-surface-tint);
+      color: var(--ink);
+    }
+
+    /* Ledger Table Section */
+    .ledger-section {
+      grid-column: span 12;
+      margin-top: 1rem;
+    }
+
+    .ledger-controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--rule-medium);
+      margin-bottom: 0.75rem;
+      font-size: 0.75rem;
+    }
+
+    .ledger-filters {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+    }
+
+    .filter-item {
+      padding: 0.2rem 0.5rem;
+      border: 1px solid var(--rule-hairline);
+      background: var(--bg-surface);
+      cursor: pointer;
+      color: var(--ink-muted);
+    }
+
+    .filter-item.active {
+      border-color: var(--ink);
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .ledger-search-box {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      padding: 0.25rem 0.5rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--rule-medium);
+      border-radius: 2px;
+      color: var(--ink);
+      width: 220px;
+    }
+
+    /* Ledger Table */
+    .ledger-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+    }
+
+    .ledger-table thead tr {
+      border-bottom: 2px solid var(--rule-heavy);
+      border-top: 1px solid var(--rule-medium);
+    }
+
+    .ledger-table th {
+      padding: 0.5rem 0.65rem;
+      text-align: left;
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink-muted);
+    }
+
+    .ledger-table th.num-col, .ledger-table td.num-col {
+      text-align: right;
+    }
+
+    .ledger-table tbody tr {
+      border-bottom: 1px solid var(--rule-hairline);
+      transition: background-color 0.1s;
+    }
+
+    .ledger-table tbody tr:hover {
+      background-color: var(--bg-surface);
+    }
+
+    .ledger-table td {
+      padding: 0.65rem 0.65rem;
+      vertical-align: middle;
+    }
+
+    .company-cell {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .company-symbol {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .company-name {
+      font-size: 0.75rem;
+      color: var(--ink-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 220px;
+    }
+
+    .badge-square {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.5625rem;
+      font-weight: 700;
+      padding: 0.1rem 0.35rem;
+      border: 1px solid var(--rule-medium);
+      border-radius: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-mainboard {
+      background: #1B2640;
+      color: var(--ink);
+    }
+
+    .badge-sme {
+      background: #2D1D2C;
+      color: #E294A5;
+      border-color: #6E3B4B;
+    }
+
+    .status-pip-live {
+      color: var(--accent-green);
+      font-weight: 600;
+    }
+
+    .status-pip-closed {
+      color: var(--ink-subtle);
+    }
+
+    .status-pip-upcoming {
+      color: #D4A556;
+    }
+
+    /* Bidding timeline strip */
+    .timeline-strip {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      min-width: 130px;
+    }
+
+    .timeline-bar-track {
+      height: 4px;
+      background: var(--rule-hairline);
+      position: relative;
+      border-radius: 2px;
+      overflow: visible;
+    }
+
+    .timeline-bar-progress {
+      position: absolute;
+      left: 0;
+      height: 100%;
+      background: var(--ink);
+    }
+
+    .timeline-pin {
+      position: absolute;
+      top: -3px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent-vermilion);
+      border: 1px solid var(--bg-page);
+      transform: translateX(-50%);
+    }
+
+    .timeline-labels {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 0.5625rem;
+      color: var(--ink-subtle);
+    }
+
+    /* Thermometer GMP */
+    .gmp-thermometer {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.15rem;
+    }
+
+    .gmp-pct-val {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.8125rem;
+    }
+
+    .gmp-pct-val.positive {
+      color: var(--accent-green);
+    }
+
+    .gmp-pct-val.flat {
+      color: var(--ink-muted);
+    }
+
+    .gmp-pct-val.negative {
+      color: var(--accent-vermilion);
+    }
+
+    .gmp-bar-wrap {
+      width: 70px;
+      height: 4px;
+      background: var(--rule-hairline);
+      position: relative;
+    }
+
+    .gmp-bar-fill {
+      height: 100%;
+      background: var(--accent-green);
+    }
+
+    /* Subscription bar with 1x demarcation */
+    .sub-bar-container {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.15rem;
+      min-width: 90px;
+    }
+
+    .sub-value-text {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      font-weight: 700;
+    }
+
+    .sub-demarcation-track {
+      width: 85px;
+      height: 6px;
+      background: var(--rule-hairline);
+      position: relative;
+      border: 1px solid var(--rule-hairline);
+    }
+
+    .sub-demarcation-fill {
+      height: 100%;
+      background: #4A6E94;
+    }
+
+    .sub-demarcation-1x {
+      position: absolute;
+      top: -3px;
+      bottom: -3px;
+      left: 25%;
+      width: 1px;
+      background: var(--rule-heavy);
+      z-index: 2;
+    }
+
+    .sub-demarcation-label {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      color: var(--ink-subtle);
+    }
+
+    /* Score Column */
+    .score-cell {
+      font-family: var(--font-headline);
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--ink);
+      text-align: right;
+    }
+
+    /* Gazette Footer */
+    .gazette-footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 2px solid var(--rule-heavy);
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 2rem;
+      font-size: 0.75rem;
+      color: var(--ink-muted);
+    }
+
+    .footer-col h5 {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .footer-col p {
+      line-height: 1.5;
+    }
+
+    .footer-legal {
+      grid-column: span 3;
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--rule-hairline);
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      color: var(--ink-subtle);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Rubber stamp mini for tables */
+    .stamp-mini {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.15rem 0.45rem;
+      border: 1.5px solid;
+      border-radius: 2px;
+      white-space: nowrap;
+    }
+
+    .stamp-mini.apply {
+      color: var(--accent-green);
+      border-color: var(--accent-green);
+      transform: rotate(-2.5deg);
+    }
+
+    .stamp-mini.strong {
+      color: var(--accent-green);
+      border-color: var(--accent-green);
+      font-weight: 800;
+      transform: rotate(-3deg);
+    }
+
+    .stamp-mini.neutral {
+      color: #9BA3B5;
+      border-color: #9BA3B5;
+      transform: rotate(0deg);
+    }
+
+    .stamp-mini.avoid {
+      color: var(--accent-vermilion);
+      border-color: var(--accent-vermilion);
+      transform: rotate(2deg);
+    }
+
+    /* Responsive Collapse (Mobile < 768px) */
+    @media (max-width: 768px) {
+      body {
+        padding: 0 0.75rem 2.5rem 0.75rem;
+      }
+      .masthead-tagline {
+        font-size: 0.55rem;
+        letter-spacing: 0.08em;
+      }
+      .masthead-title {
+        font-size: 1.7rem;
+        letter-spacing: -0.01em;
+        word-break: break-word;
+      }
+      .masthead-meta-bar {
+        font-size: 0.5625rem;
+        flex-direction: column;
+        gap: 0.2rem;
+        text-align: center;
+      }
+      .masthead-bottom-bar {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        text-align: center;
+        font-size: 0.6rem;
+      }
+      .editorial-nav {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.6rem;
+      }
+      .nav-links {
+        flex-wrap: wrap;
+        gap: 0.6rem;
+      }
+      .lead-story-panel {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+        padding: 1rem;
+      }
+      .lead-headline {
+        font-size: 1.35rem;
+        line-height: 1.2;
+        word-break: break-word;
+      }
+      .lead-scorecard {
+        border-left: none;
+        border-top: 1px solid var(--rule-hairline);
+        padding-left: 0;
+        padding-top: 1.25rem;
+      }
+      .lead-metrics-row {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .ledger-controls-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+      }
+      .ledger-filters {
+        flex-wrap: wrap;
+        gap: 0.4rem;
+      }
+      .ledger-search-box {
+        width: 100%;
+      }
+      /* Collapsible table rows */
+      .ledger-table, .ledger-table thead, .ledger-table tbody, .ledger-table th, .ledger-table td, .ledger-table tr {
+        display: block;
+      }
+      .ledger-table thead {
+        display: none;
+      }
+      .ledger-table tbody tr {
+        border: 1px solid var(--rule-medium);
+        margin-bottom: 0.85rem;
+        padding: 0.75rem;
+        background: var(--bg-surface);
+      }
+      .ledger-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.45rem 0;
+        border-bottom: 1px solid var(--rule-hairline);
+      }
+      .ledger-table td:last-child {
+        border-bottom: none;
+        padding-top: 0.6rem;
+        justify-content: center;
+      }
+      .ledger-table td::before {
+        content: attr(data-label);
+        font-family: var(--font-mono);
+        font-size: 0.625rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--ink-subtle);
+      }
+      .company-name {
+        max-width: 170px;
+      }
+      .gazette-footer {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+      }
+      .footer-legal {
+        grid-column: span 1;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="gazette-container">
+
+    <!-- Masthead Top Border Rules -->
+    <div class="top-heavy-rule"></div>
+    <div class="top-hairline-rule"></div>
+
+    <!-- Metadata Bar -->
+    <div class="masthead-meta-bar">
+      <span>Vol. IV · No. 284</span>
+      <span>Daily Financial Intelligence & Bidding Journal</span>
+      <span>Mumbai · New Delhi · Bengaluru</span>
+    </div>
+
+    <!-- Masthead Main Title -->
+    <div class="masthead-title-wrap">
+      <div class="masthead-tagline">The Verified Authority on Primary Market Capital</div>
+      <h1 class="masthead-title">The IPO Gazette</h1>
+      <div>
+        <span class="masthead-edition-badge">Evening Edition · Sunday, 11 October 2026</span>
+      </div>
+    </div>
+
+    <!-- Sub-Masthead Status Strip -->
+    <div class="masthead-bottom-bar">
+      <div>
+        <strong>IST CLOCK:</strong> 06:00 PM · POST-MARKET REVIEWS
+      </div>
+      <div style="text-align: center;">
+        <strong>PRIMARY SESSIONS:</strong> 1 LIVE MAINBOARD · 9 LIVE SME · 2 UPCOMING DRHP
+      </div>
+      <div style="text-align: right;">
+        <strong>BSE / NSE:</strong> WEEKEND RECESS · DESK OPEN
+      </div>
+    </div>
+
+    <!-- Editorial Navigation -->
+    <nav class="editorial-nav">
+      <ul class="nav-links">
+        <li><span class="nav-item active">01. Market Dispatch (Suggester)</span></li>
+        <li><span class="nav-item">02. Ledger (Portfolio Holdings)</span></li>
+        <li><span class="nav-item">03. Registrar Desk (Allotment)</span></li>
+        <li><span class="nav-item">04. Scoring Methodology &amp; Track Record</span></li>
+      </ul>
+      <div class="nav-meta">
+        <span class="cadence-badge"><span class="pulse-pip"></span> 15s Feed Cadence</span>
+        <span>•</span>
+        <span>Auth: Admin Signed-in</span>
+      </div>
+    </nav>
+
+    <!-- Main Content Layout -->
+    <main class="gazette-grid">
+
+      <!-- Eyebrow: Lead Story -->
+      <div style="grid-column: span 12;">
+        <div class="section-eyebrow">Front Page Lead Story · Primary Market Verdict</div>
+      </div>
+
+      <!-- LEAD STORY HERO CARD -->
+      <section class="lead-story-panel">
+        <div>
+          <span class="lead-story-badge">Top-Ranked Issue · SME Segment</span>
+          <h2 class="lead-headline">Vans Electroengineerings Crosses 64.6× Booked; GMP Implies +63.6% Listing Premium</h2>
+          <p class="lead-verdict">
+            Exceptional retail and high-net-worth bidding momentum paired with robust electrical engineering order books cements top allocation conviction. Low debt (0.25x), healthy return on net worth (31.5%), and strong institutional endorsement confirm maximum scoring tier.
+          </p>
+
+          <!-- Core Issue Ledger Strip -->
+          <div class="lead-metrics-row">
+            <div class="metric-cell">
+              <span class="metric-label">Issue Price &amp; Band</span>
+              <span class="metric-value">₹118.00</span>
+              <span class="metric-sub">Lot Size: 1,200 sh</span>
+            </div>
+            <div class="metric-cell">
+              <span class="metric-label">Grey Market Premium</span>
+              <span class="metric-value" style="color: var(--accent-green);">+₹75.00 (+63.6%)</span>
+              <span class="metric-sub">Firm Kostak / Sauda</span>
+            </div>
+            <div class="metric-cell">
+              <span class="metric-label">Demand Multiple</span>
+              <span class="metric-value">64.58×</span>
+              <span class="metric-sub">QIB 42.1x · NII 98.4x</span>
+            </div>
+            <div class="metric-cell">
+              <span class="metric-label">Issue Capitalization</span>
+              <span class="metric-value">₹35.0 Cr</span>
+              <span class="metric-sub">100% Fresh Issue</span>
+            </div>
+          </div>
+
+          <!-- Mini 4-Pillars Stacked Bar -->
+          <div class="pillars-container">
+            <div class="pillars-meta">
+              <span>Pillar Contributions: GMP 35.0/35 · Sub 30.0/30 · Val 18.0/20 · Struct 14.0/15</span>
+              <span>Total: 97.0 / 100</span>
+            </div>
+            <div class="pillars-bar" title="GMP: 35 | Sub: 30 | Val: 18 | Struct: 14">
+              <div class="pillar-segment pillar-gmp"></div>
+              <div class="pillar-segment pillar-sub"></div>
+              <div class="pillar-segment pillar-val"></div>
+              <div class="pillar-segment pillar-struct"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lead Scorecard & Rubber Stamp -->
+        <div class="lead-scorecard">
+          <div>
+            <div class="scorecard-header">Algorithmic Confidence Rating</div>
+            <div class="score-huge tabular-nums">97.0</div>
+            <div class="score-denominator tabular-nums">OUT OF 100 MAXIMUM</div>
+
+            <div>
+              <span class="stamp-badge stamp-strong-apply">STRONG APPLY</span>
+            </div>
+          </div>
+
+          <div class="lead-actions">
+            <a href="#" class="gazette-btn-primary">Apply via Angel One ↗</a>
+            <a href="#" class="gazette-btn-secondary">Inspect Forensic Audit ➔</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: THE COMPLETE MARKET LEDGER -->
+      <section class="ledger-section">
+        <div class="section-eyebrow">The Official Ledger · All Monitored Offerings</div>
+        <div class="ledger-controls-bar">
+          <div class="ledger-filters">
+            <span>FILTER BY STATUS:</span>
+            <span class="filter-item active">ALL ISSUES (12)</span>
+            <span class="filter-item">LIVE (10)</span>
+            <span class="filter-item">UPCOMING (2)</span>
+            <span class="filter-item">MAINBOARD ONLY</span>
+            <span class="filter-item">SME ONLY</span>
+          </div>
+          <div>
+            <input type="text" class="ledger-search-box" placeholder="Search company, symbol...">
+          </div>
+        </div>
+
+        <table class="ledger-table" role="table">
+          <thead>
+            <tr>
+              <th style="width: 24%;">Enterprise &amp; Sector</th>
+              <th style="width: 10%;">Category</th>
+              <th style="width: 12%;">Status &amp; Timeline</th>
+              <th style="width: 14%; text-align: right;">Grey Market (GMP)</th>
+              <th style="width: 14%; text-align: right;">Subscription Multiple</th>
+              <th style="width: 10%; text-align: right;">Algo Score</th>
+              <th style="width: 16%; text-align: center;">Official Verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Row 1: Acme India Industries -->
+            <tr>
+              <td data-label="Enterprise">
+                <div class="company-cell">
+                  <span class="company-symbol">ACMEINDIA</span>
+                  <span class="company-name">Acme India Industries Ltd</span>
+                </div>
+              </td>
+              <td data-label="Category">
+                <span class="badge-square badge-sme">SME</span>
+                <span style="font-family: var(--font-mono); font-size: 0.625rem; color: var(--ink-muted); display: block; margin-top: 2px;">₹25.0 Cr</span>
+              </td>
+              <td data-label="Timeline">
+                <div class="timeline-strip">
+                  <span style="font-size: 0.6875rem; font-weight: 600;" class="status-pip-live">LIVE · Day 2 of 3</span>
+                  <div class="timeline-bar-track">
+                    <div class="timeline-bar-progress" style="width: 66%;"></div>
+                    <div class="timeline-pin" style="left: 66%;"></div>
+                  </div>
+                  <div class="timeline-labels">
+                    <span>Oct 03</span>
+                    <span>Oct 06</span>
+                  </div>
+                </div>
+              </td>
+              <td data-label="GMP" class="num-col">
+                <div class="gmp-thermometer">
+                  <span class="gmp-pct-val positive tabular-nums">+₹26.0 (+27.7%)</span>
+                  <div class="gmp-bar-wrap">
+                    <div class="gmp-bar-fill" style="width: 45%;"></div>
+                  </div>
+                </div>
+              </td>
+              <td data-label="Subscription" class="num-col">
+                <div class="sub-bar-container">
+                  <span class="sub-value-text tabular-nums">1.76×</span>
+                  <div class="sub-demarcation-track" title="1.76x total book">
+                    <div class="sub-demarcation-fill" style="width: 44%;"></div>
+                    <div class="sub-demarcation-1x" title="1.0x Threshold"></div>
+                  </div>
+                  <span class="sub-demarcation-label tabular-nums">1.0x mark · Book full</span>
+                </div>
+              </td>
+              <td data-label="Algo Score" class="score-cell tabular-nums">
+                73.4
+              </td>
+              <td data-label="Verdict" style="text-align: center;">
+                <span class="stamp-mini apply">APPLY</span>
+              </td>
+            </tr>
+
+            <!-- Row 2: Sollfege Smart Electronics -->
+            <tr>
+              <td data-label="Enterprise">
+                <div class="company-cell">
+                  <span class="company-symbol">SOLLFEGE</span>
+                  <span class="company-name">Sollfege Smart Electronics Ltd</span>
+                </div>
+              </td>
+              <td data-label="Category">
+                <span class="badge-square badge-sme">SME</span>
+                <span style="font-family: var(--font-mono); font-size: 0.625rem; color: var(--ink-muted); display: block; margin-top: 2px;">₹28.5 Cr</span>
+              </td>
+              <td data-label="Timeline">
+                <div class="timeline-strip">
+                  <span style="font-size: 0.6875rem; font-weight: 600;" class="status-pip-live">LIVE · Day 2 of 3</span>
+                  <div class="timeline-bar-track">
+                    <div class="timeline-bar-progress" style="width: 66%;"></div>
+                    <div class="timeline-pin" style="left: 66%;"></div>
+                  </div>
+                  <div class="timeline-labels">
+                    <span>Oct 03</span>
+                    <span>Oct 05</span>
+                  </div>
+                </div>
+              </td>
+              <td data-label="GMP" class="num-col">
+                <div class="gmp-thermometer">
+                  <span class="gmp-pct-val positive tabular-nums">+₹24.0 (+24.2%)</span>
+                  <div class="gmp-bar-wrap">
+                    <div class="gmp-bar-fill" style="width: 40%;"></div>
+                  </div>
+                </div>
+              </td>
+              <td data-label="Subscription" class="num-col">
+                <div class="sub-bar-container">
+                  <span class="sub-value-text tabular-nums">1.06×</span>
+                  <div class="sub-demarcation-track">
+                    <div class="sub-demarcation-fill" style="width: 27%;"></div>
+                    <div class="sub-demarcation-1x"></div>
+                  </div>
+                  <span class="sub-demarcation-label tabular-nums">1.0x mark</span>
+                </div>
+              </td>
+              <td data-label="Algo Score" class="score-cell tabular-nums">
+                70.2
+              </td>
+              <td data-label="Verdict" style="text-align: center;">
+                <span class="stamp-mini apply">APPLY</span>
+              </td>
+            </tr>
+
+            <!-- Row 3: Nityas Gems & Jewellery (Closed) -->
+            <tr>
+              <td data-label="Enterprise">
+                <div class="company-cell">
+                  <span class="company-symbol">NITYASGEMS</span>
+                  <span class="company-name">Nityas Gems &amp; Jewellery Ltd</span>
+                </div>
+              </td>
+              <td data-label="Category">
+                <span class="badge-square badge-mainboard">MAINBOARD</span>
+                <span style="font-family: var(--font-mono); font-size: 0.625rem; color: var(--ink-muted); display: block; margin-top: 2px;">₹410.0 Cr</span>
+              </td>
+              <td data-label="Timeline">
+                <div class="timeline-strip">
+                  <span style="font-size: 0.6875rem; font-weight: 600;" class="status-pip-closed">CLOSED · 5 Oct</span>
+                  <div class="timeline-bar-track">
+                    <div class="timeline-bar-progress" style="width: 100%; background: var(--ink-subtle);"></div>
+                  </div>
+                  <div class="timeline-labels">
+                    <span>Listing 12 Oct</span>
+                    <span>Allotted</span>
+                  </div>
+                </div>
+              </td>
+              <td data-label="GMP" class="num-col">
+                <div class="gmp-thermometer">
+                  <span class="gmp-pct-val positive tabular-nums">+₹18.0 (+8.0%)</span>
+                  <div class="gmp-bar-wrap">
+                    <div class="gmp-bar-fill" style="width: 20%;"></div>
+                  </div>
+                </div>
+              </td>
+              <td data-label="Subscription" class="num-col">
+                <div class="sub-bar-container">
+                  <span class="sub-value-text tabular-nums" style="color: var(--ink);">18.52×</span>
+                  <div class="sub-demarcation-track">
+                    <div class="sub-demarcation-fill" style="width: 100%;"></div>
+                    <div class="sub-demarcation-1x"></div>
+                  </div>
+                  <span class="sub-demarcation-label tabular-nums" style="color: var(--accent-green); font-weight: 600;">FINAL TALLY</span>
+                </div>
+              </td>
+              <td data-label="Algo Score" class="score-cell tabular-nums">
+                71.0
+              </td>
+              <td data-label="Verdict" style="text-align: center;">
+                <span class="stamp-mini apply">APPLY</span>
+              </td>
+            </tr>
+
+            <!-- Row 4: Eventions Ltd -->
+            <tr>
+              <td data-label="Enterprise">
+                <div class="company-cell">
+                  <span class="company-symbol">EVENTIONS</span>
+                  <span class="company-name">Eventions Ltd</span>
+                </div>
+              </td>
+              <td data-label="Category">
+                <span class="badge-square badge-sme">SME</span>
+                <span style="font-family: var(--font-mono); font-size: 0.625rem; color: var(--ink-muted); display: block; margin-top: 2px;">₹22.0 Cr</span>
+              </td>
+              <td data-label="Timeline">
+                <div class="timeline-strip">
+                  <span style="font-size: 0.6875rem; font-weight: 600;" class="status-pip-live">LIVE · Day 2 of 3</span>
+                  <div class="timeline-bar-track">
+                    <div class="timeline-bar-progress" style="width: 66%;"></div>
+                    <div class="timeline-pin" style="left: 66%;"></div>
+                  </div>
+                  <div class="timeline-labels">
+                    <span>Oct 03</span>
+                    <span>Oct 05</span>
+                  </div>
+                </div>
+              </td>
+              <td data-label="GMP" class="num-col">
+                <div class="gmp-thermometer">
+                  <span class="gmp-pct-val positive tabular-nums">+₹22.0 (+22.5%)</span>
+                  <div class="gmp-bar-wrap">
+                    <div class="gmp-bar-fill" style="width: 36%;"></div>
+                  </div>
+                </div>
+              </td>
+              <td data-label="Subscription" class="num-col">
+                <div class="sub-bar-container">
+                  <span class="sub-value-text tabular-nums">1.12×</span>
+                  <div class="sub-demarcation-track">
+                    <div class="sub-demarcation-fill" style="width: 28%;"></div>
+                    <div class="sub-demarcation-1x"></div>
+                  </div>
+                  <span class="sub-demarcation-label tabular-nums">1.0x mark</span>
+                </div>
+              </td>
+              <td data-label="Algo Score" class="score-cell tabular-nums">
+                69.0
+              </td>
+              <td data-label="Verdict" style="text-align: center;">
+                <span class="stamp-mini apply">APPLY</span>
+              </td>
+            </tr>
+
+            <!-- Row 5: NTPC Green Energy (Upcoming) -->
+            <tr>
+              <td data-label="Enterprise">
+                <div class="company-cell">
+                  <span class="company-symbol">NTPCGREEN</span>
+                  <span class="company-name">NTPC Green Energy Ltd</span>
+                </div>
+              </td>
+              <td data-label="Category">
+                <span class="badge-square badge-mainboard">MAINBOARD</span>
+                <span style="font-family: var(--font-mono); font-size: 0.625rem; color: var(--ink-muted); display: block; margin-top: 2px;">₹10,000 Cr</span>
+              </td>
+              <td data-label="Timeline">
+                <div class="timeline-strip">
+                  <span style="font-size: 0.6875rem; font-weight: 600;" class="status-pip-upcoming">UPCOMING · Opens in 3d</span>
+                  <div class="timeline-bar-track">
+                    <div class="timeline-bar-progress" style="width: 0%;"></div>
+                  </div>
+                  <div class="timeline-labels">
+                    <span>Oct 14</span>
+                    <span>Oct 16</span>
+                  </div>
+                </div>
+              </td>
+              <td data-label="GMP" class="num-col">
+                <div class="gmp-thermometer">
+                  <span class="gmp-pct-val positive tabular-nums">+₹12.0 (+11.1%)</span>
+                  <div class="gmp-bar-wrap">
+                    <div class="gmp-bar-fill" style="width: 22%;"></div>
+                  </div>
+                </div>
+              </td>
+              <td data-label="Subscription" class="num-col">
+                <div class="sub-bar-container">
+                  <span class="sub-value-text tabular-nums" style="color: var(--ink-subtle);">Awaiting Bids</span>
+                  <div class="sub-demarcation-track">
+                    <div class="sub-demarcation-fill" style="width: 0%;"></div>
+                    <div class="sub-demarcation-1x"></div>
+                  </div>
+                  <span class="sub-demarcation-label tabular-nums">Pre-Apply Window</span>
+                </div>
+              </td>
+              <td data-label="Algo Score" class="score-cell tabular-nums">
+                55.6
+              </td>
+              <td data-label="Verdict" style="text-align: center;">
+                <span class="stamp-mini neutral">NEUTRAL</span>
+              </td>
+            </tr>
+
+            <!-- Row 6: Vishal Nirmiti Ltd (Avoid) -->
+            <tr>
+              <td data-label="Enterprise">
+                <div class="company-cell">
+                  <span class="company-symbol">VISHALNIR</span>
+                  <span class="company-name">Vishal Nirmiti Ltd</span>
+                </div>
+              </td>
+              <td data-label="Category">
+                <span class="badge-square badge-mainboard">MAINBOARD</span>
+                <span style="font-family: var(--font-mono); font-size: 0.625rem; color: var(--ink-muted); display: block; margin-top: 2px;">₹320.0 Cr</span>
+              </td>
+              <td data-label="Timeline">
+                <div class="timeline-strip">
+                  <span style="font-size: 0.6875rem; font-weight: 600;" class="status-pip-live">LIVE · Day 2 of 3</span>
+                  <div class="timeline-bar-track">
+                    <div class="timeline-bar-progress" style="width: 66%;"></div>
+                    <div class="timeline-pin" style="left: 66%;"></div>
+                  </div>
+                  <div class="timeline-labels">
+                    <span>Oct 03</span>
+                    <span>Oct 05</span>
+                  </div>
+                </div>
+              </td>
+              <td data-label="GMP" class="num-col">
+                <div class="gmp-thermometer">
+                  <span class="gmp-pct-val flat tabular-nums">+₹6.0 (+4.1%)</span>
+                  <div class="gmp-bar-wrap">
+                    <div class="gmp-bar-fill" style="width: 10%; background: var(--ink-muted);"></div>
+                  </div>
+                </div>
+              </td>
+              <td data-label="Subscription" class="num-col">
+                <div class="sub-bar-container">
+                  <span class="sub-value-text tabular-nums" style="color: var(--accent-vermilion);">0.03×</span>
+                  <div class="sub-demarcation-track">
+                    <div class="sub-demarcation-fill" style="width: 3%; background: var(--accent-vermilion);"></div>
+                    <div class="sub-demarcation-1x"></div>
+                  </div>
+                  <span class="sub-demarcation-label tabular-nums" style="color: var(--accent-vermilion);">Severe Deficit</span>
+                </div>
+              </td>
+              <td data-label="Algo Score" class="score-cell tabular-nums" style="color: var(--accent-vermilion);">
+                44.9
+              </td>
+              <td data-label="Verdict" style="text-align: center;">
+                <span class="stamp-mini avoid">AVOID</span>
+              </td>
+            </tr>
+
+            <!-- Row 7: Hyundai Motor India (Upcoming / Overvalued) -->
+            <tr>
+              <td data-label="Enterprise">
+                <div class="company-cell">
+                  <span class="company-symbol">HYUNDAI</span>
+                  <span class="company-name">Hyundai Motor India Ltd</span>
+                </div>
+              </td>
+              <td data-label="Category">
+                <span class="badge-square badge-mainboard">MAINBOARD</span>
+                <span style="font-family: var(--font-mono); font-size: 0.625rem; color: var(--ink-muted); display: block; margin-top: 2px;">₹27,870 Cr</span>
+              </td>
+              <td data-label="Timeline">
+                <div class="timeline-strip">
+                  <span style="font-size: 0.6875rem; font-weight: 600;" class="status-pip-upcoming">UPCOMING · Opens in 4d</span>
+                  <div class="timeline-bar-track">
+                    <div class="timeline-bar-progress" style="width: 0%;"></div>
+                  </div>
+                  <div class="timeline-labels">
+                    <span>Oct 15</span>
+                    <span>Oct 17</span>
+                  </div>
+                </div>
+              </td>
+              <td data-label="GMP" class="num-col">
+                <div class="gmp-thermometer">
+                  <span class="gmp-pct-val flat tabular-nums">+₹85.0 (+4.3%)</span>
+                  <div class="gmp-bar-wrap">
+                    <div class="gmp-bar-fill" style="width: 10%; background: var(--ink-muted);"></div>
+                  </div>
+                </div>
+              </td>
+              <td data-label="Subscription" class="num-col">
+                <div class="sub-bar-container">
+                  <span class="sub-value-text tabular-nums" style="color: var(--ink-subtle);">Awaiting Bids</span>
+                  <div class="sub-demarcation-track">
+                    <div class="sub-demarcation-fill" style="width: 0%;"></div>
+                    <div class="sub-demarcation-1x"></div>
+                  </div>
+                  <span class="sub-demarcation-label tabular-nums">100% OFS Mega-Issue</span>
+                </div>
+              </td>
+              <td data-label="Algo Score" class="score-cell tabular-nums" style="color: var(--accent-vermilion);">
+                39.2
+              </td>
+              <td data-label="Verdict" style="text-align: center;">
+                <span class="stamp-mini avoid">AVOID</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+
+    <!-- Editorial Footer & Colophon -->
+    <footer class="gazette-footer">
+      <div class="footer-col">
+        <h5>Editorial Mandate &amp; Verification Principles</h5>
+        <p>
+          The IPO Gazette operates an autonomous valuation and bidding analysis engine. Scores are mathematically derived across Grey Market Premiums (35%), category subscription velocity (30%), relative peer earnings multiple (20%), and issue structure dilution (15%). Mechanical technical levels; not a forecast or investment advice.
+        </p>
+      </div>
+
+      <div class="footer-col">
+        <h5>Bidding Schedule</h5>
+        <p>
+          Official bidding window on BSE/NSE platforms opens at 10:00 AM IST and closes strictly at 5:00 PM IST on working days. Bids received on weekend sessions are held for routing on Monday market open.
+        </p>
+      </div>
+
+      <div class="footer-col">
+        <h5>Track Record Standard</h5>
+        <p>
+          Empirical hit rates are tracked automatically from listing day settlement prices against algorithmic recommendations. A sample minimum of 20 closed IPOs per category is required before hit rate unlocks.
+        </p>
+      </div>
+
+      <div class="footer-legal">
+        <span>THE IPO GAZETTE · PUBLISHED FOR PRIVATE CIRCULATION ONLY</span>
+        <span>ENGINE VERSION 2.0 (GAZETTE EDITION) · CHITTORGARH &amp; INVESTORGAIN FEED INTEGRATION</span>
+        <span>SEBI REGULATION NOTICE APPLIES</span>
+      </div>
+    </footer>
+
+  </div>
+
+</body>
+</html>

@@ -130,6 +130,94 @@ async def scheduled_technical_diagnosis_evaluation():
         logger.error("Error during scheduled technical diagnosis evaluation: %s", exc, exc_info=True)
 
 
+async def scheduled_chittorgarh_daily_sync():
+    """
+    Daily job for upcoming and past IPOs from Chittorgarh.
+    """
+    logger.info("Executing scheduled Chittorgarh daily sync (upcoming & past IPOs)...")
+    try:
+        from app.services.chittorgarh_scraper import sync_chittorgarh_data
+        async with AsyncSessionLocal() as session:
+            result = await sync_chittorgarh_data(session, only_live=False)
+            logger.info("Chittorgarh daily sync completed: %s", result)
+    except Exception as exc:
+        logger.error("Error during scheduled Chittorgarh daily sync: %s", exc, exc_info=True)
+
+
+async def scheduled_chittorgarh_live_sync():
+    """
+    15-minute job for live IPOs only from Chittorgarh.
+    """
+    logger.info("Executing scheduled Chittorgarh 15-minute live sync...")
+    try:
+        from app.services.chittorgarh_scraper import sync_chittorgarh_data
+        async with AsyncSessionLocal() as session:
+            result = await sync_chittorgarh_data(session, only_live=True)
+            logger.info("Chittorgarh live sync completed: %s", result)
+    except Exception as exc:
+        logger.error("Error during scheduled Chittorgarh live sync: %s", exc, exc_info=True)
+
+
+async def scheduled_ipo_status_correction():
+    """
+    Daily scheduled job that derives and corrects IPO statuses based on IST dates,
+    and recalculates composite scores for newly closed/listed IPOs using final subscription data.
+    """
+    logger.info("Executing scheduled IPO status correction job...")
+    try:
+        from app.core.ipo_timeline import derive_ipo_status
+        from app.models.ipo import IPO, IPOScore
+        from app.services.scoring_service import ScoringService
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        async with AsyncSessionLocal() as session:
+            stmt = select(IPO).options(
+                selectinload(IPO.score),
+                selectinload(IPO.subscriptions),
+                selectinload(IPO.gmp_records),
+            )
+            ipos = (await session.execute(stmt)).scalars().all()
+            updated_count = 0
+            for ipo in ipos:
+                new_status = derive_ipo_status(
+                    ipo.open_date,
+                    ipo.close_date,
+                    ipo.listing_date,
+                    dates_tba=getattr(ipo, "dates_tba", False)
+                )
+                if ipo.status != new_status:
+                    ipo.status = new_status
+                    latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
+                    latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
+                    score_data = ScoringService.calculate_score(ipo, latest_sub, latest_gmp)
+                    if ipo.score:
+                        ipo.score.composite_score = score_data["composite_score"]
+                        ipo.score.recommendation = score_data["recommendation"]
+                        ipo.score.gmp_score = score_data["gmp_score"]
+                        ipo.score.subscription_score = score_data["subscription_score"]
+                        ipo.score.valuation_score = score_data["valuation_score"]
+                        ipo.score.structure_score = score_data["structure_score"]
+                        ipo.score.rationale = score_data["rationale"]
+                    else:
+                        new_score = IPOScore(
+                            ipo_id=ipo.id,
+                            composite_score=score_data["composite_score"],
+                            recommendation=score_data["recommendation"],
+                            gmp_score=score_data["gmp_score"],
+                            subscription_score=score_data["subscription_score"],
+                            valuation_score=score_data["valuation_score"],
+                            structure_score=score_data["structure_score"],
+                            rationale=score_data["rationale"],
+                        )
+                        session.add(new_score)
+                    updated_count += 1
+            await session.commit()
+            logger.info("Scheduled IPO status correction finished: %d IPO statuses updated.", updated_count)
+    except Exception as exc:
+        logger.error("Error during scheduled IPO status correction: %s", exc, exc_info=True)
+
+
 def start_scheduler():
     if not settings.SCRAPER_ENABLED:
         logger.info("Background market scraper is disabled in settings.")
@@ -190,6 +278,34 @@ def start_scheduler():
             trigger=CronTrigger(hour=17, minute=0),  # 22:30 IST / 17:00 UTC (after 10 PM IST)
             id="daily_mf_nav_sync",
             name="Daily Mutual Fund NAV Update after 10 PM IST",
+            replace_existing=True
+        )
+        scheduler.add_job(
+            scheduled_chittorgarh_daily_sync,
+            trigger=CronTrigger(hour=0, minute=30),  # 06:00 IST / 00:30 UTC
+            id="chittorgarh_daily_sync",
+            name="Daily Chittorgarh Scrape for Upcoming and Past IPOs",
+            replace_existing=True
+        )
+        scheduler.add_job(
+            scheduled_chittorgarh_live_sync,
+            trigger=IntervalTrigger(minutes=15),
+            id="chittorgarh_live_sync",
+            name="15-Minute Chittorgarh Scrape for Live IPOs",
+            replace_existing=True
+        )
+        scheduler.add_job(
+            scheduled_ipo_status_correction,
+            trigger=CronTrigger(hour=11, minute=35),  # 17:05 IST / 11:35 UTC (after 5 PM IST close)
+            id="daily_ipo_status_correction",
+            name="Daily IPO Status Correction and Score Recalculation (17:05 IST)",
+            replace_existing=True
+        )
+        scheduler.add_job(
+            scheduled_ipo_status_correction,
+            trigger=CronTrigger(hour=18, minute=35),  # 00:05 IST / 18:35 UTC (midnight rollover)
+            id="daily_midnight_ipo_status_correction",
+            name="Daily Midnight IPO Status Correction (00:05 IST)",
             replace_existing=True
         )
         scheduler.start()

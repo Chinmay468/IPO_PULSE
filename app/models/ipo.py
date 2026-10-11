@@ -5,6 +5,7 @@ from sqlalchemy import (
     String,
     Float,
     Integer,
+    Boolean,
     Date,
     DateTime,
     Enum,
@@ -93,6 +94,15 @@ class IPO(Base):
     promoter_holding_pre: Mapped[Optional[float]] = mapped_column(Float, nullable=True) # Pre-issue holding %
     promoter_holding_post: Mapped[Optional[float]] = mapped_column(Float, nullable=True)# Post-issue holding %
 
+    # Source & Scraper Metadata
+    source: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    source_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    source_id: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
+    fetched_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    data_quality: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    is_seed: Mapped[bool] = mapped_column(Boolean, default=False, index=True, nullable=False)
+    dates_tba: Mapped[bool] = mapped_column(Boolean, default=False, index=True, nullable=False)
+
     # Metadata
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -121,6 +131,28 @@ class IPO(Base):
     )
     score: Mapped[Optional["IPOScore"]] = relationship(
         "IPOScore",
+        back_populates="ipo",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
+    documents: Mapped[List["IPODocument"]] = relationship(
+        "IPODocument",
+        back_populates="ipo",
+        cascade="all, delete-orphan"
+    )
+    anchor_investors: Mapped[List["IPOAnchor"]] = relationship(
+        "IPOAnchor",
+        back_populates="ipo",
+        cascade="all, delete-orphan"
+    )
+    reviews_summary: Mapped[Optional["IPOReviewsSummary"]] = relationship(
+        "IPOReviewsSummary",
+        back_populates="ipo",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
+    listing_info: Mapped[Optional["IPOListing"]] = relationship(
+        "IPOListing",
         back_populates="ipo",
         uselist=False,
         cascade="all, delete-orphan"
@@ -208,3 +240,73 @@ class IPOScore(Base):
     )
 
     ipo: Mapped["IPO"] = relationship("IPO", back_populates="score")
+
+
+class IPODocument(Base):
+    __tablename__ = "ipo_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    ipo_id: Mapped[int] = mapped_column(Integer, ForeignKey("ipos.id", ondelete="CASCADE"), index=True, nullable=False)
+    type: Mapped[str] = mapped_column(String(20), nullable=False)  # e.g. RHP / DRHP
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    ipo: Mapped["IPO"] = relationship("IPO", back_populates="documents")
+
+
+class IPOAnchor(Base):
+    __tablename__ = "ipo_anchor"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    ipo_id: Mapped[int] = mapped_column(Integer, ForeignKey("ipos.id", ondelete="CASCADE"), index=True, nullable=False)
+    investor: Mapped[str] = mapped_column(String(255), nullable=False)
+    amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # in Crores
+    lock_in_end: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    ipo: Mapped["IPO"] = relationship("IPO", back_populates="anchor_investors")
+
+
+class IPOReviewsSummary(Base):
+    __tablename__ = "ipo_reviews_summary"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    ipo_id: Mapped[int] = mapped_column(Integer, ForeignKey("ipos.id", ondelete="CASCADE"), unique=True, index=True, nullable=False)
+    apply: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    may_apply: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    neutral: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    avoid: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    not_rated: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    ipo: Mapped["IPO"] = relationship("IPO", back_populates="reviews_summary")
+
+
+class IPOListing(Base):
+    __tablename__ = "ipo_listing"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    ipo_id: Mapped[int] = mapped_column(Integer, ForeignKey("ipos.id", ondelete="CASCADE"), unique=True, index=True, nullable=False)
+    listing_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    listing_gain_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    listing_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    ipo: Mapped["IPO"] = relationship("IPO", back_populates="listing_info")
+

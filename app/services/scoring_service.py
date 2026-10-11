@@ -1,7 +1,8 @@
 from datetime import date
 from typing import Optional, Dict, Any, List
-from app.models.ipo import IPO, IPOSubscription, IPOGmp, IPOType, RecommendationType
+from app.models.ipo import IPO, IPOSubscription, IPOGmp, IPOType, IPOStatus, RecommendationType
 from app.core.scoring_config import SCORING_CONFIG
+from app.core.ipo_timeline import derive_ipo_status
 
 
 class ScoringService:
@@ -69,9 +70,9 @@ class ScoringService:
                 positive_factors.append(f"Active Subject-to-Sauda premium (₹{latest_gmp.subject_to_sauda:.0f}) confirms firm retail buyer interest.")
                 gmp_score = min(max_gmp_pts, gmp_score + 1.5)
         else:
-            # Baseline neutral estimation when GMP has not developed yet
-            gmp_score = 15.0
-            risk_factors.append("No active Grey Market Premium recorded yet; score reflects baseline neutral assumption.")
+            # When GMP is not available or not recorded yet
+            gmp_score = 0.0
+            risk_factors.append("No active Grey Market Premium recorded; metric not available.")
 
         gmp_score = min(max_gmp_pts, max(0.0, gmp_score))
 
@@ -85,11 +86,15 @@ class ScoringService:
             total = latest_subscription.total_multiple
 
             # Determine bidding timeline context (Day 1/2 vs Final Day)
+            derived_status = derive_ipo_status(ipo.open_date, ipo.close_date, ipo.listing_date)
+            is_closed_or_listed = (derived_status in (IPOStatus.CLOSED, IPOStatus.LISTED)) or (ipo.close_date and today > ipo.close_date)
+
             is_early_bidding = False
-            if latest_subscription.day_number and latest_subscription.day_number < 3:
-                is_early_bidding = True
-            elif ipo.open_date and today <= (ipo.open_date if hasattr(ipo.open_date, '__add__') else today):
-                is_early_bidding = True
+            if not is_closed_or_listed:
+                if latest_subscription.day_number and latest_subscription.day_number < 3:
+                    is_early_bidding = True
+                elif ipo.open_date and today <= (ipo.open_date if hasattr(ipo.open_date, '__add__') else today):
+                    is_early_bidding = True
 
             # QIB Component (Max 16 pts) - Institutional endorsement with continuous linear interpolation
             qib_pts = 0.0
@@ -146,25 +151,33 @@ class ScoringService:
             if total is not None:
                 if total >= total_target:
                     total_pts = 8.0
-                    positive_factors.append(f"Huge overall oversubscription of {total:.1f}x.")
+                    prefix = "Final subscription: " if is_closed_or_listed else ""
+                    positive_factors.append(f"{prefix}Huge overall oversubscription of {total:.1f}x.")
                 elif total >= (total_target * 0.4):
                     total_pts = 6.5
-                    positive_factors.append(f"Healthy total subscription of {total:.1f}x.")
+                    prefix = "Final subscription: " if is_closed_or_listed else ""
+                    positive_factors.append(f"{prefix}Healthy total subscription of {total:.1f}x.")
                 elif total >= 3.0:
                     total_pts = 5.0
+                    if is_closed_or_listed:
+                        positive_factors.append(f"Final subscription: total subscribed {total:.1f}x.")
                 elif total >= 1.0:
                     total_pts = 3.0
+                    if is_closed_or_listed:
+                        positive_factors.append(f"Final subscription: total subscribed {total:.1f}x.")
                 else:
                     total_pts = 0.5
                     if not is_early_bidding:
-                        risk_factors.append(f"Total issue undersubscribed ({total:.2f}x).")
+                        prefix = "Final subscription: " if is_closed_or_listed else ""
+                        risk_factors.append(f"{prefix}Total issue undersubscribed ({total:.2f}x).")
             else:
                 total_pts = 2.0
 
             subscription_score = min(max_sub_pts, qib_pts + retail_pts + total_pts)
         else:
-            # For upcoming or newly opened IPOs before bidding numbers update
-            subscription_score = 15.0
+            # Subscription data not available
+            subscription_score = 0.0
+            risk_factors.append("Subscription bidding data not available.")
 
         # ---------------- 3. Valuation & Financials (Max 20) ----------------
         max_val_pts = weights["valuation"]["max_points"]
@@ -174,7 +187,7 @@ class ScoringService:
         ronw = ipo.ronw
 
         # PE vs Industry PE (Max 12 pts) with Absolute P/E Fallback
-        pe_pts = 6.0  # default neutral
+        pe_pts = 0.0
         if pe is not None and ind_pe is not None and ind_pe > 0:
             if pe > 0:
                 pe_ratio_diff = (pe - ind_pe) / ind_pe
@@ -206,9 +219,11 @@ class ScoringService:
             else:
                 pe_pts = 3.0
                 risk_factors.append(f"High absolute P/E multiple ({pe:.1f}).")
+        else:
+            risk_factors.append("Valuation metrics not available (P/E ratio missing).")
 
         # RoNW (Return on Net Worth) (Max 8 pts)
-        ronw_pts = 4.0  # default
+        ronw_pts = 0.0
         if ronw is not None:
             if ronw >= 20.0:
                 ronw_pts = 8.0
@@ -224,6 +239,8 @@ class ScoringService:
             else:
                 ronw_pts = 0.0
                 risk_factors.append("Negative Return on Net Worth reflects net losses.")
+        else:
+            risk_factors.append("Financial return metrics not available (RoNW missing).")
 
         valuation_score = min(max_val_pts, pe_pts + ronw_pts)
 
@@ -396,8 +413,26 @@ class ScoringService:
             }
         }
 
+        # Confidence calculation
+        key_metrics_present = [
+            gmp_pct is not None,
+            latest_subscription is not None and (getattr(latest_subscription, "total_multiple", 0) > 0 or getattr(latest_subscription, "qib_multiple", 0) > 0),
+            pe is not None,
+            ronw is not None,
+            total_size is not None and total_size > 0
+        ]
+        present_count = sum(key_metrics_present)
+        confidence_pct = round((present_count / len(key_metrics_present)) * 100.0, 1)
+
+        dq = getattr(ipo, "data_quality", None) or {}
+        is_data_incomplete = (present_count < 4) or (dq.get("status") == "incomplete")
+        if is_data_incomplete:
+            risk_factors.append(f"Data Incomplete: Essential valuation or market demand metrics are unavailable (Data Confidence: {confidence_pct}%).")
+
         rationale = {
             "summary": summary_statement,
+            "data_incomplete": is_data_incomplete,
+            "confidence_pct": confidence_pct,
             "weights": {
                 "gmp_weight_max": max_gmp_pts,
                 "subscription_weight_max": max_sub_pts,
@@ -422,6 +457,8 @@ class ScoringService:
         return {
             "composite_score": composite_score,
             "recommendation": recommendation,
+            "data_incomplete": is_data_incomplete,
+            "confidence_pct": confidence_pct,
             "gmp_score": round(gmp_score, 2),
             "subscription_score": round(subscription_score, 2),
             "valuation_score": round(valuation_score, 2),

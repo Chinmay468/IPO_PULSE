@@ -255,7 +255,10 @@ class TelegramService:
             }
 
         # Query all upcoming, open, or recently active IPOs (filtered to Mainboard if configured)
-        filters = [IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING])]
+        filters = [
+            IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]),
+            IPO.is_seed.is_(False)
+        ]
         if settings.TELEGRAM_MAINBOARD_ONLY:
             filters.append(IPO.ipo_type == IPOType.MAINBOARD)
 
@@ -369,7 +372,10 @@ class TelegramService:
         if not cls.is_configured():
             return {"success": False, "error": "Telegram not configured."}
 
-        filters = [IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING])]
+        filters = [
+            IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]),
+            IPO.is_seed.is_(False)
+        ]
         if settings.TELEGRAM_MAINBOARD_ONLY:
             filters.append(IPO.ipo_type == IPOType.MAINBOARD)
 
@@ -591,7 +597,10 @@ class TelegramService:
         advisory_data["portfolio_summary"] = summary.model_dump()
 
         # 2. Fetch active IPOs (both Mainboard and SME for comprehensive query answering)
-        ipo_filters = [IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING])]
+        ipo_filters = [
+            IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]),
+            IPO.is_seed.is_(False)
+        ]
 
         stmt = (
             select(IPO)

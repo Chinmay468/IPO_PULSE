@@ -271,7 +271,10 @@ async def ask_portfolio_advisor(request: Request, data: dict, db: AsyncSession =
     try:
         stmt = (
             select(IPO)
-            .where(IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]))
+            .where(
+                IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]),
+                IPO.is_seed.is_(False)
+            )
             .options(
                 selectinload(IPO.subscriptions),
                 selectinload(IPO.gmp_records),

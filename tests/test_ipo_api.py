@@ -1,4 +1,5 @@
 import pytest
+from datetime import date, timedelta
 from httpx import AsyncClient
 
 
@@ -92,18 +93,23 @@ async def test_add_subscription_and_gmp(auth_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_list_ipos_with_filters(auth_client: AsyncClient):
     client = auth_client
+    today = date.today()
     # Add multiple IPOs with different statuses
     await client.post("/api/v1/ipos", json={
         "symbol": "LIVE_CORP",
         "company_name": "Live Corp India",
         "ipo_type": "MAINBOARD",
-        "status": "LIVE"
+        "status": "LIVE",
+        "open_date": (today - timedelta(days=1)).isoformat(),
+        "close_date": (today + timedelta(days=2)).isoformat(),
     })
     await client.post("/api/v1/ipos", json={
         "symbol": "UPCOMING_SME",
         "company_name": "Upcoming SME Corp",
         "ipo_type": "SME",
-        "status": "UPCOMING"
+        "status": "UPCOMING",
+        "open_date": (today + timedelta(days=5)).isoformat(),
+        "close_date": (today + timedelta(days=8)).isoformat(),
     })
 
     # Filter by status
@@ -128,11 +134,14 @@ async def test_list_ipos_with_filters(auth_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_angelone_redirect(auth_client: AsyncClient):
     client = auth_client
+    today = date.today()
     create_res = await client.post("/api/v1/ipos", json={
         "symbol": "ANGEL_TEST",
         "company_name": "Angel Test Corp",
         "ipo_type": "MAINBOARD",
-        "status": "LIVE"
+        "status": "LIVE",
+        "open_date": (today - timedelta(days=1)).isoformat(),
+        "close_date": (today + timedelta(days=2)).isoformat(),
     })
     ipo_id = create_res.json()["id"]
 
@@ -151,7 +160,10 @@ async def test_angelone_redirect(auth_client: AsyncClient):
         "symbol": "ALREADY_LISTED",
         "company_name": "Already Listed Corp",
         "ipo_type": "MAINBOARD",
-        "status": "LISTED"
+        "status": "LISTED",
+        "open_date": (today - timedelta(days=10)).isoformat(),
+        "close_date": (today - timedelta(days=7)).isoformat(),
+        "listing_date": (today - timedelta(days=2)).isoformat(),
     })
     listed_id = create_listed.json()["id"]
     res_listed = await client.get(f"/api/v1/ipos/{listed_id}/apply/angelone", follow_redirects=False)
