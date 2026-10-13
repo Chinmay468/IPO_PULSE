@@ -183,21 +183,31 @@ function renderIpos(items) {
     // Timeline label
     const dayLabel = `<span class="text-[9px] text-slate-500 dark:text-slate-400 font-medium">${formatIpoDayLabel(ipo)}</span>`;
 
-    // Updated N min ago
+    // Updated N min ago (find the most recent timestamp among all available data points)
     let updatedLabel = '';
     let isStale = false;
-    const rawTime = (ipo.score && ipo.score.calculated_at)
-      || (ipo.latest_gmp && ipo.latest_gmp.recorded_at)
-      || ipo.updated_at;
+    const candidateTimestamps = [
+      ipo.score && ipo.score.calculated_at,
+      ipo.latest_gmp && ipo.latest_gmp.recorded_at,
+      ipo.latest_subscription && ipo.latest_subscription.recorded_at,
+      ipo.updated_at,
+      ipo.fetched_at
+    ].filter(Boolean);
+
     let scrapeTime = null;
-    if (rawTime) {
-      let s = String(rawTime).trim();
+    let maxMs = 0;
+    for (const raw of candidateTimestamps) {
+      let s = String(raw).trim();
       if (s.includes('T') && !s.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(s)) {
         s += 'Z';
       }
       const d = new Date(s);
-      if (!isNaN(d.getTime())) scrapeTime = d;
+      if (!isNaN(d.getTime()) && d.getTime() > maxMs) {
+        maxMs = d.getTime();
+        scrapeTime = d;
+      }
     }
+
     if (scrapeTime) {
       const diffMs = Math.max(0, now - scrapeTime);
       const diffMin = Math.round(diffMs / 60000);

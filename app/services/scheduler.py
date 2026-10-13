@@ -199,6 +199,7 @@ async def scheduled_ipo_status_correction():
                         ipo.score.valuation_score = score_data["valuation_score"]
                         ipo.score.structure_score = score_data["structure_score"]
                         ipo.score.rationale = score_data["rationale"]
+                        ipo.score.calculated_at = datetime.now(timezone.utc)
                     else:
                         new_score = IPOScore(
                             ipo_id=ipo.id,

@@ -885,6 +885,40 @@ def parse_ipo_detail(
     return parsed
 
 
+def parse_subscription_page(html_text: str) -> Optional[Dict[str, Any]]:
+    """
+    Parses dedicated Chittorgarh subscription page (e.g. /ipo_subscription/<slug>/<id>/)
+    to extract category-wise bidding multiples.
+    """
+    soup = BeautifulSoup(html_text, "html.parser")
+    for t in soup.find_all("table"):
+        headers = [th.get_text(strip=True).lower() for th in t.find_all("th")]
+        if any("times" in h or "subscription" in h for h in headers) and not any("shares offered" in h for h in headers):
+            sub_dict: Dict[str, Any] = {}
+            for row in t.find_all("tr"):
+                cells = [c.get_text(strip=True) for c in row.find_all(["td", "th"])]
+                if len(cells) < 2:
+                    continue
+                cat = cells[0].strip().lower()
+                raw_val = cells[1].replace("x", "").replace("X", "").strip()
+                val = clean_num(raw_val)
+                if val is None:
+                    continue
+                if "qualified" in cat or "qib" in cat:
+                    sub_dict["qib_multiple"] = val
+                elif "non institutional" in cat or "nii" in cat:
+                    sub_dict["nii_multiple"] = val
+                elif "retail" in cat:
+                    sub_dict["retail_multiple"] = val
+                elif "employee" in cat:
+                    sub_dict["employee_multiple"] = val
+                elif "total" in cat:
+                    sub_dict["total_multiple"] = val
+            if sub_dict.get("total_multiple") is not None or sub_dict.get("qib_multiple") is not None:
+                return sub_dict
+    return None
+
+
 # ---------------- Database Sync Engine ----------------
 async def sync_chittorgarh_data(
     session: AsyncSession,
@@ -1046,6 +1080,17 @@ async def sync_chittorgarh_data(
         try:
             detail_html = await client.fetch(source_url)
             parsed_detail = parse_ipo_detail(detail_html, source_url=source_url, source_id=source_id)
+
+            # If live subscription data was not in the overview page, try dedicated subscription subpage
+            if not parsed_detail.get("subscription_data") and source_url and "/ipo/" in source_url:
+                sub_url = source_url.replace("/ipo/", "/ipo_subscription/")
+                try:
+                    sub_html = await client.fetch(sub_url)
+                    sub_dict = parse_subscription_page(sub_html)
+                    if sub_dict:
+                        parsed_detail["subscription_data"] = sub_dict
+                except Exception as sub_exc:
+                    logger.debug("Could not fetch dedicated subscription page %s: %s", sub_url, sub_exc)
 
             # Record structure check (ensure at least 2 key fields found)
             fields_found = parsed_detail["data_quality"]["fields_present"]
@@ -1218,8 +1263,9 @@ async def sync_chittorgarh_data(
             if target_ipo.score:
                 for k, v in filtered_score.items():
                     setattr(target_ipo.score, k, v)
+                target_ipo.score.calculated_at = datetime.now(timezone.utc)
             else:
-                session.add(IPOScore(ipo_id=target_ipo.id, **filtered_score))
+                session.add(IPOScore(ipo_id=target_ipo.id, calculated_at=datetime.now(timezone.utc), **filtered_score))
 
             await session.commit()
 
