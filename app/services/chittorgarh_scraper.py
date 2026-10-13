@@ -59,6 +59,11 @@ def parse_date_string(date_str: Optional[str]) -> Optional[date]:
     if not s or "[.]" in s or s == "-":
         return None
 
+    # Strip tentative indicators or non-date annotations: ' T', ' [T]', '(Tentative)', '| T'
+    s = re.sub(r"\s*\[?[Tt](?:entative)?\]?\s*$", "", s).strip()
+    s = re.sub(r"\s*\|\s*[Tt]\s*$", "", s).strip()
+    s = re.sub(r"\s*\(tentative\)\s*$", "", s, flags=re.IGNORECASE).strip()
+
     # Handle single date formats
     for fmt in [
         "%d %b %Y",
@@ -335,7 +340,14 @@ def parse_date_range(d_str: Optional[str]) -> Tuple[Optional[date], Optional[dat
     if s in ["-", "--", "TBA", "Dates to be announced", "N/A", "[.]", "Dates not announced"]:
         return None, None, True
 
-    # Match "13 - 15 Oct" or "30 Sep to 5 Oct, 2026" or "15 - 19 Oct"
+    # Clean leading status indicators like "O 13 - 15 Oct" or "C 30 Sep - 5 Oct"
+    s = re.sub(r"^[OCL]\s+", "", s)
+
+    # Clean trailing tentative indicators like "13 to 15 Oct, 2026 T"
+    s = re.sub(r"\s*\[?[Tt](?:entative)?\]?\s*$", "", s).strip()
+    s = re.sub(r"\s*\|\s*[Tt]\s*$", "", s).strip()
+
+    # Pattern 1: Day-first, e.g. "13 to 15 Oct, 2026", "13 - 15 Oct", "30 Sep to 5 Oct, 2026"
     m = re.search(r'(\d+)\s*([A-Za-z]{3})?\s*(?:-|–|to)\s*(\d+)\s+([A-Za-z]{3})(?:,?\s*(\d{4}))?', s, re.IGNORECASE)
     if m:
         yr = m.group(5) or str(date.today().year)
@@ -346,6 +358,21 @@ def parse_date_range(d_str: Optional[str]) -> Tuple[Optional[date], Optional[dat
             d2 = int(m.group(3))
             dt1 = datetime.strptime(f"{d1} {m1} {yr}", "%d %b %Y").date()
             dt2 = datetime.strptime(f"{d2} {m2} {yr}", "%d %b %Y").date()
+            return dt1, dt2, False
+        except ValueError:
+            pass
+
+    # Pattern 2: Month-first, e.g. "Oct 13, 2026 to Oct 15, 2026", "Oct 13 to Oct 15, 2026"
+    m2 = re.search(r'([A-Za-z]{3})\s+(\d+)(?:,?\s*(\d{4}))?\s*(?:-|–|to)\s*([A-Za-z]{3})?\s*(\d+)(?:,?\s*(\d{4}))?', s, re.IGNORECASE)
+    if m2:
+        yr = m2.group(6) or m2.group(3) or str(date.today().year)
+        mo1 = m2.group(1)
+        mo2 = m2.group(4) or mo1
+        try:
+            d1 = int(m2.group(2))
+            d2 = int(m2.group(5))
+            dt1 = datetime.strptime(f"{d1} {mo1} {yr}", "%d %b %Y").date()
+            dt2 = datetime.strptime(f"{d2} {mo2} {yr}", "%d %b %Y").date()
             return dt1, dt2, False
         except ValueError:
             pass
@@ -600,25 +627,25 @@ def parse_ipo_detail(
             v = cells[1].strip()
 
             if "ipo date" in k:
-                # Format: "30 Sep to 5 Oct, 2026" or "15 - 19 Oct"
-                m_to = re.search(r"(\d+\s+[A-Za-z]+)\s+to\s+(\d+\s+[A-Za-z]+,\s+\d{4})", v)
-                if m_to:
-                    year_m = re.search(r"\d{4}", m_to.group(2))
-                    yr = year_m.group() if year_m else str(date.today().year)
-                    parsed["open_date"] = parse_date_string(f"{m_to.group(1)} {yr}")
-                    parsed["close_date"] = parse_date_string(m_to.group(2))
-                else:
-                    m_dash = re.search(r"(\d+)\s*-\s*(\d+\s+[A-Za-z]+)", v)
-                    if m_dash:
-                        yr = str(date.today().year)
-                        # Extract month from second group
-                        mth_m = re.search(r"[A-Za-z]+", m_dash.group(2))
-                        mth = mth_m.group() if mth_m else "Oct"
-                        parsed["open_date"] = parse_date_string(f"{m_dash.group(1)} {mth} {yr}")
-                        parsed["close_date"] = parse_date_string(f"{m_dash.group(2)} {yr}")
+                open_d, close_d, tba = parse_date_range(v)
+                if open_d and close_d:
+                    parsed["open_date"] = open_d
+                    parsed["close_date"] = close_d
+                    parsed["dates_tba"] = False
+                elif open_d:
+                    parsed["open_date"] = open_d
+                    parsed["dates_tba"] = False
+                elif not tba:
+                    single = parse_date_string(v)
+                    if single:
+                        parsed["open_date"] = single
+                        parsed["dates_tba"] = False
 
             elif "listed on" in k or "listing date" in k:
                 parsed["listing_date"] = parse_date_string(v)
+
+            elif "allotment" in k and "date" in k:
+                parsed["allotment_date"] = parse_date_string(v)
 
             elif "price band" in k:
                 nums = re.findall(r"\d+(?:\.\d+)?", v.replace(",", ""))
