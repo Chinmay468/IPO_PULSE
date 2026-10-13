@@ -35,13 +35,16 @@ function updateAuthUI() {
   const label = document.getElementById('auth-header-label');
   const icon = document.getElementById('auth-header-icon');
   const btn = document.getElementById('auth-header-btn');
+  const menuLabel = document.getElementById('menu-auth-label');
   if (token) {
     const user = getAuthUser();
     if (label) label.textContent = `${user} (Logout)`;
+    if (menuLabel) menuLabel.textContent = `${user} (Logout)`;
     if (icon) icon.setAttribute('data-lucide', 'unlock');
     if (btn) btn.classList.add('border-emerald-500/50', 'text-emerald-600', 'dark:text-emerald-400');
   } else {
     if (label) label.textContent = 'Sign In';
+    if (menuLabel) menuLabel.textContent = 'Sign In / Register';
     if (icon) icon.setAttribute('data-lucide', 'lock');
     if (btn) btn.classList.remove('border-emerald-500/50', 'text-emerald-600', 'dark:text-emerald-400');
   }

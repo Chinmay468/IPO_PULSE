@@ -65,12 +65,16 @@ function resetPortfolioUI(isSignedOut = true) {
         </div>
         <div>
           <h4 class="font-bold text-slate-800 dark:text-white text-sm">Sign in to view your portfolio</h4>
-          <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm mx-auto">Your holdings, valuations, and real-time P&amp;L are protected. Please sign in to access your portfolio.</p>
+          <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm mx-auto">Your holdings, valuations, and real-time P&amp;L are protected. Please sign in or create an account to access your portfolio.</p>
         </div>
-        <div class="flex items-center justify-center pt-2">
-          <button onclick="openLoginModal()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5">
-            <i data-lucide="lock" class="w-3.5 h-3.5"></i>
-            <span>Sign In to Portfolio</span>
+        <div class="flex items-center justify-center pt-2 gap-2.5">
+          <button onclick="openLoginModal('signin')" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5">
+            <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+            <span>Sign In</span>
+          </button>
+          <button onclick="openLoginModal('signup')" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5 border border-slate-300/70 dark:border-slate-700">
+            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+            <span>Create Account</span>
           </button>
         </div>
       `;
