@@ -32,8 +32,10 @@ from app.models.mutual_fund import (
     MFNavHistory,
     MFTransactionType
 )
+from app.models.user import User
 
 __all__ = [
+    "User",
     "IPO",
     "IPOSubscription",
     "IPOGmp",

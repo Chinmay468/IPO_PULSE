@@ -1324,28 +1324,48 @@
 
   </main>
 
-  <!-- ==================== AUTH LOGIN MODAL ==================== -->
+  <!-- ==================== AUTH LOGIN / REGISTER MODAL ==================== -->
   <div id="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-modal-title" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white dark:bg-[#121826] rounded-2xl max-w-sm w-full shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <!-- Modal Header -->
       <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40">
         <div class="flex items-center gap-2">
           <div class="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600">
             <i data-lucide="shield-check" class="w-4 h-4"></i>
           </div>
           <div>
-            <h3 id="login-modal-title" class="font-bold text-sm text-slate-900 dark:text-white">Admin Authentication</h3>
-            <p class="text-[11px] text-slate-400">Sign in to manage portfolio</p>
+            <h3 id="login-modal-title" class="font-bold text-sm text-slate-900 dark:text-white">Account Access</h3>
+            <p id="login-modal-subtitle" class="text-[11px] text-slate-400">Sign in to manage your portfolio</p>
           </div>
         </div>
         <button onclick="closeLoginModal()" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
       </div>
-      <form id="login-form" onsubmit="submitLogin(event)" class="p-5 space-y-3.5">
+
+      <!-- Tab Switcher -->
+      <div class="flex border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30 p-1.5 gap-1.5">
+        <button type="button" id="tab-btn-signin" onclick="switchAuthTab('signin')"
+                class="flex-1 py-1.5 text-xs font-semibold rounded-lg transition text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800 shadow-sm border border-slate-200/60 dark:border-slate-700/60 cursor-pointer">
+          Sign In
+        </button>
+        <button type="button" id="tab-btn-signup" onclick="switchAuthTab('signup')"
+                class="flex-1 py-1.5 text-xs font-semibold rounded-lg transition text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer">
+          Sign Up
+        </button>
+      </div>
+
+      <!-- Alert Notice Container -->
+      <div class="px-5 pt-3">
         <div id="login-error" class="hidden bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs rounded-lg px-3 py-2 font-medium"></div>
+        <div id="login-success" class="hidden bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs rounded-lg px-3 py-2 font-medium"></div>
+      </div>
+
+      <!-- Sign In Form -->
+      <form id="login-form" onsubmit="submitLogin(event)" class="p-5 pt-2 space-y-3.5">
         <div>
           <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Username</label>
-          <input type="text" id="login-username" required placeholder="admin"
+          <input type="text" id="login-username" required placeholder="admin or username"
                  class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
         </div>
         <div>
@@ -1357,6 +1377,35 @@
                 class="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
           <span id="login-spinner" class="hidden"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i></span>
           <span id="login-submit-text">Sign In</span>
+        </button>
+      </form>
+
+      <!-- Sign Up Form (hidden by default) -->
+      <form id="register-form" onsubmit="submitRegister(event)" class="p-5 pt-2 space-y-3 hidden">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Username</label>
+          <input type="text" id="register-username" required placeholder="Choose a username"
+                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Email <span class="text-slate-400 font-normal">(optional)</span></label>
+          <input type="email" id="register-email" placeholder="name@example.com"
+                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Password</label>
+          <input type="password" id="register-password" required minlength="6" placeholder="At least 6 characters"
+                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Confirm Password</label>
+          <input type="password" id="register-confirm-password" required minlength="6" placeholder="Repeat password"
+                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+        </div>
+        <button type="submit" id="register-submit-btn"
+                class="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
+          <span id="register-spinner" class="hidden"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i></span>
+          <span id="register-submit-text">Create Account</span>
         </button>
       </form>
     </div>

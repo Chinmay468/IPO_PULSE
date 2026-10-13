@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFi
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import require_auth, require_admin, limiter
+from app.auth import require_auth, require_admin, get_current_user_id, limiter
 from app.schemas.portfolio import (
     HoldingCreate, HoldingUpdate, HoldingResponse,
     TransactionCreate, TransactionResponse,
@@ -21,51 +21,73 @@ router = APIRouter(prefix="/portfolio", tags=["Portfolio"], dependencies=[Depend
 # ── Summary & Net Worth ──────────────────────────────────────────────────────
 
 @router.get("/summary", response_model=PortfolioSummary)
-async def portfolio_summary(db: AsyncSession = Depends(get_db)):
+async def portfolio_summary(
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """Get full portfolio summary with live P&L for all holdings."""
-    return await svc.get_portfolio_summary(db)
+    return await svc.get_portfolio_summary(db, user_id=user_id)
 
 
 @router.get("/net-worth", response_model=CombinedNetWorthResponse)
-async def portfolio_net_worth(db: AsyncSession = Depends(get_db)):
+async def portfolio_net_worth(
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """Get combined net worth across equity stocks and mutual funds with separate breakdowns."""
     from app.services.mutual_fund_service import get_combined_net_worth
-    return await get_combined_net_worth(db)
+    return await get_combined_net_worth(db, user_id=user_id)
 
 
 # ── Holdings ─────────────────────────────────────────────────────────────────
 
 @router.get("/holdings", response_model=list[HoldingResponse])
-async def list_holdings(db: AsyncSession = Depends(get_db)):
+async def list_holdings(
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """List all holdings (without live prices — use /summary for live data)."""
-    return await svc.list_holdings(db)
+    return await svc.list_holdings(db, user_id=user_id)
 
 
 @router.post("/holdings", response_model=HoldingResponse, status_code=status.HTTP_201_CREATED)
-async def add_holding(data: HoldingCreate, db: AsyncSession = Depends(get_db)):
+async def add_holding(
+    data: HoldingCreate,
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """Add a new stock holding. Also creates the initial BUY transaction."""
-    existing = await svc.get_holding_by_symbol(db, data.symbol, data.exchange.value)
+    existing = await svc.get_holding_by_symbol(db, data.symbol, data.exchange.value, user_id=user_id)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Holding for {data.symbol.upper()} on {data.exchange.value} already exists. Use PATCH to update or add a transaction."
         )
-    return await svc.create_holding(db, data)
+    return await svc.create_holding(db, data, user_id=user_id)
 
 
 @router.patch("/holdings/{holding_id}", response_model=HoldingResponse)
-async def update_holding(holding_id: int, data: HoldingUpdate, db: AsyncSession = Depends(get_db)):
+async def update_holding(
+    holding_id: int,
+    data: HoldingUpdate,
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """Update holding details (quantity, avg price, company name)."""
-    holding = await svc.update_holding(db, holding_id, data)
+    holding = await svc.update_holding(db, holding_id, data, user_id=user_id)
     if not holding:
         raise HTTPException(status_code=404, detail="Holding not found")
     return holding
 
 
 @router.delete("/holdings/{holding_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_holding(holding_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_holding(
+    holding_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """Delete a holding and all its transactions."""
-    success = await svc.delete_holding(db, holding_id)
+    success = await svc.delete_holding(db, holding_id, user_id=user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Holding not found")
 
@@ -85,26 +107,38 @@ async def get_holding_history(
 
 
 @router.get("/snapshots", response_model=list[PortfolioSnapshotResponse])
-async def list_snapshots(db: AsyncSession = Depends(get_db)):
+async def list_snapshots(
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """Get chronological portfolio valuation history snapshots."""
-    return await svc.get_portfolio_snapshots(db)
+    return await svc.get_portfolio_snapshots(db, user_id=user_id)
 
 
 # ── Transactions ─────────────────────────────────────────────────────────────
 
 @router.post("/holdings/{holding_id}/transactions", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
-async def add_transaction(holding_id: int, data: TransactionCreate, db: AsyncSession = Depends(get_db)):
+async def add_transaction(
+    holding_id: int,
+    data: TransactionCreate,
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """Record a BUY, SELL, DIVIDEND, BONUS or SPLIT transaction. BUY recalculates avg price automatically."""
-    txn = await svc.add_transaction(db, holding_id, data)
+    txn = await svc.add_transaction(db, holding_id, data, user_id=user_id)
     if not txn:
         raise HTTPException(status_code=404, detail="Holding not found")
     return txn
 
 
 @router.get("/holdings/{holding_id}/transactions", response_model=list[TransactionResponse])
-async def list_transactions(holding_id: int, db: AsyncSession = Depends(get_db)):
+async def list_transactions(
+    holding_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """Get full transaction history for a holding."""
-    holding = await svc.get_holding(db, holding_id)
+    holding = await svc.get_holding(db, holding_id, user_id=user_id)
     if not holding:
         raise HTTPException(status_code=404, detail="Holding not found")
     return holding.transactions
@@ -116,7 +150,8 @@ async def list_transactions(holding_id: int, db: AsyncSession = Depends(get_db))
 async def import_csv(
     file: UploadFile = File(..., description="Holdings file (CSV / Excel) from Angel One, Zerodha, Groww, or Upstox"),
     password: Optional[str] = Form(None, description="Optional password for encrypted broker files (e.g. PAN card number)"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
 ):
     """
     Upload a holdings file (CSV or Excel .xlsx/.xls) exported from any major Indian broker.
@@ -133,7 +168,7 @@ async def import_csv(
 
     try:
         from app.services.csv_import_service import import_file_to_portfolio
-        result = await import_file_to_portfolio(db, content, filename=file.filename, password=password)
+        result = await import_file_to_portfolio(db, content, filename=file.filename, password=password, user_id=user_id)
         return result
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
@@ -221,12 +256,15 @@ async def sync_angelone(db: AsyncSession = Depends(get_db)):
 # ── AI Portfolio Doctor & Technical Advisory ─────────────────────────────────
 
 @router.get("/advisory")
-async def get_portfolio_advisory(db: AsyncSession = Depends(get_db)):
+async def get_portfolio_advisory(
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """
     Get AI-powered technical advisory, candlestick patterns, RSI, Moving Averages,
     support/resistance levels, and action guidance to keep portfolio green.
     """
-    summary = await svc.get_portfolio_summary(db)
+    summary = await svc.get_portfolio_summary(db, user_id=user_id)
     from app.services.portfolio_advisor_service import generate_portfolio_advisory
     holdings_dict = [h.model_dump() for h in summary.holdings]
     return await generate_portfolio_advisory(holdings_dict)
@@ -234,7 +272,12 @@ async def get_portfolio_advisory(db: AsyncSession = Depends(get_db)):
 
 @router.post("/advisory/ask")
 @limiter.limit("10/minute")
-async def ask_portfolio_advisor(request: Request, data: dict, db: AsyncSession = Depends(get_db)):
+async def ask_portfolio_advisor(
+    request: Request,
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """
     Ask the AI Portfolio Doctor a question about technicals, candlestick patterns,
     stop-loss, or stock-specific actions, grounded in portfolio and active IPO context.
@@ -245,7 +288,7 @@ async def ask_portfolio_advisor(request: Request, data: dict, db: AsyncSession =
     history = data.get("chat_history") or data.get("history") or data.get("messages") or []
 
     # 1. Fetch live portfolio summary
-    summary = await svc.get_portfolio_summary(db)
+    summary = await svc.get_portfolio_summary(db, user_id=user_id)
     from app.services.portfolio_advisor_service import generate_portfolio_advisory, groq_answer_query
     from app.models.ipo import IPO, IPOStatus
     from sqlalchemy import select

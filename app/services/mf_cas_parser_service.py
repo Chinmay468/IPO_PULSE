@@ -93,11 +93,11 @@ def parse_cas_pdf_bytes(pdf_bytes: bytes, password: Optional[str] = None) -> dic
         raise ValueError("The provided file could not be parsed as a valid CAMS/KFintech CAS statement.")
 
 
-async def import_parsed_cas(db: AsyncSession, cas_data: Any) -> dict:
+async def import_parsed_cas(db: AsyncSession, cas_data: Any, user_id: Optional[int] = None) -> dict:
     """
-    Imports parsed CAS dictionary into the database.
+    Imports parsed CAS dictionary into the database scoped by user_id.
     - Creates or links schemes by AMFI code / ISIN / name.
-    - Creates or links holdings by scheme + folio_hash.
+    - Creates or links holdings by scheme + folio_hash + user_id.
     - De-duplicates transactions on (folio_hash, date, units, amount).
     """
     if hasattr(cas_data, "model_dump"):
@@ -202,13 +202,16 @@ async def import_parsed_cas(db: AsyncSession, cas_data: Any) -> dict:
                 await db.flush()
                 schemes_created += 1
 
-            # 2. Resolve or Create MFHolding
-            res_h = await db.execute(
-                select(MFHolding).where(
-                    MFHolding.scheme_id == scheme_record.id,
-                    MFHolding.folio_hash == f_hash
-                )
+            # 2. Resolve or Create MFHolding scoped by user_id
+            stmt_h = select(MFHolding).where(
+                MFHolding.scheme_id == scheme_record.id,
+                MFHolding.folio_hash == f_hash
             )
+            if user_id is not None:
+                stmt_h = stmt_h.where(MFHolding.user_id == user_id)
+            else:
+                stmt_h = stmt_h.where(MFHolding.user_id.is_(None))
+            res_h = await db.execute(stmt_h)
             holding_record = res_h.scalars().first()
 
             if not holding_record:
@@ -216,7 +219,8 @@ async def import_parsed_cas(db: AsyncSession, cas_data: Any) -> dict:
                     scheme_id=scheme_record.id,
                     folio_masked=f_masked,
                     folio_hash=f_hash,
-                    units=0.0
+                    units=0.0,
+                    user_id=user_id,
                 )
                 db.add(holding_record)
                 await db.flush()

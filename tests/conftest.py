@@ -39,6 +39,12 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 
 @pytest_asyncio.fixture(scope="function")
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    from app.auth import limiter
+    try:
+        limiter._storage.reset()
+    except Exception:
+        pass
+
     async def override_get_db():
         yield db_session
 

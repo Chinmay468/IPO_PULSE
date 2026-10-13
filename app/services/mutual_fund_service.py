@@ -110,12 +110,13 @@ def compute_holding_metrics(
     return (invested, current_value, pnl, pnl_pct, xirr_val, is_priced)
 
 
-async def get_mf_summary(db: AsyncSession) -> MFSummaryResponse:
+async def get_mf_summary(db: AsyncSession, user_id: Optional[int] = None) -> MFSummaryResponse:
     """
     Computes overall Mutual Funds summary:
     - Invested, Current Value, P&L, P&L %, overall XIRR.
     - Category & AMC allocations.
     - Excludes unpriced holdings from value while counting and listing them.
+    - Scoped by user_id.
     """
     stmt = (
         select(MFHolding)
@@ -125,6 +126,10 @@ async def get_mf_summary(db: AsyncSession) -> MFSummaryResponse:
         )
         .order_by(MFHolding.id.desc())
     )
+    if user_id is not None:
+        stmt = stmt.where(MFHolding.user_id == user_id)
+    else:
+        stmt = stmt.where(MFHolding.user_id.is_(None))
     res = await db.execute(stmt)
     holdings = list(res.scalars().all())
 
@@ -304,7 +309,9 @@ async def get_scheme_nav_history(db: AsyncSession, scheme_id: int) -> MFSchemeHi
     )
 
 
-async def create_manual_holding(db: AsyncSession, payload: MFHoldingCreate) -> MFHoldingItemResponse:
+async def create_manual_holding(
+    db: AsyncSession, payload: MFHoldingCreate, user_id: Optional[int] = None
+) -> MFHoldingItemResponse:
     """
     Manually creates a new mutual fund holding and optional initial transaction.
     """
@@ -356,7 +363,8 @@ async def create_manual_holding(db: AsyncSession, payload: MFHoldingCreate) -> M
         scheme_id=scheme.id,
         folio_masked=f_masked,
         folio_hash=f_hash,
-        units=payload.units
+        units=payload.units,
+        user_id=user_id,
     )
     db.add(holding)
     await db.flush()
@@ -505,12 +513,13 @@ async def delete_holding_transaction(db: AsyncSession, transaction_id: int) -> b
     return True
 
 
-async def get_combined_net_worth(db: AsyncSession) -> CombinedNetWorthResponse:
+async def get_combined_net_worth(db: AsyncSession, user_id: Optional[int] = None) -> CombinedNetWorthResponse:
     """
     Computes combined net worth (stocks + MFs) keeping the two separate in the breakdown.
+    Scoped by user_id.
     """
-    stocks_summary = await stock_svc.get_portfolio_summary(db)
-    mf_summary = await get_mf_summary(db)
+    stocks_summary = await stock_svc.get_portfolio_summary(db, user_id=user_id)
+    mf_summary = await get_mf_summary(db, user_id=user_id)
 
     stocks_pnl = stocks_summary.total_unrealized_pnl
     total_net_worth = round(stocks_summary.current_value + mf_summary.current_value, 2)

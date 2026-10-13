@@ -1,11 +1,14 @@
 import enum
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from sqlalchemy import (
     String, Float, Integer, Date, DateTime, Enum, ForeignKey, Boolean, func, UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class MFTransactionType(str, enum.Enum):
@@ -62,6 +65,11 @@ class MFHolding(Base):
     folio_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True, nullable=True)
     units: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
+    # Scoped user linkage (nullable for backwards-compatibility / admin portfolio)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -69,6 +77,7 @@ class MFHolding(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="mf_holdings")
     scheme: Mapped["MFScheme"] = relationship("MFScheme", back_populates="holdings")
     transactions: Mapped[list["MFTransaction"]] = relationship(
         "MFTransaction", back_populates="holding", cascade="all, delete-orphan",

@@ -282,6 +282,10 @@ class TelegramService:
         min_gmp_pct = settings.TELEGRAM_MIN_GMP_PCT
 
         for ipo in ipos:
+            if not force_all and getattr(ipo, "telegram_alert_sent", False):
+                skipped_count += 1
+                continue
+
             latest_score = ipo.score
             latest_gmp = max(ipo.gmp_records, key=lambda g: getattr(g, "recorded_at", getattr(g, "created_at", None))) if ipo.gmp_records else None
             latest_sub = max(ipo.subscriptions, key=lambda sb: getattr(sb, "recorded_at", getattr(sb, "created_at", None))) if ipo.subscriptions else None
@@ -305,7 +309,7 @@ class TelegramService:
                 skipped_count += 1
                 continue
 
-            # Fingerprint to prevent spamming
+            # Fingerprint to prevent redundant notifications in the same run
             rec_str = latest_score.recommendation.value if (latest_score and hasattr(latest_score.recommendation, "value")) else str(getattr(latest_score, "recommendation", "NONE"))
             gmp_pct = round(latest_gmp.gmp_percentage or 0.0, 1) if latest_gmp else 0.0
             fingerprint = f"{rec_str}:{score_num}:{gmp_pct}"
@@ -319,9 +323,12 @@ class TelegramService:
             success, err_msg = await cls.send_message(message)
 
             if success:
+                ipo.telegram_alert_sent = True
+                ipo.telegram_alert_sent_at = datetime.now(timezone.utc)
+                await session.commit()
                 _ALERT_CACHE[ipo.id] = fingerprint
                 sent_count += 1
-                logger.info(f"Sent Telegram alert for IPO '{ipo.company_name}' (Score: {score_num})")
+                logger.info(f"Sent one-time Telegram alert for IPO '{ipo.company_name}' (Score: {score_num})")
             else:
                 errors.append(f"{ipo.company_name}: {err_msg}")
 

@@ -1,11 +1,14 @@
 import enum
 from datetime import datetime, date
-from typing import Optional, Any
+from typing import Optional, Any, TYPE_CHECKING
 from sqlalchemy import (
     String, Float, Integer, Date, DateTime, Enum, ForeignKey, Text, JSON, func, UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class TransactionType(str, enum.Enum):
@@ -39,6 +42,11 @@ class Holding(Base):
     # Optional linkage to an IPO that was allotted
     ipo_symbol: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
+    # Scoped user linkage (nullable for backwards-compatibility / admin portfolio)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+
     # Metadata
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -47,6 +55,7 @@ class Holding(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="holdings")
     transactions: Mapped[list["Transaction"]] = relationship(
         "Transaction",
         back_populates="holding",
@@ -124,9 +133,16 @@ class PortfolioSnapshot(Base):
     pnl: Mapped[float] = mapped_column(Float, nullable=False)
     priced_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # Scoped user linkage (nullable for backwards-compatibility / admin snapshot)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="snapshots")
 
 
 class TechnicalDiagnosis(Base):

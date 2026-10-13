@@ -172,7 +172,16 @@ async def test_send_best_ipo_alerts_deduplication(db_session: AsyncSession, monk
         assert result1["skipped"] == 1  # Laggard Ltd skipped
         mock_send.assert_awaited_once()
 
-        # Second run immediately without changes: should skip both due to deduplication
+        # Verify DB persisted one-time alert status
+        await db_session.refresh(top_ipo)
+        assert top_ipo.telegram_alert_sent is True
+        assert top_ipo.telegram_alert_sent_at is not None
+
+        # Simulate full container restart by wiping in-memory alert cache
+        from app.services.telegram_service import _ALERT_CACHE
+        _ALERT_CACHE.clear()
+
+        # Second run after simulated restart: MUST STILL skip because DB preserves telegram_alert_sent
         mock_send.reset_mock()
         result2 = await TelegramService.send_best_ipo_alerts(db_session)
         assert result2["sent"] == 0

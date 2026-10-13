@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, R
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import require_auth, limiter
+from app.auth import require_auth, get_current_user_id, limiter
 from app.schemas.mutual_fund import (
     MFSummaryResponse,
     MFSchemeHistoryResponse,
@@ -34,12 +34,14 @@ async def import_cas_pdf(
     request: Request,
     file: UploadFile = File(..., description="CAMS / KFintech Consolidated Account Statement (CAS) PDF"),
     password: Optional[str] = Form(None, description="Optional password if CAS PDF is encrypted"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
 ):
     """
     Import CAS PDF statement in memory using casparser.
     Never saves the file to disk. Never logs PAN, password, or folio numbers.
     De-duplicates transactions on (folio hash, date, units, amount).
+    Scoped by user_id.
     """
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
@@ -57,8 +59,8 @@ async def import_cas_pdf(
     try:
         # In-memory parse
         parsed_data = parse_cas_pdf_bytes(content, password=password)
-        # Import and de-duplicate
-        summary = await import_parsed_cas(db, parsed_data)
+        # Import and de-duplicate scoped by user_id
+        summary = await import_parsed_cas(db, parsed_data, user_id=user_id)
         # Background/sync NAV check
         try:
             await sync_all_scheme_navs(db, force_refresh_amfi=False)
@@ -84,12 +86,16 @@ async def import_cas_pdf(
 
 
 @router.get("/summary", response_model=MFSummaryResponse)
-async def get_mutual_funds_summary(db: AsyncSession = Depends(get_db)):
+async def get_mutual_funds_summary(
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """
     Get overall mutual funds summary, XIRR, category/AMC allocations, and holdings list.
     Unpriced holdings are excluded from portfolio value and counted.
+    Scoped by user_id.
     """
-    return await mf_svc.get_mf_summary(db)
+    return await mf_svc.get_mf_summary(db, user_id=user_id)
 
 
 @router.get("/{scheme_id}/history", response_model=MFSchemeHistoryResponse)
@@ -114,11 +120,15 @@ async def trigger_mf_nav_sync(request: Request, db: AsyncSession = Depends(get_d
 
 
 @router.post("/holdings", response_model=MFHoldingItemResponse)
-async def create_holding(payload: MFHoldingCreate, db: AsyncSession = Depends(get_db)):
+async def create_holding(
+    payload: MFHoldingCreate,
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
     """
-    Manually add a mutual fund holding.
+    Manually add a mutual fund holding scoped by user_id.
     """
-    return await mf_svc.create_manual_holding(db, payload)
+    return await mf_svc.create_manual_holding(db, payload, user_id=user_id)
 
 
 @router.put("/holdings/{holding_id}")

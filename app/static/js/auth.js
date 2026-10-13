@@ -4,11 +4,19 @@ function getAuthToken() {
   return localStorage.getItem('ipo_pulse_token') || '';
 }
 
-function setAuthToken(token) {
+function getAuthUser() {
+  return localStorage.getItem('ipo_pulse_username') || 'User';
+}
+
+function setAuthToken(token, username = null) {
   if (token) {
     localStorage.setItem('ipo_pulse_token', token);
+    if (username) {
+      localStorage.setItem('ipo_pulse_username', username);
+    }
   } else {
     localStorage.removeItem('ipo_pulse_token');
+    localStorage.removeItem('ipo_pulse_username');
   }
   updateAuthUI();
 }
@@ -28,7 +36,8 @@ function updateAuthUI() {
   const icon = document.getElementById('auth-header-icon');
   const btn = document.getElementById('auth-header-btn');
   if (token) {
-    if (label) label.textContent = 'Admin (Logout)';
+    const user = getAuthUser();
+    if (label) label.textContent = `${user} (Logout)`;
     if (icon) icon.setAttribute('data-lucide', 'unlock');
     if (btn) btn.classList.add('border-emerald-500/50', 'text-emerald-600', 'dark:text-emerald-400');
   } else {
@@ -39,10 +48,57 @@ function updateAuthUI() {
   refreshLucideIcons();
 }
 
-function openLoginModal() {
+function switchAuthTab(tab) {
+  const signinForm = document.getElementById('login-form');
+  const signupForm = document.getElementById('register-form');
+  const signinBtn = document.getElementById('tab-btn-signin');
+  const signupBtn = document.getElementById('tab-btn-signup');
+  const modalTitle = document.getElementById('login-modal-title');
+  const modalSub = document.getElementById('login-modal-subtitle');
+  const errEl = document.getElementById('login-error');
+  const succEl = document.getElementById('login-success');
+
+  if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+  if (succEl) { succEl.classList.add('hidden'); succEl.textContent = ''; }
+
+  const activeClasses = ['text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-slate-800', 'shadow-sm', 'border', 'border-slate-200/60', 'dark:border-slate-700/60'];
+  const inactiveClasses = ['text-slate-500', 'hover:text-slate-800', 'dark:text-slate-400', 'dark:hover:text-slate-200'];
+
+  if (tab === 'signup') {
+    if (signinForm) signinForm.classList.add('hidden');
+    if (signupForm) signupForm.classList.remove('hidden');
+    if (modalTitle) modalTitle.textContent = 'Create New Account';
+    if (modalSub) modalSub.textContent = 'Sign up to build and manage your portfolio';
+
+    if (signupBtn) {
+      signupBtn.classList.remove(...inactiveClasses);
+      signupBtn.classList.add(...activeClasses);
+    }
+    if (signinBtn) {
+      signinBtn.classList.remove(...activeClasses);
+      signinBtn.classList.add(...inactiveClasses);
+    }
+  } else {
+    if (signupForm) signupForm.classList.add('hidden');
+    if (signinForm) signinForm.classList.remove('hidden');
+    if (modalTitle) modalTitle.textContent = 'Account Access';
+    if (modalSub) modalSub.textContent = 'Sign in to manage your portfolio';
+
+    if (signinBtn) {
+      signinBtn.classList.remove(...inactiveClasses);
+      signinBtn.classList.add(...activeClasses);
+    }
+    if (signupBtn) {
+      signupBtn.classList.remove(...activeClasses);
+      signupBtn.classList.add(...inactiveClasses);
+    }
+  }
+  refreshLucideIcons();
+}
+
+function openLoginModal(tab = 'signin') {
   const modal = document.getElementById('login-modal');
-  const err = document.getElementById('login-error');
-  if (err) { err.classList.add('hidden'); err.textContent = ''; }
+  switchAuthTab(tab);
   if (modal) {
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -60,13 +116,14 @@ function closeLoginModal() {
 
 function handleAuthButtonClick() {
   if (getAuthToken()) {
-    if (confirm('Log out from Admin session?')) {
+    const user = getAuthUser();
+    if (confirm(`Log out from ${user}'s session?`)) {
       setAuthToken(null);
       if (typeof resetPortfolioUI === 'function') resetPortfolioUI(true);
       if (typeof resetMFUI === 'function') resetMFUI();
     }
   } else {
-    openLoginModal();
+    openLoginModal('signin');
   }
 }
 
@@ -98,7 +155,7 @@ async function submitLogin(e) {
       throw new Error(errData.detail || 'Invalid username or password.');
     }
     const data = await res.json();
-    setAuthToken(data.access_token);
+    setAuthToken(data.access_token, data.username || user);
     closeLoginModal();
     document.getElementById('login-password').value = '';
     if (typeof loadPortfolio === 'function') await loadPortfolio();
@@ -113,6 +170,79 @@ async function submitLogin(e) {
     refreshLucideIcons();
   }
 }
+
+async function submitRegister(e) {
+  e.preventDefault();
+  const username = document.getElementById('register-username').value.trim();
+  const email = (document.getElementById('register-email').value || '').trim();
+  const password = document.getElementById('register-password').value;
+  const confirmPassword = document.getElementById('register-confirm-password').value;
+  const errEl = document.getElementById('login-error');
+  const succEl = document.getElementById('login-success');
+  const spinner = document.getElementById('register-spinner');
+  const submitText = document.getElementById('register-submit-text');
+  const submitBtn = document.getElementById('register-submit-btn');
+
+  errEl.classList.add('hidden');
+  succEl.classList.add('hidden');
+
+  if (password !== confirmPassword) {
+    errEl.textContent = 'Passwords do not match. Please verify and try again.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  if (password.length < 6) {
+    errEl.textContent = 'Password must be at least 6 characters long.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  spinner.classList.remove('hidden');
+  submitText.textContent = 'Creating Account...';
+  submitBtn.disabled = true;
+
+  try {
+    const payload = { username, password };
+    if (email) payload.email = email;
+
+    const res = await fetch('/api/v1/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.status === 429) {
+      throw new Error('Too many registration attempts. Please wait 1 minute.');
+    }
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to register account.');
+    }
+
+    const data = await res.json();
+    setAuthToken(data.access_token, data.username || username);
+    succEl.textContent = 'Account created successfully! Welcome to IPO Pulse.';
+    succEl.classList.remove('hidden');
+
+    setTimeout(async () => {
+      closeLoginModal();
+      document.getElementById('register-password').value = '';
+      document.getElementById('register-confirm-password').value = '';
+      if (typeof loadPortfolio === 'function') await loadPortfolio();
+      if (typeof loadMFSummary === 'function') await loadMFSummary();
+    }, 700);
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  } finally {
+    spinner.classList.add('hidden');
+    submitText.textContent = 'Create Account';
+    submitBtn.disabled = false;
+    refreshLucideIcons();
+  }
+}
+
 
 // ==================== TELEGRAM NOTIFICATIONS ====================
 

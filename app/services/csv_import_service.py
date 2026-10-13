@@ -299,9 +299,11 @@ def parse_file(content: bytes, filename: str, password: Optional[str] = None, sk
     return holdings
 
 
-async def import_file_to_portfolio(db, content: bytes, filename: str, password: Optional[str] = None) -> dict:
+async def import_file_to_portfolio(
+    db, content: bytes, filename: str, password: Optional[str] = None, user_id: Optional[int] = None
+) -> dict:
     """
-    Parse CSV/Excel and upsert into local portfolio DB.
+    Parse CSV/Excel and upsert into local portfolio DB scoped by user_id.
     Returns {created, updated, skipped, errors, preview, total_parsed}
     """
     from app.services import portfolio_service as svc
@@ -318,12 +320,12 @@ async def import_file_to_portfolio(db, content: bytes, filename: str, password: 
     for h in holdings:
         exchange = h["exchange"] if h["exchange"] in ("NSE", "BSE") else "NSE"
         try:
-            existing = await svc.get_holding_by_symbol(db, h["symbol"], exchange)
+            existing = await svc.get_holding_by_symbol(db, h["symbol"], exchange, user_id=user_id)
             if existing:
                 await svc.update_holding(db, existing.id, HoldingUpdate(
                     quantity=h["quantity"],
                     avg_buy_price=h["avg_buy_price"],
-                ))
+                ), user_id=user_id)
                 updated += 1
                 preview.append({"action": "updated", "symbol": h["symbol"]})
             else:
@@ -333,7 +335,7 @@ async def import_file_to_portfolio(db, content: bytes, filename: str, password: 
                     exchange=Exchange(exchange),
                     quantity=h["quantity"],
                     avg_buy_price=h["avg_buy_price"],
-                ))
+                ), user_id=user_id)
                 created += 1
                 preview.append({"action": "created", "symbol": h["symbol"]})
         except Exception as exc:

@@ -103,6 +103,10 @@ class IPO(Base):
     is_seed: Mapped[bool] = mapped_column(Boolean, default=False, index=True, nullable=False)
     dates_tba: Mapped[bool] = mapped_column(Boolean, default=False, index=True, nullable=False)
 
+    # Telegram Notification Status (strictly once per IPO)
+    telegram_alert_sent: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", index=True, nullable=False)
+    telegram_alert_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Metadata
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

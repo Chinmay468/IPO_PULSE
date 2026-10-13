@@ -27,32 +27,45 @@ _history_cache: dict[tuple[str, str], tuple[dict, float]] = {}
 
 # ── Holdings CRUD ────────────────────────────────────────────────────────────
 
-async def list_holdings(db: AsyncSession) -> list[Holding]:
-    result = await db.execute(
-        select(Holding).options(selectinload(Holding.transactions)).order_by(Holding.symbol)
-    )
+async def list_holdings(db: AsyncSession, user_id: Optional[int] = None) -> list[Holding]:
+    stmt = select(Holding).options(selectinload(Holding.transactions)).order_by(Holding.symbol)
+    if user_id is not None:
+        stmt = stmt.where(Holding.user_id == user_id)
+    else:
+        stmt = stmt.where(Holding.user_id.is_(None))
+    result = await db.execute(stmt)
     return result.scalars().all()
 
 
-async def get_holding(db: AsyncSession, holding_id: int) -> Optional[Holding]:
-    result = await db.execute(
+async def get_holding(db: AsyncSession, holding_id: int, user_id: Optional[int] = None) -> Optional[Holding]:
+    stmt = (
         select(Holding)
         .where(Holding.id == holding_id)
         .options(selectinload(Holding.transactions))
     )
+    if user_id is not None:
+        stmt = stmt.where(Holding.user_id == user_id)
+    result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
 
-async def get_holding_by_symbol(db: AsyncSession, symbol: str, exchange: str) -> Optional[Holding]:
-    result = await db.execute(
+async def get_holding_by_symbol(
+    db: AsyncSession, symbol: str, exchange: str, user_id: Optional[int] = None
+) -> Optional[Holding]:
+    stmt = (
         select(Holding)
         .where(Holding.symbol == symbol.upper(), Holding.exchange == exchange)
         .options(selectinload(Holding.transactions))
     )
+    if user_id is not None:
+        stmt = stmt.where(Holding.user_id == user_id)
+    else:
+        stmt = stmt.where(Holding.user_id.is_(None))
+    result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
 
-async def create_holding(db: AsyncSession, data: HoldingCreate) -> Holding:
+async def create_holding(db: AsyncSession, data: HoldingCreate, user_id: Optional[int] = None) -> Holding:
     holding = Holding(
         symbol=data.symbol.upper(),
         company_name=data.company_name,
@@ -60,6 +73,7 @@ async def create_holding(db: AsyncSession, data: HoldingCreate) -> Holding:
         quantity=data.quantity,
         avg_buy_price=data.avg_buy_price,
         ipo_symbol=data.ipo_symbol,
+        user_id=user_id,
     )
     db.add(holding)
     await db.flush()  # get ID before adding transaction
@@ -75,12 +89,13 @@ async def create_holding(db: AsyncSession, data: HoldingCreate) -> Holding:
     )
     db.add(txn)
     await db.commit()
-    await db.refresh(holding)
-    return holding
+    return await get_holding(db, holding.id, user_id=user_id)
 
 
-async def update_holding(db: AsyncSession, holding_id: int, data: HoldingUpdate) -> Optional[Holding]:
-    holding = await get_holding(db, holding_id)
+async def update_holding(
+    db: AsyncSession, holding_id: int, data: HoldingUpdate, user_id: Optional[int] = None
+) -> Optional[Holding]:
+    holding = await get_holding(db, holding_id, user_id=user_id)
     if not holding:
         return None
     if data.company_name is not None:
@@ -90,12 +105,11 @@ async def update_holding(db: AsyncSession, holding_id: int, data: HoldingUpdate)
     if data.avg_buy_price is not None:
         holding.avg_buy_price = data.avg_buy_price
     await db.commit()
-    await db.refresh(holding)
-    return holding
+    return await get_holding(db, holding_id, user_id=user_id)
 
 
-async def delete_holding(db: AsyncSession, holding_id: int) -> bool:
-    holding = await get_holding(db, holding_id)
+async def delete_holding(db: AsyncSession, holding_id: int, user_id: Optional[int] = None) -> bool:
+    holding = await get_holding(db, holding_id, user_id=user_id)
     if not holding:
         return False
     await db.delete(holding)
@@ -105,8 +119,10 @@ async def delete_holding(db: AsyncSession, holding_id: int) -> bool:
 
 # ── Transactions ─────────────────────────────────────────────────────────────
 
-async def add_transaction(db: AsyncSession, holding_id: int, data: TransactionCreate) -> Optional[Transaction]:
-    holding = await get_holding(db, holding_id)
+async def add_transaction(
+    db: AsyncSession, holding_id: int, data: TransactionCreate, user_id: Optional[int] = None
+) -> Optional[Transaction]:
+    holding = await get_holding(db, holding_id, user_id=user_id)
     if not holding:
         return None
 
@@ -137,8 +153,8 @@ async def add_transaction(db: AsyncSession, holding_id: int, data: TransactionCr
 
 # ── Portfolio Summary (with live prices) ─────────────────────────────────────
 
-async def get_portfolio_summary(db: AsyncSession) -> PortfolioSummary:
-    holdings = await list_holdings(db)
+async def get_portfolio_summary(db: AsyncSession, user_id: Optional[int] = None) -> PortfolioSummary:
+    holdings = await list_holdings(db, user_id=user_id)
 
     if not holdings:
         return PortfolioSummary(
@@ -232,7 +248,9 @@ async def get_portfolio_summary(db: AsyncSession) -> PortfolioSummary:
 
 # ── Portfolio Valuation Snapshots ───────────────────────────────────────────
 
-async def take_portfolio_snapshot(db: AsyncSession, snapshot_date: Optional[date] = None) -> PortfolioSnapshot:
+async def take_portfolio_snapshot(
+    db: AsyncSession, snapshot_date: Optional[date] = None, user_id: Optional[int] = None
+) -> PortfolioSnapshot:
     """
     Saves a daily post-market valuation snapshot using priced holdings only.
     Upserts the record if a snapshot already exists for the given date.
@@ -241,13 +259,16 @@ async def take_portfolio_snapshot(db: AsyncSession, snapshot_date: Optional[date
         ist_tz = ZoneInfo("Asia/Kolkata")
         snapshot_date = datetime.now(ist_tz).date()
 
-    summary = await get_portfolio_summary(db)
+    summary = await get_portfolio_summary(db, user_id=user_id)
     priced_count = summary.holdings_count - summary.unpriced_count
 
-    # Check if a snapshot already exists for this date
-    result = await db.execute(
-        select(PortfolioSnapshot).where(PortfolioSnapshot.date == snapshot_date)
-    )
+    # Check if a snapshot already exists for this date and user
+    stmt = select(PortfolioSnapshot).where(PortfolioSnapshot.date == snapshot_date)
+    if user_id is not None:
+        stmt = stmt.where(PortfolioSnapshot.user_id == user_id)
+    else:
+        stmt = stmt.where(PortfolioSnapshot.user_id.is_(None))
+    result = await db.execute(stmt)
     snapshot = result.scalar_one_or_none()
 
     if snapshot:
@@ -262,23 +283,27 @@ async def take_portfolio_snapshot(db: AsyncSession, snapshot_date: Optional[date
             current_value=summary.current_value,
             pnl=summary.total_unrealized_pnl,
             priced_count=priced_count,
+            user_id=user_id,
         )
         db.add(snapshot)
 
     await db.commit()
     await db.refresh(snapshot)
     logger.info(
-        "[PortfolioSnapshot] Recorded snapshot for %s: invested=%.2f, current=%.2f, pnl=%.2f, priced_count=%d",
-        snapshot_date, snapshot.invested, snapshot.current_value, snapshot.pnl, snapshot.priced_count
+        "[PortfolioSnapshot] Recorded snapshot for %s (user=%s): invested=%.2f, current=%.2f, pnl=%.2f, priced_count=%d",
+        snapshot_date, user_id, snapshot.invested, snapshot.current_value, snapshot.pnl, snapshot.priced_count
     )
     return snapshot
 
 
-async def get_portfolio_snapshots(db: AsyncSession) -> list[PortfolioSnapshot]:
+async def get_portfolio_snapshots(db: AsyncSession, user_id: Optional[int] = None) -> list[PortfolioSnapshot]:
     """Retrieve all historical portfolio snapshots ordered chronologically."""
-    result = await db.execute(
-        select(PortfolioSnapshot).order_by(PortfolioSnapshot.date.asc())
-    )
+    stmt = select(PortfolioSnapshot).order_by(PortfolioSnapshot.date.asc())
+    if user_id is not None:
+        stmt = stmt.where(PortfolioSnapshot.user_id == user_id)
+    else:
+        stmt = stmt.where(PortfolioSnapshot.user_id.is_(None))
+    result = await db.execute(stmt)
     return result.scalars().all()
 
 
