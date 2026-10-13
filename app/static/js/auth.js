@@ -63,6 +63,13 @@ function switchAuthTab(tab) {
 
   if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
   if (succEl) { succEl.classList.add('hidden'); succEl.textContent = ''; }
+  const userFeedback = document.getElementById('register-username-feedback');
+  const userSpinner = document.getElementById('register-username-spinner');
+  const userInput = document.getElementById('register-username');
+  if (userFeedback) { userFeedback.classList.add('hidden'); userFeedback.innerHTML = ''; }
+  if (userSpinner) userSpinner.classList.add('hidden');
+  if (userInput) userInput.classList.remove('border-rose-500', 'focus:ring-rose-500', 'border-emerald-500', 'focus:ring-emerald-500');
+  isUsernameAvailable = null;
 
   const activeClasses = ['text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-slate-800', 'shadow-sm', 'border', 'border-slate-200/60', 'dark:border-slate-700/60'];
   const inactiveClasses = ['text-slate-500', 'hover:text-slate-800', 'dark:text-slate-400', 'dark:hover:text-slate-200'];
@@ -174,6 +181,98 @@ async function submitLogin(e) {
   }
 }
 
+let usernameCheckTimer = null;
+let isUsernameAvailable = null;
+
+function handleUsernameInput(event) {
+  const input = event.target;
+  const username = input.value.trim();
+  const feedbackEl = document.getElementById('register-username-feedback');
+  const spinnerEl = document.getElementById('register-username-spinner');
+
+  if (usernameCheckTimer) clearTimeout(usernameCheckTimer);
+
+  if (!username) {
+    isUsernameAvailable = null;
+    if (feedbackEl) { feedbackEl.classList.add('hidden'); feedbackEl.innerHTML = ''; }
+    if (spinnerEl) spinnerEl.classList.add('hidden');
+    input.classList.remove('border-rose-500', 'focus:ring-rose-500', 'border-emerald-500', 'focus:ring-emerald-500');
+    return;
+  }
+
+  if (username.length < 3) {
+    isUsernameAvailable = false;
+    input.classList.remove('border-emerald-500', 'focus:ring-emerald-500');
+    input.classList.add('border-rose-500', 'focus:ring-rose-500');
+    if (spinnerEl) spinnerEl.classList.add('hidden');
+    if (feedbackEl) {
+      feedbackEl.className = 'text-[11px] mt-1 font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1';
+      feedbackEl.innerHTML = '<i data-lucide="alert-circle" class="w-3 h-3"></i> Must be at least 3 characters.';
+      feedbackEl.classList.remove('hidden');
+    }
+    refreshLucideIcons();
+    return;
+  }
+
+  const pattern = /^[a-zA-Z0-9_.-]+$/;
+  if (!pattern.test(username)) {
+    isUsernameAvailable = false;
+    input.classList.remove('border-emerald-500', 'focus:ring-emerald-500');
+    input.classList.add('border-rose-500', 'focus:ring-rose-500');
+    if (spinnerEl) spinnerEl.classList.add('hidden');
+    if (feedbackEl) {
+      feedbackEl.className = 'text-[11px] mt-1 font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1';
+      feedbackEl.innerHTML = '<i data-lucide="alert-circle" class="w-3 h-3"></i> Only letters, numbers, _, -, and . allowed.';
+      feedbackEl.classList.remove('hidden');
+    }
+    refreshLucideIcons();
+    return;
+  }
+
+  if (spinnerEl) spinnerEl.classList.remove('hidden');
+  if (feedbackEl) {
+    feedbackEl.className = 'text-[11px] mt-1 font-medium text-slate-400 flex items-center gap-1';
+    feedbackEl.innerHTML = '<span>Checking availability...</span>';
+    feedbackEl.classList.remove('hidden');
+  }
+
+  usernameCheckTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/v1/auth/check-username?username=${encodeURIComponent(username)}`);
+      if (!res.ok) throw new Error('Could not verify username.');
+      const data = await res.json();
+
+      // Ensure input hasn't changed while awaiting response
+      if (document.getElementById('register-username').value.trim() !== username) return;
+
+      if (data.available) {
+        isUsernameAvailable = true;
+        input.classList.remove('border-rose-500', 'focus:ring-rose-500');
+        input.classList.add('border-emerald-500', 'focus:ring-emerald-500');
+        if (feedbackEl) {
+          feedbackEl.className = 'text-[11px] mt-1 font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1';
+          feedbackEl.innerHTML = '<i data-lucide="check-circle-2" class="w-3 h-3"></i> Username is available!';
+          feedbackEl.classList.remove('hidden');
+        }
+      } else {
+        isUsernameAvailable = false;
+        input.classList.remove('border-emerald-500', 'focus:ring-emerald-500');
+        input.classList.add('border-rose-500', 'focus:ring-rose-500');
+        if (feedbackEl) {
+          feedbackEl.className = 'text-[11px] mt-1 font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1';
+          feedbackEl.innerHTML = `<i data-lucide="x-circle" class="w-3 h-3"></i> ${data.message || 'Username is already taken.'}`;
+          feedbackEl.classList.remove('hidden');
+        }
+      }
+    } catch (err) {
+      console.warn('Username check failed:', err);
+    } finally {
+      if (spinnerEl) spinnerEl.classList.add('hidden');
+      refreshLucideIcons();
+    }
+  }, 300);
+}
+
 async function submitRegister(e) {
   e.preventDefault();
   const username = document.getElementById('register-username').value.trim();
@@ -188,6 +287,13 @@ async function submitRegister(e) {
 
   errEl.classList.add('hidden');
   succEl.classList.add('hidden');
+
+  if (isUsernameAvailable === false) {
+    errEl.textContent = 'Please choose an available username before creating an account.';
+    errEl.classList.remove('hidden');
+    document.getElementById('register-username').focus();
+    return;
+  }
 
   if (password !== confirmPassword) {
     errEl.textContent = 'Passwords do not match. Please verify and try again.';

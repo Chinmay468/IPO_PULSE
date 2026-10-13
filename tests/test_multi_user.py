@@ -246,3 +246,53 @@ async def test_multi_user_mutual_funds_isolation(client: AsyncClient):
     assert sum_f.status_code == 200
     assert sum_f.json()["holdings_count"] == 0
     assert len(sum_f.json()["holdings"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_check_username_availability(client: AsyncClient):
+    """Real-time username availability validation."""
+    # 1. Available username
+    r1 = await client.get("/api/v1/auth/check-username?username=brand_new_user_99")
+    assert r1.status_code == 200
+    assert r1.json()["available"] is True
+    assert "available" in r1.json()["message"].lower()
+
+    # 2. Too short (< 3 chars)
+    r2 = await client.get("/api/v1/auth/check-username?username=ab")
+    assert r2.status_code == 200
+    assert r2.json()["available"] is False
+    assert "3 characters" in r2.json()["message"]
+
+    # 3. Invalid characters
+    r3 = await client.get("/api/v1/auth/check-username?username=invalid@user!")
+    assert r3.status_code == 200
+    assert r3.json()["available"] is False
+
+    # 4. Reserved usernames (admin, root, etc.)
+    r4 = await client.get("/api/v1/auth/check-username?username=admin")
+    assert r4.status_code == 200
+    assert r4.json()["available"] is False
+    assert "reserved" in r4.json()["message"]
+
+    r4b = await client.get("/api/v1/auth/check-username?username=root")
+    assert r4b.status_code == 200
+    assert r4b.json()["available"] is False
+
+    # 5. Register user, then verify taken case-insensitively
+    reg = await client.post("/api/v1/auth/register", json={
+        "username": "taken_user_123",
+        "password": "Password123"
+    })
+    assert reg.status_code == 201
+
+    # Exact match check
+    r5 = await client.get("/api/v1/auth/check-username?username=taken_user_123")
+    assert r5.status_code == 200
+    assert r5.json()["available"] is False
+    assert "already taken" in r5.json()["message"].lower()
+
+    # Case-insensitive match check (e.g. Taken_User_123)
+    r6 = await client.get("/api/v1/auth/check-username?username=Taken_User_123")
+    assert r6.status_code == 200
+    assert r6.json()["available"] is False
+    assert "already taken" in r6.json()["message"].lower()

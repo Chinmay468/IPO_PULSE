@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Depends, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -47,6 +47,77 @@ class RegisterResponse(BaseModel):
     token_type: str = "bearer"
     user_id: int
     username: str
+
+
+class CheckUsernameResponse(BaseModel):
+    username: str
+    available: bool
+    message: str
+
+
+@router.get(
+    "/check-username",
+    response_model=CheckUsernameResponse,
+    summary="Check if a username is available in real time"
+)
+@limiter.limit("60/minute")
+async def check_username(
+    request: Request,
+    username: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Real-time check for username availability while filling out the registration form.
+    Checks length, character pattern, reserved administrative aliases, and duplicate usernames.
+    """
+    clean_user = username.strip()
+    if len(clean_user) < 3:
+        return CheckUsernameResponse(
+            username=clean_user,
+            available=False,
+            message="Username must be at least 3 characters long."
+        )
+    if len(clean_user) > 50:
+        return CheckUsernameResponse(
+            username=clean_user,
+            available=False,
+            message="Username cannot exceed 50 characters."
+        )
+
+    import re
+    if not re.match(r"^[a-zA-Z0-9_.-]+$", clean_user):
+        return CheckUsernameResponse(
+            username=clean_user,
+            available=False,
+            message="Letters, numbers, underscores, dashes, and periods only."
+        )
+
+    reserved_names = {
+        settings.ADMIN_USERNAME.lower(),
+        "admin", "administrator", "root", "system", "superuser", "moderator"
+    }
+    if clean_user.lower() in reserved_names:
+        return CheckUsernameResponse(
+            username=clean_user,
+            available=False,
+            message="This username is reserved. Please choose another."
+        )
+
+    # Case-insensitive duplicate check
+    stmt = select(User).where(func.lower(User.username) == clean_user.lower())
+    res = await db.execute(stmt)
+    if res.scalar_one_or_none():
+        return CheckUsernameResponse(
+            username=clean_user,
+            available=False,
+            message=f"Username '{clean_user}' is already taken."
+        )
+
+    return CheckUsernameResponse(
+        username=clean_user,
+        available=True,
+        message="Username is available!"
+    )
 
 
 @router.post(
@@ -146,14 +217,18 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
     """
     clean_user = body.username.strip()
 
-    if clean_user.lower() == settings.ADMIN_USERNAME.lower():
+    reserved_names = {
+        settings.ADMIN_USERNAME.lower(),
+        "admin", "administrator", "root", "system", "superuser", "moderator"
+    }
+    if clean_user.lower() in reserved_names:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This username is reserved. Please choose a different username."
         )
 
-    # Check if username exists
-    existing_user = await db.execute(select(User).where(User.username == clean_user))
+    # Check if username exists (case-insensitive)
+    existing_user = await db.execute(select(User).where(func.lower(User.username) == clean_user.lower()))
     if existing_user.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
