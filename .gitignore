@@ -39,9 +39,7 @@ scripts/*.xls
 logs/
 *.log
 
-# Scratch directory
+# Scratch & Temporary
 scratch/
-
-
-# Backups
-app/backup_gazette/
+tmp/
+*.tmp

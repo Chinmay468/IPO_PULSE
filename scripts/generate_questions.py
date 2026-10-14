@@ -793,7 +793,9 @@ async def generate_all_questions() -> List[Dict[str, Any]]:
 
 
 def main():
-    output_path = os.path.join(PROJECT_ROOT, "questions.jsonl")
+    eval_dir = os.path.join(PROJECT_ROOT, "eval")
+    os.makedirs(eval_dir, exist_ok=True)
+    output_path = os.path.join(eval_dir, "questions.jsonl")
     print(f"Generating questions grounded in live database data...")
 
     loop = asyncio.new_event_loop()

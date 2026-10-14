@@ -699,9 +699,13 @@ async def main_async(args):
 
 def main():
     parser = argparse.ArgumentParser(description="Run Evaluation for IPO Pulse Telegram Bot.")
-    parser.add_argument("--input", default="questions.jsonl", help="Path to input questions.jsonl")
-    parser.add_argument("--heldout", default="questions_heldout.jsonl", help="Path to held-out questions.jsonl")
-    parser.add_argument("--output", default="eval_report.json", help="Path to output eval_report.json")
+    default_input = "eval/questions.jsonl" if os.path.exists("eval/questions.jsonl") else "questions.jsonl"
+    default_heldout = "eval/questions_heldout.jsonl" if os.path.exists("eval/questions_heldout.jsonl") else "questions_heldout.jsonl"
+    default_output = "eval/eval_report.json" if os.path.exists("eval") else "eval_report.json"
+
+    parser.add_argument("--input", default=default_input, help="Path to input questions.jsonl")
+    parser.add_argument("--heldout", default=default_heldout, help="Path to held-out questions.jsonl")
+    parser.add_argument("--output", default=default_output, help="Path to output eval_report.json")
     parser.add_argument("--sample", type=int, default=None, help="Sample N questions (e.g. 25)")
     parser.add_argument("--category", type=str, default=None, help="Filter by specific category")
     parser.add_argument("--verbose", action="store_true", help="Print verbose details for every question")
