@@ -291,3 +291,25 @@ class AllotmentResultResponse(BaseModel):
     refund_amount: Optional[float] = None
     message: str
     source_registrar: str = "Link Intime"
+
+
+class AllotmentIPOItem(BaseModel):
+    id: int
+    symbol: str
+    company_name: str
+    status: str
+    ipo_type: str
+    registrar_name: Optional[str] = None
+    registrar_code: Optional[str] = None
+    registrar_allotment_url: Optional[str] = None
+    allotment_date: Optional[date] = None
+    supported_inline: bool = False
+    open_date: Optional[date] = None
+    close_date: Optional[date] = None
+    listing_date: Optional[date] = None
+
+
+class AllotmentIPOsResponse(BaseModel):
+    ipos: List[AllotmentIPOItem]
+    total: int
+    message: Optional[str] = None

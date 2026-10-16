@@ -1,5 +1,6 @@
 import asyncio
 import html
+import json
 import logging
 import re
 import time
@@ -11,6 +12,12 @@ from bs4 import BeautifulSoup
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+from app.core.registrars import (
+    CanonicalRegistrar,
+    DEFAULT_REGISTRAR_URLS,
+    normalize_registrar_name,
+)
 
 from app.models.ipo import (
     IPO,
@@ -205,7 +212,8 @@ class ChittorgarhClient:
         url: str,
         client: Optional[httpx.AsyncClient] = None,
         force_refresh: bool = False,
-        is_finished: bool = False
+        is_finished: bool = False,
+        custom_headers: Optional[Dict[str, str]] = None,
     ) -> str:
         """
         Fetches the requested URL with rate-limiting, compliance checks, caching and backoff.
@@ -235,6 +243,8 @@ class ChittorgarhClient:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
         }
+        if custom_headers:
+            headers.update(custom_headers)
 
         should_close = False
         if client is None:
@@ -587,6 +597,7 @@ def parse_ipo_detail(
         "fresh_issue_crores": None,
         "ofs_crores": None,
         "registrar_name": None,
+        "registrar_allotment_url": None,
         "pe_ratio": None,
         "industry_pe": None,
         "ronw": None,
@@ -736,7 +747,10 @@ def parse_ipo_detail(
             parts = re.split(r"(?:and|\.)\s+", preceding)
             candidate = parts[-1].strip()
             if len(candidate) >= 3 and not parsed.get("registrar_name"):
-                parsed["registrar_name"] = candidate
+                norm_reg = normalize_registrar_name(candidate)
+                parsed["registrar_name"] = norm_reg
+                if norm_reg and not parsed.get("registrar_allotment_url"):
+                    parsed["registrar_allotment_url"] = DEFAULT_REGISTRAR_URLS.get(norm_reg)
                 break
 
     # 5. Documents Extraction (DRHP / RHP)
@@ -917,6 +931,215 @@ def parse_subscription_page(html_text: str) -> Optional[Dict[str, Any]]:
             if sub_dict.get("total_multiple") is not None or sub_dict.get("qib_multiple") is not None:
                 return sub_dict
     return None
+
+
+# ---------------- Allotment Status Reports (23 & 24) ----------------
+async def fetch_and_parse_allotment_report(
+    client: ChittorgarhClient,
+    report_id: int = 23,
+    parameter: str = "mainline",
+    year: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """
+    Fetches and parses Chittorgarh Allotment Status report (23 for Mainboard, 24 for SME).
+    Obeys robots.txt, rate limit delays (2-3s), caching, and avoids login-gated pages.
+    Extracts IPO Company name, source_id, dates, registrar name, and allotment url.
+    Returns empty list on unrecoverable failure without crashing.
+    """
+    curr_yr = year or date.today().year
+    fin_yr = f"{curr_yr}-{str(curr_yr + 1)[2:]}"
+    api_url = f"https://webnodejs.chittorgarh.com/cloud/report/data-read/{report_id}/1/10/{curr_yr}/{fin_yr}/0/{parameter}"
+
+    headers = {
+        "User-Agent": client.USER_AGENT,
+        "Referer": "https://www.chittorgarh.com/",
+        "Origin": "https://www.chittorgarh.com",
+    }
+
+    results: List[Dict[str, Any]] = []
+    ipo_type = IPOType.SME if parameter == "sme" else IPOType.MAINBOARD
+
+    # 1. First attempt: fetch from Cloud report endpoint
+    try:
+        raw_text = await client.fetch(api_url, custom_headers=headers)
+        if raw_text and ("{" in raw_text or "[" in raw_text):
+            data = json.loads(raw_text)
+            table_data = data.get("reportTableData", [])
+            for row in table_data:
+                company_name = row.get("Company", "").strip()
+                if not company_name:
+                    continue
+                source_id_val = row.get("~id")
+                source_id = int(source_id_val) if source_id_val is not None else None
+                folder_name = row.get("~urlrewrite_folder_name")
+                allotment_date_str = row.get("Allotment Date")
+                allotment_d = parse_date_string(allotment_date_str) if allotment_date_str else None
+
+                allot_html = row.get("Allotment", "") or ""
+                reg_url = None
+                if "href=" in allot_html:
+                    m = re.search(r'href=["\']([^"\']+)["\']', allot_html)
+                    if m:
+                        reg_url = m.group(1).strip()
+
+                norm_reg = normalize_registrar_name(reg_url or company_name)
+                if not reg_url and norm_reg and norm_reg in DEFAULT_REGISTRAR_URLS:
+                    reg_url = DEFAULT_REGISTRAR_URLS.get(norm_reg)
+
+                open_d = parse_date_string(row.get("Opening Date"))
+                close_d = parse_date_string(row.get("Closing Date"))
+
+                results.append({
+                    "company_name": company_name,
+                    "source_id": source_id,
+                    "folder_name": folder_name,
+                    "open_date": open_d,
+                    "close_date": close_d,
+                    "allotment_date": allotment_d,
+                    "registrar_name": norm_reg,
+                    "registrar_allotment_url": reg_url,
+                    "ipo_type": ipo_type,
+                })
+            if results:
+                logger.info(f"Loaded {len(results)} allotment records for {parameter} from Chittorgarh cloud endpoint.")
+                return results
+    except Exception as exc:
+        logger.warning(f"Cloud report endpoint fetch failed for {parameter} ({exc}); attempting fallback HTML scrape.")
+
+    # 2. Fallback: fetch HTML page directly
+    html_url = (
+        "https://www.chittorgarh.com/report/ipo-allotment-status-check-date-process/23/"
+        if parameter == "mainline" else
+        "https://www.chittorgarh.com/report/sme-ipo-allotment-status-check-date-process/24/"
+    )
+    try:
+        html = await client.fetch(html_url)
+        soup = BeautifulSoup(html, "html.parser")
+        tables = soup.find_all("table")
+        for t in tables:
+            for tr in t.find_all("tr")[1:]:
+                cells = tr.find_all(["td", "th"])
+                if len(cells) < 2:
+                    continue
+                a = tr.find("a", href=True)
+                cname = a.get_text(strip=True) if a else cells[0].get_text(strip=True)
+                if not cname:
+                    continue
+                source_id = None
+                if a and a.get("href"):
+                    m = re.search(r"/ipo/([a-zA-Z0-9_-]+)/(\d+)/?", a["href"])
+                    if m:
+                        source_id = int(m.group(2))
+
+                allot_link = tr.find("a", href=re.compile(r"http"))
+                reg_url = allot_link["href"] if allot_link else None
+                norm_reg = normalize_registrar_name(reg_url)
+                if not reg_url and norm_reg and norm_reg in DEFAULT_REGISTRAR_URLS:
+                    reg_url = DEFAULT_REGISTRAR_URLS.get(norm_reg)
+
+                results.append({
+                    "company_name": cname,
+                    "source_id": source_id,
+                    "open_date": None,
+                    "close_date": None,
+                    "allotment_date": None,
+                    "registrar_name": norm_reg,
+                    "registrar_allotment_url": reg_url,
+                    "ipo_type": ipo_type,
+                })
+        if results:
+            logger.info(f"Loaded {len(results)} allotment records for {parameter} from fallback HTML.")
+    except Exception as exc:
+        logger.warning(f"Fallback HTML scrape failed for {html_url}: {exc}")
+
+    return results
+
+
+async def sync_chittorgarh_allotment_reports(
+    session: AsyncSession,
+    client: Optional[ChittorgarhClient] = None
+) -> Dict[str, int]:
+    """
+    Ingests registrar names, allotment URLs, and allotment dates from Chittorgarh reports 23 and 24.
+    Updates existing IPOs or inserts missing records with NULL for unknown attributes.
+    """
+    if client is None:
+        client = ChittorgarhClient()
+
+    updated = 0
+    created = 0
+
+    mainboard_items = await fetch_and_parse_allotment_report(client, report_id=23, parameter="mainline")
+    sme_items = await fetch_and_parse_allotment_report(client, report_id=23, parameter="sme")
+    all_items = mainboard_items + sme_items
+
+    all_ipos = (await session.execute(select(IPO))).scalars().all()
+    ipo_by_source_id: Dict[int, IPO] = {ipo.source_id: ipo for ipo in all_ipos if ipo.source_id}
+    ipo_by_norm_name: Dict[str, IPO] = {normalize_company_name(ipo.company_name): ipo for ipo in all_ipos if ipo.company_name}
+
+    for item in all_items:
+        s_id = item.get("source_id")
+        raw_name = item.get("company_name", "").strip()
+        norm_name = normalize_company_name(raw_name)
+
+        matched: Optional[IPO] = None
+        if s_id and s_id in ipo_by_source_id:
+            matched = ipo_by_source_id[s_id]
+        elif norm_name and norm_name in ipo_by_norm_name:
+            matched = ipo_by_norm_name[norm_name]
+
+        if matched:
+            changed = False
+            if item.get("allotment_date") and matched.allotment_date != item["allotment_date"]:
+                matched.allotment_date = item["allotment_date"]
+                changed = True
+            if item.get("registrar_name") and matched.registrar_name != item["registrar_name"]:
+                matched.registrar_name = item["registrar_name"]
+                changed = True
+            if item.get("registrar_allotment_url") and matched.registrar_allotment_url != item["registrar_allotment_url"]:
+                matched.registrar_allotment_url = item["registrar_allotment_url"]
+                changed = True
+            if changed:
+                matched.updated_at = datetime.now(timezone.utc)
+                updated += 1
+        else:
+            sym = derive_symbol(raw_name)
+            sym_match = (await session.execute(select(IPO).where(func.upper(IPO.symbol) == sym.upper()))).scalar_one_or_none()
+            if sym_match:
+                sym = f"{sym[:14]}_{s_id or int(time.time())}"[:20]
+
+            open_d = item.get("open_date")
+            close_d = item.get("close_date")
+            dates_tba = (open_d is None and close_d is None)
+            st = determine_status_from_dates(open_d, close_d, None, dates_tba=dates_tba)
+
+            new_ipo = IPO(
+                symbol=sym,
+                company_name=raw_name,
+                ipo_type=item.get("ipo_type", IPOType.MAINBOARD),
+                status=st,
+                open_date=open_d,
+                close_date=close_d,
+                allotment_date=item.get("allotment_date"),
+                registrar_name=item.get("registrar_name"),
+                registrar_allotment_url=item.get("registrar_allotment_url"),
+                dates_tba=dates_tba,
+                source="chittorgarh_allotment",
+                source_id=s_id,
+                is_seed=False,
+                fetched_at=datetime.now(timezone.utc),
+                data_quality={"status": "discovered_from_allotment_report", "fields_present": 3, "fields_total": 14}
+            )
+            session.add(new_ipo)
+            await session.flush()
+            if s_id:
+                ipo_by_source_id[s_id] = new_ipo
+            ipo_by_norm_name[norm_name] = new_ipo
+            created += 1
+
+    await session.commit()
+    logger.info(f"Sync Chittorgarh Allotment Reports complete: {updated} updated, {created} created.")
+    return {"updated": updated, "created": created}
 
 
 # ---------------- Database Sync Engine ----------------
@@ -1153,7 +1376,7 @@ async def sync_chittorgarh_data(
                 "symbol", "company_name", "status", "price_band_low", "price_band_high",
                 "issue_price", "lot_size", "issue_size_crores", "fresh_issue_crores",
                 "ofs_crores", "open_date", "close_date", "allotment_date", "listing_date",
-                "registrar_name", "pe_ratio", "industry_pe", "ronw", "eps", "debt_to_equity",
+                "registrar_name", "registrar_allotment_url", "pe_ratio", "industry_pe", "ronw", "eps", "debt_to_equity",
                 "pat_margin_pct", "promoter_holding_pre", "promoter_holding_post",
                 "revenue_growth_yoy", "pat_growth_yoy", "source", "source_url", "source_id",
                 "fetched_at", "data_quality", "dates_tba"
@@ -1274,6 +1497,15 @@ async def sync_chittorgarh_data(
             if isinstance(exc, (ChittorgarhRateLimitException, ChittorgarhStructureChangeException)):
                 raise
 
+    # Phase 4.5: Sync Allotment Reports (Reports 23 and 24)
+    allotment_stats = {"updated": 0, "created": 0}
+    try:
+        allotment_stats = await sync_chittorgarh_allotment_reports(session, client)
+        updated_count += allotment_stats.get("updated", 0)
+        created_count += allotment_stats.get("created", 0)
+    except Exception as allot_err:
+        logger.warning(f"Allotment reports sync notice: {allot_err}")
+
     # Phase 5: Post-scrape status correction to guarantee accurate IST lifecycle statuses
     try:
         from app.services.scheduler import scheduled_ipo_status_correction
@@ -1287,4 +1519,5 @@ async def sync_chittorgarh_data(
         "processed": len(items_to_process),
         "created": created_count,
         "updated": updated_count,
+        "allotment_reports": allotment_stats,
     }

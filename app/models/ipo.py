@@ -78,6 +78,7 @@ class IPO(Base):
     # Registrar details
     registrar_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     registrar_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    registrar_allotment_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     # Financial / Valuation parameters
     pe_ratio: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

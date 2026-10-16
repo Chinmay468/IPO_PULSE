@@ -1,7 +1,9 @@
 import logging
+from typing import Dict, Any, List, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
+from sqlalchemy import select
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.services.scraper_service import ScraperService
@@ -219,6 +221,65 @@ async def scheduled_ipo_status_correction():
         logger.error("Error during scheduled IPO status correction: %s", exc, exc_info=True)
 
 
+last_unmatched_linkintime_companies: List[Dict[str, str]] = []
+
+
+async def scheduled_linkintime_company_sync() -> Dict[str, Any]:
+    """
+    Daily background job: refreshes Link Intime companies, maps them by normalized name
+    to database IPOs, updates registrar_code and registrar_name, and reports unmatched companies.
+    """
+    global last_unmatched_linkintime_companies
+    logger.info("Executing daily Link Intime company mapping job...")
+    try:
+        from app.services.registrar_proxy import RegistrarProxyService
+        from app.core.registrars import CanonicalRegistrar, DEFAULT_REGISTRAR_URLS
+        from app.services.chittorgarh_scraper import normalize_company_name
+        from app.models.ipo import IPO
+
+        companies = await RegistrarProxyService.get_linkintime_companies()
+        if not companies:
+            logger.warning("No companies returned from Link Intime; skipping mapping.")
+            return {"total_companies": 0, "matched": 0, "unmatched": []}
+
+        async with AsyncSessionLocal() as session:
+            ipos = (await session.execute(select(IPO))).scalars().all()
+            ipo_by_norm = {normalize_company_name(ipo.company_name): ipo for ipo in ipos if ipo.company_name}
+
+            matched_count = 0
+            unmatched = []
+
+            for comp in companies:
+                cname = comp.company_name
+                norm = normalize_company_name(cname)
+                matched_ipo = ipo_by_norm.get(norm)
+                if matched_ipo:
+                    matched_ipo.registrar_name = CanonicalRegistrar.LINKINTIME
+                    matched_ipo.registrar_code = comp.company_id
+                    if not matched_ipo.registrar_allotment_url:
+                        matched_ipo.registrar_allotment_url = DEFAULT_REGISTRAR_URLS[CanonicalRegistrar.LINKINTIME]
+                    matched_count += 1
+                else:
+                    unmatched.append({"company_id": comp.company_id, "company_name": comp.company_name})
+
+            await session.commit()
+            last_unmatched_linkintime_companies = unmatched
+
+            if unmatched:
+                logger.warning(f"Unmatched Link Intime companies ({len(unmatched)}): {unmatched}")
+            else:
+                logger.info(f"All {matched_count} Link Intime companies mapped successfully.")
+
+            return {
+                "total_companies": len(companies),
+                "matched": matched_count,
+                "unmatched": unmatched
+            }
+    except Exception as exc:
+        logger.error(f"Error during daily Link Intime company mapping: {exc}", exc_info=True)
+        return {"error": str(exc)}
+
+
 def start_scheduler():
     if not settings.SCRAPER_ENABLED:
         logger.info("Background market scraper is disabled in settings.")
@@ -307,6 +368,13 @@ def start_scheduler():
             trigger=CronTrigger(hour=18, minute=35),  # 00:05 IST / 18:35 UTC (midnight rollover)
             id="daily_midnight_ipo_status_correction",
             name="Daily Midnight IPO Status Correction (00:05 IST)",
+            replace_existing=True
+        )
+        scheduler.add_job(
+            scheduled_linkintime_company_sync,
+            trigger=CronTrigger(hour=1, minute=0),  # 06:30 IST / 01:00 UTC (daily morning)
+            id="daily_linkintime_company_sync",
+            name="Daily Link Intime Company Mapping to IPOs",
             replace_existing=True
         )
         scheduler.start()

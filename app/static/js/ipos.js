@@ -620,92 +620,499 @@ function selectDropdownOption(type, value, label) {
   applyFilters();
 }
 
-// ── Link Intime Registrar Dropdown & Allotment Checker ──
-let registrarCompanies = [];
+// ==================== IPO ALLOTMENT CHECKER & PER-REGISTRAR ROUTING ====================
+let allotmentIposList = [];
+let selectedAllotmentIpo = null;
+let allotmentHighlightedIndex = -1;
+let allotmentFilteredItems = [];
 
-async function toggleCompanyPicker() {
-  if (!registrarCompanies || registrarCompanies.length === 0) {
-    await loadRegistrarCompanies();
+const DEFAULT_REGISTRAR_EXTERNAL_URLS = {
+  'LINKINTIME': 'https://in.mpms.mufg.com/Initial_Offer/public-issues.html',
+  'KFINTECH': 'https://ipostatus.kfintech.com/',
+  'BIGSHARE': 'https://ipo.bigshareonline.com/IPO_Status.html',
+  'SKYLINE': 'https://www.skylinerta.com/ipo.php',
+  'CAMEO': 'https://ipo.cameoindia.com/',
+  'PURVA': 'https://www.purvashare.com/queries/',
+  'MAASHITLA': 'https://maashitla.com/allotment-status/',
+};
+
+function formatRegistrarDisplay(regCode) {
+  if (!regCode) return 'Registrar Unknown';
+  const clean = String(regCode).toUpperCase().trim();
+  const map = {
+    'LINKINTIME': 'Link Intime',
+    'KFINTECH': 'KFintech',
+    'BIGSHARE': 'Bigshare Services',
+    'SKYLINE': 'Skyline Financial',
+    'CAMEO': 'Cameo Corporate',
+    'PURVA': 'Purva Sharegistry',
+    'MAASHITLA': 'Maashitla Securities',
+    'OTHER': 'Other Registrar'
+  };
+  return map[clean] || regCode;
+}
+
+function formatAllotmentDate(dateStr) {
+  if (!dateStr) return 'Date TBA';
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+    return dateStr;
+  } catch (e) {
+    return dateStr;
   }
-  const popover = document.getElementById('company-picker-popover');
-  const isHidden = popover.classList.contains('hidden');
-  closeAllDropdowns();
-  if (isHidden) {
-    popover.classList.remove('hidden');
-    const input = document.getElementById('company-search-input');
-    if (input) {
-      input.value = '';
-      filterCompanyOptions('');
-      setTimeout(() => input.focus(), 50);
+}
+
+function getIpoComboboxGroup(ipo, todayStr) {
+  const today = new Date(todayStr);
+
+  // 1. Open now
+  if (ipo.status === 'LIVE' || (ipo.open_date && ipo.close_date && ipo.open_date <= todayStr && todayStr <= ipo.close_date)) {
+    return 'Open now';
+  }
+
+  // 2. Allotment this week (-3 to +7 days)
+  if (ipo.allotment_date) {
+    const allotDate = new Date(ipo.allotment_date);
+    const diffDays = Math.round((allotDate - today) / (1000 * 60 * 60 * 24));
+    if (diffDays >= -3 && diffDays <= 7) {
+      return 'Allotment this week';
     }
   }
-}
 
-function selectCompanyOption(companyId, companyName) {
-  document.getElementById('allotment-company-select').value = companyId;
-  const label = document.getElementById('company-picker-label');
-  label.textContent = companyName;
-  closeAllDropdowns();
-}
-
-function filterCompanyOptions(query) {
-  const q = query.toLowerCase().trim();
-  const filtered = registrarCompanies.filter(c => c.company_name.toLowerCase().includes(q));
-  renderCompanyList(filtered);
-}
-
-function renderCompanyList(companies) {
-  const listEl = document.getElementById('company-options-list');
-  const currentVal = document.getElementById('allotment-company-select').value;
-  if (!companies || companies.length === 0) {
-    listEl.innerHTML = '<div class="py-3 text-center text-xs text-slate-400">No issues found</div>';
-    return;
+  // 3. Recent (dates within last 30 days)
+  if (ipo.allotment_date) {
+    const allotDate = new Date(ipo.allotment_date);
+    const diffDays = Math.round((allotDate - today) / (1000 * 60 * 60 * 24));
+    if (diffDays >= -30 && diffDays < -3) {
+      return 'Recent';
+    }
   }
-  listEl.innerHTML = companies.map(c => `
-    <button type="button" onclick="selectCompanyOption('${c.company_id}', '${c.company_name.replace(/'/g, "\\'")}')"
-            class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left ${c.company_id === currentVal ? 'bg-blue-50 dark:bg-blue-950 font-bold text-blue-700 dark:text-blue-300' : ''}">
-      <span class="truncate">${c.company_name}</span>
-    </button>
-  `).join('');
+  if (ipo.close_date) {
+    const closeDate = new Date(ipo.close_date);
+    const diffDays = Math.round((closeDate - today) / (1000 * 60 * 60 * 24));
+    if (diffDays >= -30 && diffDays <= 0) {
+      return 'Recent';
+    }
+  }
+  if (ipo.listing_date) {
+    const listDate = new Date(ipo.listing_date);
+    const diffDays = Math.round((listDate - today) / (1000 * 60 * 60 * 24));
+    if (diffDays >= -30 && diffDays <= 0) {
+      return 'Recent';
+    }
+  }
+
+  // 4. Older
+  return 'Older';
 }
 
 async function loadRegistrarCompanies() {
+  await loadAllotmentIpos();
+}
+
+async function loadAllotmentIpos() {
+  const dropdownContent = document.getElementById('allotment-dropdown-content');
+  if (dropdownContent && (!allotmentIposList || allotmentIposList.length === 0)) {
+    dropdownContent.innerHTML = '<div class="py-4 text-center text-xs text-slate-400">Loading IPOs from database...</div>';
+  }
+
   try {
-    const res = await fetch('/api/v1/allotment/linkintime/companies');
-    if (res.ok) registrarCompanies = await res.json();
+    const res = await fetch('/api/v1/allotment/ipos?limit=300');
+    if (res.ok) {
+      const data = await res.json();
+      allotmentIposList = data.ipos || [];
+      if (allotmentIposList.length === 0 && data.message) {
+        if (dropdownContent) {
+          dropdownContent.innerHTML = `<div class="py-4 text-center text-xs text-slate-400">${data.message}</div>`;
+        }
+        return;
+      }
+    }
   } catch (err) {
-    console.error("Registrar fetch failed:", err);
+    console.error('Failed to load allotment IPOs from database:', err);
   }
-  if (!registrarCompanies || registrarCompanies.length === 0) {
-    registrarCompanies = [
-      { company_id: "11959", company_name: "Runwal Enterprise Limited - IPO" },
-      { company_id: "11960", company_name: "Acevector Limited - IPO" },
-      { company_id: "11958", company_name: "Moneyview Limited - IPO" },
-      { company_id: "11957", company_name: "Swastika Infra Limited - IPO" },
-      { company_id: "11956", company_name: "Anand Seamless Limited - SME IPO" },
-      { company_id: "11954", company_name: "Vivekanand Cotspin Limited - SME IPO" },
-      { company_id: "11955", company_name: "FX Multitech Limited - SME IPO" },
-      { company_id: "11953", company_name: "National Stock Exchange Of India Limited - IPO" },
-    ];
+
+  // Render dropdown with current input or initial full list
+  const currentVal = document.getElementById('allotment-combobox-input')?.value || '';
+  filterAndRenderAllotmentDropdown(currentVal);
+}
+
+function openAllotmentCombobox() {
+  const popover = document.getElementById('allotment-combobox-dropdown');
+  const input = document.getElementById('allotment-combobox-input');
+  if (popover) {
+    popover.classList.remove('hidden');
+    input?.setAttribute('aria-expanded', 'true');
   }
-  renderCompanyList(registrarCompanies);
+  if (!allotmentIposList || allotmentIposList.length === 0) {
+    loadAllotmentIpos();
+  } else {
+    filterAndRenderAllotmentDropdown(input?.value || '');
+  }
+}
+
+function closeAllotmentCombobox() {
+  const popover = document.getElementById('allotment-combobox-dropdown');
+  const input = document.getElementById('allotment-combobox-input');
+  if (popover) {
+    popover.classList.add('hidden');
+    input?.setAttribute('aria-expanded', 'false');
+  }
+  allotmentHighlightedIndex = -1;
+}
+
+function handleAllotmentComboboxInput(val) {
+  const clearBtn = document.getElementById('allotment-combobox-clear');
+  if (clearBtn) {
+    if (val && val.trim().length > 0) {
+      clearBtn.classList.remove('hidden');
+    } else {
+      clearBtn.classList.add('hidden');
+    }
+  }
+  openAllotmentCombobox();
+  filterAndRenderAllotmentDropdown(val);
+}
+
+function clearAllotmentCombobox() {
+  const input = document.getElementById('allotment-combobox-input');
+  const clearBtn = document.getElementById('allotment-combobox-clear');
+  const ipoIdInput = document.getElementById('allotment-selected-ipo-id');
+  const compSelect = document.getElementById('allotment-company-select');
+  const card = document.getElementById('allotment-selected-card');
+  const banner = document.getElementById('allotment-before-date-banner');
+  const inlineForm = document.getElementById('allotment-inline-form');
+  const extCard = document.getElementById('allotment-external-card');
+  const resultBox = document.getElementById('allotment-result');
+
+  if (input) input.value = '';
+  if (clearBtn) clearBtn.classList.add('hidden');
+  if (ipoIdInput) ipoIdInput.value = '';
+  if (compSelect) compSelect.value = '';
+  if (card) card.classList.add('hidden');
+  if (banner) banner.classList.add('hidden');
+  if (inlineForm) inlineForm.classList.add('hidden');
+  if (extCard) extCard.classList.add('hidden');
+  if (resultBox) {
+    resultBox.classList.add('hidden');
+    resultBox.innerHTML = '';
+  }
+
+  selectedAllotmentIpo = null;
+  allotmentHighlightedIndex = -1;
+  openAllotmentCombobox();
+  filterAndRenderAllotmentDropdown('');
+  input?.focus();
+}
+
+function filterAndRenderAllotmentDropdown(query) {
+  const dropdownContent = document.getElementById('allotment-dropdown-content');
+  if (!dropdownContent) return;
+
+  const q = (query || '').toLowerCase().trim();
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Filter IPOs
+  let filtered = allotmentIposList;
+  if (q.length > 0) {
+    filtered = allotmentIposList.filter(ipo =>
+      (ipo.company_name && ipo.company_name.toLowerCase().includes(q)) ||
+      (ipo.symbol && ipo.symbol.toLowerCase().includes(q)) ||
+      (ipo.registrar_name && ipo.registrar_name.toLowerCase().includes(q))
+    );
+  }
+
+  if (filtered.length === 0) {
+    dropdownContent.innerHTML = `
+      <div class="py-4 text-center text-xs text-slate-400">
+        No IPOs found matching "${query}"
+      </div>
+    `;
+    allotmentFilteredItems = [];
+    allotmentHighlightedIndex = -1;
+    return;
+  }
+
+  // Group filtered IPOs
+  const groups = {
+    'Open now': [],
+    'Allotment this week': [],
+    'Recent': [],
+    'Older': []
+  };
+
+  filtered.forEach(ipo => {
+    const group = getIpoComboboxGroup(ipo, todayStr);
+    groups[group].push(ipo);
+  });
+
+  // Build flattened list for keyboard indexing
+  allotmentFilteredItems = [];
+  let html = '';
+  let globalIdx = 0;
+
+  const groupMeta = [
+    { key: 'Open now', label: 'Open Now', badge: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60' },
+    { key: 'Allotment this week', label: 'Allotment This Week', badge: 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60' },
+    { key: 'Recent', label: 'Recent Issues', badge: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60' },
+    { key: 'Older', label: 'Older / Archived', badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' }
+  ];
+
+  groupMeta.forEach(({ key, label, badge }) => {
+    const items = groups[key];
+    if (items && items.length > 0) {
+      html += `
+        <div class="pt-2 pb-1 px-2">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">${label}</span>
+            <span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full ${badge}">${items.length}</span>
+          </div>
+          <div class="space-y-0.5">
+      `;
+
+      items.forEach(ipo => {
+        const itemIdx = globalIdx++;
+        allotmentFilteredItems.push(ipo);
+        const isSelected = selectedAllotmentIpo && selectedAllotmentIpo.id === ipo.id;
+        const regDisplay = formatRegistrarDisplay(ipo.registrar_name);
+        const dateDisplay = formatAllotmentDate(ipo.allotment_date);
+
+        html += `
+          <div id="allotment-item-${itemIdx}" role="option" aria-selected="${isSelected}"
+               onclick="selectAllotmentIpo(${ipo.id})"
+               class="allotment-option-item w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs cursor-pointer transition select-none ${isSelected ? 'bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/70'}">
+            <div class="min-w-0 flex-1 pr-2">
+              <div class="font-semibold truncate leading-tight">${ipo.company_name}</div>
+              <div class="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                <span class="font-mono">${ipo.symbol}</span>
+                <span>•</span>
+                <span class="uppercase">${ipo.status}</span>
+              </div>
+            </div>
+            <div class="text-right shrink-0">
+              <span class="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60">
+                ${regDisplay}
+              </span>
+              <div class="text-[10px] text-slate-400 mt-0.5 font-mono">
+                ${dateDisplay}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += `</div></div>`;
+    }
+  });
+
+  dropdownContent.innerHTML = html;
+  allotmentHighlightedIndex = -1;
+}
+
+function handleAllotmentComboboxKeydown(e) {
+  const popover = document.getElementById('allotment-combobox-dropdown');
+  const isHidden = popover?.classList.contains('hidden');
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (isHidden) {
+      openAllotmentCombobox();
+      return;
+    }
+    if (allotmentFilteredItems.length > 0) {
+      allotmentHighlightedIndex = (allotmentHighlightedIndex + 1) % allotmentFilteredItems.length;
+      updateAllotmentHighlight();
+    }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (isHidden) {
+      openAllotmentCombobox();
+      return;
+    }
+    if (allotmentFilteredItems.length > 0) {
+      allotmentHighlightedIndex = (allotmentHighlightedIndex - 1 + allotmentFilteredItems.length) % allotmentFilteredItems.length;
+      updateAllotmentHighlight();
+    }
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (!isHidden && allotmentFilteredItems.length > 0) {
+      const targetIdx = allotmentHighlightedIndex >= 0 ? allotmentHighlightedIndex : 0;
+      const targetIpo = allotmentFilteredItems[targetIdx];
+      if (targetIpo) selectAllotmentIpo(targetIpo.id);
+    }
+  } else if (e.key === 'Escape') {
+    closeAllotmentCombobox();
+  }
+}
+
+function updateAllotmentHighlight() {
+  document.querySelectorAll('.allotment-option-item').forEach((el, idx) => {
+    if (idx === allotmentHighlightedIndex) {
+      el.classList.add('bg-blue-100', 'dark:bg-blue-900/60', 'ring-1', 'ring-blue-500');
+      el.scrollIntoView({ block: 'nearest' });
+    } else {
+      el.classList.remove('bg-blue-100', 'dark:bg-blue-900/60', 'ring-1', 'ring-blue-500');
+    }
+  });
+}
+
+function selectAllotmentIpo(ipoId) {
+  const ipo = allotmentIposList.find(i => i.id === ipoId);
+  if (!ipo) return;
+
+  selectedAllotmentIpo = ipo;
+
+  // Set input display and hidden inputs
+  const input = document.getElementById('allotment-combobox-input');
+  if (input) input.value = ipo.company_name;
+
+  const clearBtn = document.getElementById('allotment-combobox-clear');
+  if (clearBtn) clearBtn.classList.remove('hidden');
+
+  const ipoIdInput = document.getElementById('allotment-selected-ipo-id');
+  if (ipoIdInput) ipoIdInput.value = ipo.id;
+
+  const compSelect = document.getElementById('allotment-company-select');
+  if (compSelect) compSelect.value = ipo.registrar_code || ipo.company_name;
+
+  closeAllotmentCombobox();
+
+  // Populate Selected IPO Card
+  const card = document.getElementById('allotment-selected-card');
+  const nameEl = document.getElementById('allotment-selected-name');
+  const subEl = document.getElementById('allotment-selected-sub');
+  const badgesEl = document.getElementById('allotment-selected-badges');
+  const regEl = document.getElementById('allotment-selected-registrar');
+  const dateEl = document.getElementById('allotment-selected-date');
+
+  if (nameEl) nameEl.textContent = ipo.company_name;
+  if (subEl) subEl.textContent = `${ipo.symbol} • ${ipo.ipo_type || 'Mainboard'}`;
+  if (regEl) regEl.textContent = formatRegistrarDisplay(ipo.registrar_name);
+  const formattedAllotDate = ipo.allotment_date ? formatAllotmentDate(ipo.allotment_date) : 'To be announced';
+  if (dateEl) dateEl.textContent = formattedAllotDate;
+
+  if (badgesEl) {
+    const stClean = (ipo.status || '').toUpperCase();
+    const isLive = stClean === 'LIVE';
+    badgesEl.innerHTML = `
+      <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded ${isLive ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'} uppercase">
+        ${stClean}
+      </span>
+      <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+        ${formatRegistrarDisplay(ipo.registrar_name)}
+      </span>
+    `;
+  }
+  if (card) card.classList.remove('hidden');
+
+  // Clear previous results
+  const resultBox = document.getElementById('allotment-result');
+  if (resultBox) {
+    resultBox.classList.add('hidden');
+    resultBox.innerHTML = '';
+  }
+
+  // Routing Checks:
+  const banner = document.getElementById('allotment-before-date-banner');
+  const bannerText = document.getElementById('allotment-before-date-text');
+  const inlineForm = document.getElementById('allotment-inline-form');
+  const extCard = document.getElementById('allotment-external-card');
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isBeforeAllotmentDate = Boolean(ipo.allotment_date && ipo.allotment_date > todayStr);
+
+  if (isBeforeAllotmentDate) {
+    // 4c: Before allotment date: show notice, disable lookup
+    if (bannerText) bannerText.textContent = `Allotment expected on ${formattedAllotDate}`;
+    if (banner) banner.classList.remove('hidden');
+    if (inlineForm) inlineForm.classList.add('hidden');
+    if (extCard) extCard.classList.add('hidden');
+    refreshLucideIcons();
+    return;
+  } else {
+    if (banner) banner.classList.add('hidden');
+  }
+
+  // Route based on registrar support:
+  if (ipo.supported_inline) {
+    // 4a: Link Intime inline live query
+    if (inlineForm) inlineForm.classList.remove('hidden');
+    if (extCard) extCard.classList.add('hidden');
+  } else {
+    // 4b: External Registrar routing
+    if (inlineForm) inlineForm.classList.add('hidden');
+    if (extCard) extCard.classList.remove('hidden');
+
+    const regName = formatRegistrarDisplay(ipo.registrar_name);
+    const extTitle = document.getElementById('external-registrar-title');
+    if (extTitle) extTitle.textContent = `This IPO's registrar is ${regName}`;
+
+    const extBtn = document.getElementById('allotment-external-btn');
+    const extBtnText = document.getElementById('allotment-external-btn-text');
+    const regUrl = ipo.registrar_allotment_url ||
+                   DEFAULT_REGISTRAR_EXTERNAL_URLS[(ipo.registrar_name || '').toUpperCase()] ||
+                   'https://www.chittorgarh.com/report/ipo-allotment-status-check-date-process/23/';
+
+    if (extBtn) extBtn.href = regUrl;
+    if (extBtnText) extBtnText.textContent = `Open ${regName} Allotment Page ↗`;
+  }
+
+  refreshLucideIcons();
+}
+
+function updateIdentifierLabel() {
+  const queryType = document.querySelector('input[name="query_type"]:checked')?.value || 'PAN';
+  const label = document.getElementById('identifier-label');
+  const input = document.getElementById('query-value');
+  if (!label || !input) return;
+
+  if (queryType === 'PAN') {
+    label.textContent = 'PAN Number';
+    input.placeholder = 'e.g. ABCDE1234F';
+    input.style.textTransform = 'uppercase';
+  } else if (queryType === 'APPLICATION_NO') {
+    label.textContent = 'Application Number';
+    input.placeholder = 'e.g. 12345678';
+    input.style.textTransform = 'none';
+  } else if (queryType === 'DP_CLIENT_ID') {
+    label.textContent = 'DP / Client ID';
+    input.placeholder = 'e.g. 1208160012345678 or IN30012612345678';
+    input.style.textTransform = 'uppercase';
+  }
 }
 
 async function handleAllotmentSubmit(e) {
   e.preventDefault();
-  const companyId = document.getElementById('allotment-company-select').value;
-  if (!companyId) {
-    alert('Please choose an IPO issue first.');
+  if (!selectedAllotmentIpo) {
+    alert('Please select an IPO issue from the search box.');
     return;
   }
-  const queryType = document.querySelector('input[name="query_type"]:checked').value;
-  const queryVal = document.getElementById('query-value').value.trim();
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (selectedAllotmentIpo.allotment_date && selectedAllotmentIpo.allotment_date > todayStr) {
+    alert(`Allotment is expected on ${formatAllotmentDate(selectedAllotmentIpo.allotment_date)}. Live check is not yet active.`);
+    return;
+  }
+
+  const companyId = document.getElementById('allotment-company-select')?.value || selectedAllotmentIpo.company_name;
+  const queryType = document.querySelector('input[name="query_type"]:checked')?.value || 'PAN';
+  const queryVal = (document.getElementById('query-value')?.value || '').trim();
+
+  if (!queryVal || queryVal.length < 3) {
+    alert('Please enter a valid identifier.');
+    return;
+  }
+
   const btn = document.getElementById('allotment-submit-btn');
   const spinner = document.getElementById('allotment-spinner');
   const resultBox = document.getElementById('allotment-result');
 
-  btn.disabled = true;
-  spinner.classList.remove('hidden');
+  if (btn) btn.disabled = true;
+  if (spinner) spinner.classList.remove('hidden');
 
   try {
     const res = await fetch('/api/v1/allotment/linkintime/check', {
@@ -714,49 +1121,66 @@ async function handleAllotmentSubmit(e) {
       body: JSON.stringify({ company_id: companyId, query_type: queryType, query_value: queryVal })
     });
     const data = await res.json();
-    resultBox.classList.remove('hidden');
+    if (resultBox) resultBox.classList.remove('hidden');
 
     if (!res.ok || data.status === 'ERROR' || data.success === false) {
-      resultBox.innerHTML = `
-        <div class="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
-          <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 text-rose-500"></i>
-          <span>${data.message || 'Registrar unavailable, try again later'}</span>
-        </div>
-      `;
+      const errorMsg = data.message || 'Registrar unavailable';
+      if (resultBox) {
+        resultBox.innerHTML = `
+          <div class="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+            <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 text-rose-500"></i>
+            <span>${errorMsg}</span>
+          </div>
+        `;
+      }
       refreshLucideIcons();
       return;
     }
 
     const isAllotted = data.status === 'ALLOTTED';
+    const isNotFound = data.status === 'NOT_FOUND';
 
-    resultBox.innerHTML = `
-      <div class="p-4 rounded-xl ${isAllotted ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800'} space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-slate-700 dark:text-slate-300">${data.company_name}</span>
-          <span class="text-[10px] font-bold px-2 py-0.5 rounded ${isAllotted ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}">${data.status}</span>
+    if (resultBox) {
+      resultBox.innerHTML = `
+        <div class="p-4 rounded-xl ${isAllotted ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800' : isNotFound ? 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800' : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800'} space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-800 dark:text-slate-200">${data.company_name || selectedAllotmentIpo.company_name}</span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded ${isAllotted ? 'bg-emerald-600 text-white' : isNotFound ? 'bg-amber-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}">${data.status}</span>
+          </div>
+          <p class="text-xs font-semibold text-slate-900 dark:text-white leading-relaxed">${data.message}</p>
+          <div class="grid grid-cols-2 gap-2 text-[11px] bg-white dark:bg-[#121826] p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+            <div><span class="text-slate-400 block text-[10px]">Applied</span> ${data.shares_applied ?? '—'} sh</div>
+            <div><span class="text-slate-400 block text-[10px]">Allotted</span> <strong class="${isAllotted ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}">${data.shares_allotted ?? 0} sh</strong></div>
+          </div>
         </div>
-        <p class="text-xs font-semibold text-slate-900 dark:text-white">${data.message}</p>
-        <div class="grid grid-cols-2 gap-2 text-[11px] bg-white dark:bg-[#121826] p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
-          <div><span class="text-slate-400 block text-[10px]">Applied</span> ${data.shares_applied ?? '—'} sh</div>
-          <div><span class="text-slate-400 block text-[10px]">Allotted</span> <strong class="${isAllotted ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-300'}">${data.shares_allotted ?? 0} sh</strong></div>
-        </div>
-      </div>
-    `;
+      `;
+    }
     refreshLucideIcons();
   } catch (err) {
-    resultBox.classList.remove('hidden');
-    resultBox.innerHTML = `
-      <div class="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
-        <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 text-rose-500"></i>
-        <span>Registrar unavailable, try again later</span>
-      </div>
-    `;
+    if (resultBox) {
+      resultBox.classList.remove('hidden');
+      resultBox.innerHTML = `
+        <div class="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+          <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 text-rose-500"></i>
+          <span>Registrar unavailable</span>
+        </div>
+      `;
+    }
     refreshLucideIcons();
   } finally {
-    btn.disabled = false;
-    spinner.classList.add('hidden');
+    if (btn) btn.disabled = false;
+    if (spinner) spinner.classList.add('hidden');
   }
 }
+
+// Close combobox dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const wrapper = document.getElementById('allotment-combobox-wrapper');
+  if (wrapper && !wrapper.contains(e.target)) {
+    closeAllotmentCombobox();
+  }
+});
+
 
 // ==================== SCORING METHODOLOGY DYNAMIC RENDERING & CALCULATOR ====================
 let scoringRulesData = null;

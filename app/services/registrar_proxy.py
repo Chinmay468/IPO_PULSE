@@ -16,10 +16,25 @@ from app.schemas.ipo import (
 logger = logging.getLogger(__name__)
 
 
+def mask_identifier(val: Optional[str]) -> str:
+    """
+    Masks applicant identifiers (PAN, Application No, DP/Client ID) for logging and API outputs.
+    Guarantees compliance: raw identifiers are never logged, stored, or returned.
+    Example: 'ABCDE1234F' -> 'AB****4F'
+    """
+    if not val:
+        return ""
+    s = str(val).strip()
+    if len(s) <= 4:
+        return "****"
+    return f"{s[:2]}****{s[-2:]}"
+
+
 class RegistrarProxyService:
     """
     Proxy service to query IPO allotment status from Link Intime / MUFG Intime.
     Provides company dropdown fetch and applicant allotment status resolution.
+    Strictly follows security policies: masks identifiers and never returns fabricated results.
     """
 
     DEFAULT_HEADERS = {
@@ -34,26 +49,11 @@ class RegistrarProxyService:
         "Referer": "https://in.mpms.mufg.com/Initial_Offer/public-issues.html",
     }
 
-    # Standard fallback companies if registrar endpoint is temporarily unreachable
-    FALLBACK_COMPANIES = [
-        {"company_id": "11959", "company_name": "Runwal Enterprise Limited - IPO"},
-        {"company_id": "11960", "company_name": "Acevector Limited - IPO"},
-        {"company_id": "11958", "company_name": "Moneyview Limited - IPO"},
-        {"company_id": "11957", "company_name": "Swastika Infra Limited - IPO"},
-        {"company_id": "11956", "company_name": "Anand Seamless Limited - SME IPO"},
-        {"company_id": "11954", "company_name": "Vivekanand Cotspin Limited - SME IPO"},
-        {"company_id": "11955", "company_name": "FX Multitech Limited - SME IPO"},
-        {"company_id": "11953", "company_name": "National Stock Exchange Of India Limited - IPO"},
-        {"company_id": "1005", "company_name": "Hyundai Motor India Limited"},
-        {"company_id": "1001", "company_name": "Tata Technologies Limited"},
-        {"company_id": "1006", "company_name": "Swiggy Limited"},
-        {"company_id": "1007", "company_name": "NTPC Green Energy Limited"}
-    ]
-
     @classmethod
     async def get_linkintime_companies(cls) -> List[RegistrarCompanyItem]:
         """
         Fetches the current live list of available companies from Link Intime / MUFG Intime portal.
+        Returns an empty list if the registrar endpoint is temporarily unreachable.
         """
         url = f"{settings.LINK_INTIME_API_URL}/GetDetails"
         try:
@@ -104,27 +104,50 @@ class RegistrarProxyService:
         except Exception as exc:
             logger.warning(f"HTML scraping fallback for Link Intime companies also encountered: {exc}")
 
-        # Return fallback catalog
-        return [RegistrarCompanyItem(**c) for c in cls.FALLBACK_COMPANIES]
+        # If live fetch fails, return empty list (no hardcoded fallbacks)
+        return []
 
     @classmethod
     async def query_allotment(cls, request: AllotmentQueryRequest) -> AllotmentResultResponse:
         """
         Executes an allotment query against Link Intime for the requested company and identifier.
+        Never logs or returns unmasked identifiers. Never fabricates results.
         """
         clean_val = request.query_value.strip().upper()
         clean_cid = request.company_id.strip()
+        masked_val = mask_identifier(clean_val)
 
-        # Resolve company display name
+        logger.info(f"Checking Link Intime allotment for clientid={clean_cid}, identifier={masked_val}")
+
+        # Resolve company display name & check availability
         companies = await cls.get_linkintime_companies()
-        company_name = next(
-            (c.company_name for c in companies if c.company_id == clean_cid or c.company_name.lower() == clean_cid.lower()),
-            f"IPO (Code: {clean_cid})"
+        matched_comp = next(
+            (c for c in companies if c.company_id == clean_cid or c.company_name.lower() == clean_cid.lower()),
+            None
         )
 
-        # 1. Attempt live MUFG / Link Intime SearchOnPan API with dynamic token
+        # If company list is loaded and this company id is not present, report not listed
+        if companies and not matched_comp:
+            logger.info(f"Company ID {clean_cid} is no longer available on the registrar.")
+            return AllotmentResultResponse(
+                success=False,
+                status=AllotmentStatus.ERROR,
+                company_name=f"IPO (Code: {clean_cid})",
+                company_id=clean_cid,
+                applicant_name=None,
+                pan=None,
+                application_no=None,
+                dp_client_id=None,
+                shares_applied=0,
+                shares_allotted=0,
+                refund_amount=0.0,
+                message="No longer available on the registrar"
+            )
+
+        company_name = matched_comp.company_name if matched_comp else f"IPO (Code: {clean_cid})"
+
+        # Attempt live MUFG / Link Intime SearchOnPan API with dynamic token
         try:
-            # Map query type to CHKVAL: '1' for PAN, '2' for App No, '3' for DP/Client ID
             chkval_map = {
                 AllotmentQueryType.PAN: "1",
                 AllotmentQueryType.APPLICATION_NO: "2",
@@ -133,12 +156,29 @@ class RegistrarProxyService:
             chkval = chkval_map.get(request.query_type, "1")
 
             async with httpx.AsyncClient(timeout=settings.REQUEST_TIMEOUT_SECONDS, follow_redirects=True) as client:
-                # Generate session token
+                # 1. Generate session token
                 token_url = f"{settings.LINK_INTIME_API_URL}/generateToken"
-                token_res = await client.post(token_url, json={}, headers=cls.DEFAULT_HEADERS)
-                token = token_res.json().get("d", "") if token_res.status_code == 200 else ""
+                try:
+                    token_res = await client.post(token_url, json={}, headers=cls.DEFAULT_HEADERS)
+                    token = token_res.json().get("d", "") if token_res.status_code == 200 else ""
+                except Exception as t_err:
+                    logger.warning(f"Failed to generate Link Intime session token: {t_err}")
+                    return AllotmentResultResponse(
+                        success=False,
+                        status=AllotmentStatus.ERROR,
+                        company_name=company_name,
+                        company_id=clean_cid,
+                        applicant_name=None,
+                        pan=None,
+                        application_no=None,
+                        dp_client_id=None,
+                        shares_applied=0,
+                        shares_allotted=0,
+                        refund_amount=0.0,
+                        message="Registrar unavailable"
+                    )
 
-                # Execute search
+                # 2. Execute search
                 search_url = f"{settings.LINK_INTIME_API_URL}/SearchOnPan"
                 payload = {
                     "clientid": clean_cid,
@@ -159,7 +199,9 @@ class RegistrarProxyService:
                             first = tables[0]
                             allot_el = first.find("ALLOT")
                             appl_el = first.find("APPL")
-                            name_el = first.find("NAME1") or first.find("name")
+                            name_el = first.find("NAME1")
+                            if name_el is None:
+                                name_el = first.find("name")
                             rfnd_el = first.find("RFNDAMT")
                             sec_el = first.find("SEC")
 
@@ -179,9 +221,9 @@ class RegistrarProxyService:
                                 company_name=company_name,
                                 company_id=clean_cid,
                                 applicant_name=applicant,
-                                pan=clean_val if request.query_type == AllotmentQueryType.PAN else None,
-                                application_no=clean_val if request.query_type == AllotmentQueryType.APPLICATION_NO else None,
-                                dp_client_id=clean_val if request.query_type == AllotmentQueryType.DP_CLIENT_ID else None,
+                                pan=masked_val if request.query_type == AllotmentQueryType.PAN else None,
+                                application_no=masked_val if request.query_type == AllotmentQueryType.APPLICATION_NO else None,
+                                dp_client_id=masked_val if request.query_type == AllotmentQueryType.DP_CLIENT_ID else None,
                                 shares_applied=shares_applied,
                                 shares_allotted=shares_allotted,
                                 refund_amount=refund_amt,
@@ -195,28 +237,88 @@ class RegistrarProxyService:
                             company_name=company_name,
                             company_id=clean_cid,
                             applicant_name="N/A",
-                            pan=clean_val if request.query_type == AllotmentQueryType.PAN else None,
-                            application_no=clean_val if request.query_type == AllotmentQueryType.APPLICATION_NO else None,
-                            dp_client_id=clean_val if request.query_type == AllotmentQueryType.DP_CLIENT_ID else None,
+                            pan=masked_val if request.query_type == AllotmentQueryType.PAN else None,
+                            application_no=masked_val if request.query_type == AllotmentQueryType.APPLICATION_NO else None,
+                            dp_client_id=masked_val if request.query_type == AllotmentQueryType.DP_CLIENT_ID else None,
                             shares_applied=0,
                             shares_allotted=0,
-                            message=f"No application record found for {clean_val} under {company_name}. Please verify your PAN/Application number."
+                            message=f"No application record found for {masked_val} under {company_name}. Please verify your details."
                         )
+                    else:
+                        logger.warning(f"Unexpected response format from Link Intime for cid={clean_cid}: {xml_str[:100]}")
+                        return AllotmentResultResponse(
+                            success=False,
+                            status=AllotmentStatus.ERROR,
+                            company_name=company_name,
+                            company_id=clean_cid,
+                            applicant_name=None,
+                            pan=None,
+                            application_no=None,
+                            dp_client_id=None,
+                            shares_applied=0,
+                            shares_allotted=0,
+                            refund_amount=0.0,
+                            message="No longer available on the registrar"
+                        )
+                elif res.status_code in [404, 400]:
+                    return AllotmentResultResponse(
+                        success=False,
+                        status=AllotmentStatus.ERROR,
+                        company_name=company_name,
+                        company_id=clean_cid,
+                        applicant_name=None,
+                        pan=None,
+                        application_no=None,
+                        dp_client_id=None,
+                        shares_applied=0,
+                        shares_allotted=0,
+                        refund_amount=0.0,
+                        message="No longer available on the registrar"
+                    )
+                else:
+                    return AllotmentResultResponse(
+                        success=False,
+                        status=AllotmentStatus.ERROR,
+                        company_name=company_name,
+                        company_id=clean_cid,
+                        applicant_name=None,
+                        pan=None,
+                        application_no=None,
+                        dp_client_id=None,
+                        shares_applied=0,
+                        shares_allotted=0,
+                        refund_amount=0.0,
+                        message="Registrar unavailable"
+                    )
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.ConnectError) as net_err:
+            logger.warning(f"Network error communicating with Link Intime: {net_err}")
+            return AllotmentResultResponse(
+                success=False,
+                status=AllotmentStatus.ERROR,
+                company_name=company_name,
+                company_id=clean_cid,
+                applicant_name=None,
+                pan=None,
+                application_no=None,
+                dp_client_id=None,
+                shares_applied=0,
+                shares_allotted=0,
+                refund_amount=0.0,
+                message="Registrar unavailable"
+            )
         except Exception as exc:
-            logger.warning(f"Live Link Intime query failed: {exc}")
-
-        # If registrar query fails or is unreachable, return clear error
-        return AllotmentResultResponse(
-            success=False,
-            status=AllotmentStatus.ERROR,
-            company_name=company_name,
-            company_id=clean_cid,
-            applicant_name=None,
-            pan=None,
-            application_no=None,
-            dp_client_id=None,
-            shares_applied=0,
-            shares_allotted=0,
-            refund_amount=0.0,
-            message="Registrar unavailable, try again later"
-        )
+            logger.warning(f"Live Link Intime query failed for cid={clean_cid}, id={masked_val}: {exc}")
+            return AllotmentResultResponse(
+                success=False,
+                status=AllotmentStatus.ERROR,
+                company_name=company_name,
+                company_id=clean_cid,
+                applicant_name=None,
+                pan=None,
+                application_no=None,
+                dp_client_id=None,
+                shares_applied=0,
+                shares_allotted=0,
+                refund_amount=0.0,
+                message="Registrar unavailable"
+            )

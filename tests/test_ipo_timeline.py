@@ -179,14 +179,16 @@ async def test_scheduled_ipo_status_correction(db_session, monkeypatch):
     from unittest.mock import patch
 
     # Create an IPO that was marked LIVE but close_date has passed
+    from datetime import timedelta
+    today_dt = date.today()
     old_closed_ipo = IPO(
         symbol="EXPIREDLIVE",
         company_name="Expired Live Ltd",
         ipo_type=IPOType.MAINBOARD,
         status=IPOStatus.LIVE,  # Stuck as LIVE
-        open_date=date(2026, 10, 1),
-        close_date=date(2026, 10, 5),
-        listing_date=date(2026, 10, 15),
+        open_date=today_dt - timedelta(days=15),
+        close_date=today_dt - timedelta(days=10),
+        listing_date=today_dt + timedelta(days=10),
         issue_price=100.0,
     )
     db_session.add(old_closed_ipo)
