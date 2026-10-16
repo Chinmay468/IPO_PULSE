@@ -6,7 +6,7 @@ from sqlalchemy import select, or_
 
 from app.database import get_db
 from app.models.ipo import IPO, IPOStatus
-from app.core.registrars import CanonicalRegistrar, DEFAULT_REGISTRAR_URLS
+from app.core.registrars import CanonicalRegistrar, DEFAULT_REGISTRAR_URLS, normalize_registrar_name
 from app.schemas.ipo import (
     RegistrarCompanyItem,
     AllotmentQueryRequest,
@@ -61,8 +61,9 @@ async def list_allotment_ipos(
 
     items: List[AllotmentIPOItem] = []
     for ipo in ipos:
-        is_inline = bool(ipo.registrar_name and ipo.registrar_name.upper() == CanonicalRegistrar.LINKINTIME)
-        allot_url = ipo.registrar_allotment_url or (DEFAULT_REGISTRAR_URLS.get(ipo.registrar_name) if ipo.registrar_name else None)
+        norm_reg = normalize_registrar_name(ipo.registrar_name)
+        is_inline = bool(norm_reg == CanonicalRegistrar.LINKINTIME)
+        allot_url = ipo.registrar_allotment_url or (DEFAULT_REGISTRAR_URLS.get(norm_reg) if norm_reg else None)
 
         items.append(
             AllotmentIPOItem(
@@ -71,7 +72,7 @@ async def list_allotment_ipos(
                 company_name=ipo.company_name,
                 status=ipo.status.value if hasattr(ipo.status, "value") else str(ipo.status),
                 ipo_type=ipo.ipo_type.value if hasattr(ipo.ipo_type, "value") else str(ipo.ipo_type),
-                registrar_name=ipo.registrar_name,
+                registrar_name=norm_reg or ipo.registrar_name,
                 registrar_code=ipo.registrar_code,
                 registrar_allotment_url=allot_url,
                 allotment_date=ipo.allotment_date,
