@@ -1,9 +1,11 @@
 import logging
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.services.scraper_service import ScraperService
@@ -160,6 +162,84 @@ async def scheduled_chittorgarh_live_sync():
         logger.error("Error during scheduled Chittorgarh live sync: %s", exc, exc_info=True)
 
 
+async def correct_ipo_statuses(session: AsyncSession) -> int:
+    """
+    Derives and corrects stored ipos.status based on IST dates for all active IPOs,
+    and recalculates composite scores using consensus GMP and final subscription data.
+    Returns the count of updated IPOs.
+    """
+    from app.core.ipo_timeline import derive_ipo_status
+    from app.models.ipo import IPO, IPOScore, IPOGmp
+    from app.services.scoring_service import ScoringService
+    from app.services.consensus_gmp import ConsensusGmpService
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    stmt = select(IPO).options(
+        selectinload(IPO.score),
+        selectinload(IPO.subscriptions),
+        selectinload(IPO.gmp_records),
+    )
+    ipos = (await session.execute(stmt)).scalars().all()
+    updated_count = 0
+    now_utc = datetime.now(timezone.utc)
+
+    for ipo in ipos:
+        # If dates are known, dates_tba must be False
+        if ipo.open_date is not None and ipo.close_date is not None and getattr(ipo, "dates_tba", False):
+            ipo.dates_tba = False
+
+        new_status = derive_ipo_status(
+            ipo.open_date,
+            ipo.close_date,
+            ipo.listing_date,
+            dates_tba=getattr(ipo, "dates_tba", False)
+        )
+        if ipo.status != new_status:
+            ipo.status = new_status
+            ipo.updated_at = now_utc
+
+            # Recalculate score with consensus GMP
+            consensus = await ConsensusGmpService.get_ipo_consensus_gmp(session, ipo.id)
+            latest_gmp = None
+            if consensus["status"] == "fresh" and consensus["gmp_amount"] is not None:
+                latest_gmp = IPOGmp(
+                    ipo_id=ipo.id,
+                    gmp_amount=consensus["gmp_amount"],
+                    gmp_percentage=consensus["gmp_percentage"],
+                    source="consensus",
+                    recorded_at=now_utc
+                )
+            latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
+            score_data = ScoringService.calculate_score(ipo, latest_sub, latest_gmp)
+
+            if ipo.score:
+                ipo.score.composite_score = score_data["composite_score"]
+                ipo.score.recommendation = score_data["recommendation"]
+                ipo.score.gmp_score = score_data["gmp_score"]
+                ipo.score.subscription_score = score_data["subscription_score"]
+                ipo.score.valuation_score = score_data["valuation_score"]
+                ipo.score.structure_score = score_data["structure_score"]
+                ipo.score.rationale = score_data["rationale"]
+                ipo.score.calculated_at = now_utc
+            else:
+                new_score = IPOScore(
+                    ipo_id=ipo.id,
+                    composite_score=score_data["composite_score"],
+                    recommendation=score_data["recommendation"],
+                    gmp_score=score_data["gmp_score"],
+                    subscription_score=score_data["subscription_score"],
+                    valuation_score=score_data["valuation_score"],
+                    structure_score=score_data["structure_score"],
+                    rationale=score_data["rationale"],
+                    calculated_at=now_utc
+                )
+                session.add(new_score)
+            updated_count += 1
+
+    return updated_count
+
+
 async def scheduled_ipo_status_correction():
     """
     Daily scheduled job that derives and corrects IPO statuses based on IST dates,
@@ -167,54 +247,8 @@ async def scheduled_ipo_status_correction():
     """
     logger.info("Executing scheduled IPO status correction job...")
     try:
-        from app.core.ipo_timeline import derive_ipo_status
-        from app.models.ipo import IPO, IPOScore
-        from app.services.scoring_service import ScoringService
-        from sqlalchemy import select
-        from sqlalchemy.orm import selectinload
-
         async with AsyncSessionLocal() as session:
-            stmt = select(IPO).options(
-                selectinload(IPO.score),
-                selectinload(IPO.subscriptions),
-                selectinload(IPO.gmp_records),
-            )
-            ipos = (await session.execute(stmt)).scalars().all()
-            updated_count = 0
-            for ipo in ipos:
-                new_status = derive_ipo_status(
-                    ipo.open_date,
-                    ipo.close_date,
-                    ipo.listing_date,
-                    dates_tba=getattr(ipo, "dates_tba", False)
-                )
-                if ipo.status != new_status:
-                    ipo.status = new_status
-                    latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
-                    latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
-                    score_data = ScoringService.calculate_score(ipo, latest_sub, latest_gmp)
-                    if ipo.score:
-                        ipo.score.composite_score = score_data["composite_score"]
-                        ipo.score.recommendation = score_data["recommendation"]
-                        ipo.score.gmp_score = score_data["gmp_score"]
-                        ipo.score.subscription_score = score_data["subscription_score"]
-                        ipo.score.valuation_score = score_data["valuation_score"]
-                        ipo.score.structure_score = score_data["structure_score"]
-                        ipo.score.rationale = score_data["rationale"]
-                        ipo.score.calculated_at = datetime.now(timezone.utc)
-                    else:
-                        new_score = IPOScore(
-                            ipo_id=ipo.id,
-                            composite_score=score_data["composite_score"],
-                            recommendation=score_data["recommendation"],
-                            gmp_score=score_data["gmp_score"],
-                            subscription_score=score_data["subscription_score"],
-                            valuation_score=score_data["valuation_score"],
-                            structure_score=score_data["structure_score"],
-                            rationale=score_data["rationale"],
-                        )
-                        session.add(new_score)
-                    updated_count += 1
+            updated_count = await correct_ipo_statuses(session)
             await session.commit()
             logger.info("Scheduled IPO status correction finished: %d IPO statuses updated.", updated_count)
     except Exception as exc:

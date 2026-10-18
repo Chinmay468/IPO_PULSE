@@ -82,8 +82,22 @@ SCORING_CONFIG: Dict[str, Any] = {
             "badge_class": "badge-AVOID",
             "color": "rose",
             "description": "Unfavourable risk-reward ratio due to muted demand, negative/negligible GMP, or elevated valuation."
+        },
+        {
+            "tier": "INSUFFICIENT DATA",
+            "min_score": 0.0,
+            "max_score": 100.0,
+            "badge_class": "badge-INSUFFICIENT_DATA",
+            "color": "slate",
+            "description": "Evaluated inputs account for less than 50% available confidence weight. Score is not finalized to prevent false avoid signals."
         }
     ],
+    "missing_data_policy": {
+        "rule": "Proportional Scaling",
+        "description": "Missing inputs contribute 0 points AND are excluded from the maximum available weight denominator, so the score is scaled to the points that could be evaluated. Never awards default points for unknown data.",
+        "confidence_threshold": 0.50,
+        "confidence_formula": "Confidence = Available Evaluated Weight / 100. If confidence < 50%, recommendation is INSUFFICIENT DATA (neutral grey)."
+    },
     "pillars": {
         "gmp": {
             "title": "1. Grey Market Premium (GMP)",

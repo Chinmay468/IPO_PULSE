@@ -101,5 +101,6 @@ async def get_scraper_status(db: AsyncSession = Depends(get_db)):
         "last_full_sync": last_fetched.isoformat() if last_fetched else None,
         "last_sync_age_seconds": round(age_seconds, 1) if age_seconds is not None else None,
         "is_discovery_stale": is_stale,
-        "stale_warning": "Discovery sync has not completed within 24 hours. Primary listings may be stale." if is_stale else None
+        "stale_warning": "Discovery sync has not completed within 24 hours. Primary listings may be stale." if is_stale else None,
+        "gmp_quality": ScraperService.get_gmp_quality_status()
     }

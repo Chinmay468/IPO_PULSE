@@ -1017,6 +1017,84 @@ async def test_all_keys_groq_and_gemini_exhausted_waits_120s_and_retries(monkeyp
     assert "Recovered after 120s cooldown retry" in answer
 
 
+@pytest.mark.asyncio
+async def test_answer_portfolio_query_apply1_shorthand(mock_advisory_data):
+    """Verifies queries like 'apply1' or 'apply' return active IPO recommendations without TypeError on string scores."""
+    active_ipos = [
+        {
+            "symbol": "ACME",
+            "company_name": "ACME Industries",
+            "status": "LIVE",
+            "price_band": "₹120 - ₹128",
+            "gmp": "₹32 (25.0%)",
+            "subscription": "Total 14.2x",
+            "score": "82.5/100",
+            "recommendation": "STRONG APPLY",
+        },
+        {
+            "symbol": "BETA",
+            "company_name": "Beta Tech",
+            "status": "LIVE",
+            "price_band": "₹50 - ₹55",
+            "gmp": "N/A",
+            "subscription": "N/A",
+            "score": "N/A",
+            "recommendation": "AVOID",
+        },
+        {
+            "symbol": "GAMMA",
+            "company_name": "Gamma Power",
+            "status": "UPCOMING",
+            "price_band": "TBA",
+            "gmp": "N/A",
+            "subscription": "N/A",
+            "score": None,
+            "recommendation": "N/A",
+        },
+    ]
+
+    # Test "apply1"
+    res1 = answer_portfolio_query("apply1", mock_advisory_data, active_ipos=active_ipos)
+    assert "Top Active IPO Recommendations" in res1
+    assert "ACME" in res1
+
+    # Test "apply"
+    res2 = answer_portfolio_query("apply", mock_advisory_data, active_ipos=active_ipos)
+    assert "Top Active IPO Recommendations" in res2
+    assert "ACME" in res2
+
+
+@pytest.mark.asyncio
+async def test_ask_endpoint_null_safe_gmp_and_fallback(monkeypatch):
+    """Verifies /advisory/ask handles IPOs with null GMP percentage and falls back gracefully on LLM error."""
+    import httpx
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from app.auth import require_auth, get_current_user_id
+
+    app.dependency_overrides[require_auth] = lambda: True
+    app.dependency_overrides[get_current_user_id] = lambda: 1
+
+    # Mock groq_answer_query to raise an error to test graceful fallback
+    async def mock_fail_groq(*args, **kwargs):
+        raise RuntimeError("Simulated LLM network timeout")
+
+    monkeypatch.setattr("app.services.portfolio_advisor_service.groq_answer_query", mock_fail_groq)
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            resp = await ac.post("/api/v1/portfolio/advisory/ask", json={"query": "apply1", "history": []})
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["query"] == "apply1"
+            assert data["source"] == "fallback"
+            assert len(data["answer"]) > 0
+    finally:
+        app.dependency_overrides.pop(require_auth, None)
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+
+
 
 
 

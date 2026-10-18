@@ -33,8 +33,10 @@ class IPOStatus(str, enum.Enum):
 class RecommendationType(str, enum.Enum):
     STRONG_APPLY = "STRONG APPLY"
     APPLY = "APPLY"
+    APPLY_VERIFY_GMP = "Apply, verify GMP"
     NEUTRAL = "NEUTRAL"
     AVOID = "AVOID"
+    INSUFFICIENT_DATA = "INSUFFICIENT DATA"
 
 
 class IPO(Base):
@@ -160,6 +162,11 @@ class IPO(Base):
         "IPOListing",
         back_populates="ipo",
         uselist=False,
+        cascade="all, delete-orphan"
+    )
+    aliases: Mapped[List["IPOAlias"]] = relationship(
+        "IPOAlias",
+        back_populates="ipo",
         cascade="all, delete-orphan"
     )
 
@@ -314,4 +321,41 @@ class IPOListing(Base):
     )
 
     ipo: Mapped["IPO"] = relationship("IPO", back_populates="listing_info")
+
+
+class IPOAlias(Base):
+    __tablename__ = "ipo_aliases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    ipo_id: Mapped[int] = mapped_column(Integer, ForeignKey("ipos.id", ondelete="CASCADE"), index=True, nullable=False)
+    alias: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    source: Mapped[str] = mapped_column(String(50), default="manual", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    ipo: Mapped["IPO"] = relationship("IPO", back_populates="aliases")
+
+
+class IPOPreListingGmp(Base):
+    """
+    SQL View representation of the last recorded GMP for each IPO prior to (or on) its listing date.
+    Used for GMP vs listing gain tracking and historical post-mortems.
+    """
+    __tablename__ = "ipo_pre_listing_gmp"
+    __table_args__ = {"extend_existing": True}
+
+    gmp_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ipo_id: Mapped[int] = mapped_column(Integer)
+    symbol: Mapped[str] = mapped_column(String)
+    company_name: Mapped[str] = mapped_column(String)
+    gmp_amount: Mapped[float] = mapped_column(Float)
+    gmp_percentage: Mapped[float] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    listing_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    issue_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
 

@@ -9,7 +9,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+GEMINI_API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 GEMINI_SEARCH_TOOLS = [{
     "function_declarations": [{
@@ -206,12 +206,16 @@ async def call_gemini(
             key_succeeded = False
 
             for model_id in models_to_try:
-                url = GEMINI_API_URL_TEMPLATE.format(model=model_id, api_key=active_key)
+                url = GEMINI_API_URL_TEMPLATE.format(model=model_id)
                 current_payload = dict(payload)
 
                 for turn in range(3):
                     try:
-                        resp = await client.post(url, json=current_payload)
+                        resp = await client.post(
+                            url,
+                            json=current_payload,
+                            headers={"x-goog-api-key": active_key},
+                        )
                     except Exception as exc:
                         logger.warning("[Gemini] Connection error: %s", exc)
                         last_error = exc

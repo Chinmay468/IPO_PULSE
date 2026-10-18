@@ -20,8 +20,8 @@ def test_scoring_strong_apply():
     )
     gmp = IPOGmp(
         ipo_id=1,
-        gmp_amount=400.0,
-        gmp_percentage=80.0,
+        gmp_amount=175.0,
+        gmp_percentage=35.0,
         source="market"
     )
     sub = IPOSubscription(

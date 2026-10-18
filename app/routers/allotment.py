@@ -39,7 +39,7 @@ async def list_allotment_ipos(
     Allows search filtering by query substring (q) and lifecycle status.
     If database has no matching records, returns an empty list with a clear message.
     """
-    query = select(IPO)
+    query = select(IPO).where(IPO.is_seed.is_(False))
 
     # 1. Search filter across company name and symbol
     if q and q.strip():

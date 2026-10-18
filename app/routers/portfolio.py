@@ -287,27 +287,41 @@ async def ask_portfolio_advisor(
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
     history = data.get("chat_history") or data.get("history") or data.get("messages") or []
 
-    # 1. Fetch live portfolio summary
-    summary = await svc.get_portfolio_summary(db, user_id=user_id)
-    from app.services.portfolio_advisor_service import generate_portfolio_advisory, groq_answer_query
+    from app.services.portfolio_advisor_service import (
+        generate_portfolio_advisory,
+        groq_answer_query,
+        answer_portfolio_query,
+    )
     from app.models.ipo import IPO, IPOStatus
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 
-    holdings_dict = [h.model_dump() for h in summary.holdings]
-    advisory_data = await generate_portfolio_advisory(holdings_dict)
-    advisory_data["portfolio_summary"] = summary.model_dump()
+    # 1. Fetch live portfolio summary & advisory safely
+    summary = None
+    advisory_data: dict = {
+        "health_score": 50,
+        "health_verdict": "Empty Portfolio",
+        "stock_advisories": [],
+        "holdings": [],
+    }
+    try:
+        summary = await svc.get_portfolio_summary(db, user_id=user_id)
+        holdings_dict = [h.model_dump() for h in summary.holdings]
+        advisory_data = await generate_portfolio_advisory(holdings_dict)
+        advisory_data["portfolio_summary"] = summary.model_dump()
 
-    # Log context totals (without secrets) on each /ask call
-    logger.info(
-        "[Ask Endpoint Totals] query=%r total_invested=%.2f current_value=%.2f overall_pnl=%.2f (%.2f%%) holdings_count=%d",
-        query,
-        summary.total_invested,
-        summary.current_value,
-        summary.total_unrealized_pnl,
-        summary.total_pnl_pct,
-        summary.holdings_count
-    )
+        # Log context totals (without secrets) on each /ask call
+        logger.info(
+            "[Ask Endpoint Totals] query=%r total_invested=%.2f current_value=%.2f overall_pnl=%.2f (%.2f%%) holdings_count=%d",
+            query,
+            summary.total_invested or 0.0,
+            summary.current_value or 0.0,
+            summary.total_unrealized_pnl or 0.0,
+            summary.total_pnl_pct or 0.0,
+            summary.holdings_count or 0,
+        )
+    except Exception as e:
+        logger.warning("Could not build portfolio summary/advisory for /ask: %s", e)
 
     # 2. Fetch live & upcoming IPOs with subscriptions, GMP records, and scores
     ipos_data = []
@@ -330,22 +344,43 @@ async def ask_portfolio_advisor(
             latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
             latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
 
-            if ipo.price_band_low and ipo.price_band_high:
+            if ipo.price_band_low is not None and ipo.price_band_high is not None:
                 pband = f"₹{ipo.price_band_low:,.0f} - ₹{ipo.price_band_high:,.0f}"
-            elif ipo.issue_price:
+            elif ipo.issue_price is not None:
                 pband = f"₹{ipo.issue_price:,.0f}"
             else:
                 pband = "TBA"
 
-            gmp_str = f"₹{latest_gmp.gmp_amount:,.0f} ({latest_gmp.gmp_percentage:.1f}%)" if latest_gmp else "N/A"
-            sub_str = f"Total {latest_sub.total_multiple:.1f}x (QIB {latest_sub.qib_multiple or 0:.1f}x, Retail {latest_sub.retail_multiple or 0:.1f}x)" if latest_sub else "N/A"
-            score_str = f"{ipo.score.composite_score:.1f}/100" if ipo.score else "N/A"
-            rec_str = ipo.score.recommendation.value if ipo.score else "N/A"
+            if latest_gmp and latest_gmp.gmp_amount is not None:
+                if latest_gmp.gmp_percentage is not None:
+                    gmp_str = f"₹{latest_gmp.gmp_amount:,.0f} ({latest_gmp.gmp_percentage:.1f}%)"
+                else:
+                    gmp_str = f"₹{latest_gmp.gmp_amount:,.0f}"
+            else:
+                gmp_str = "N/A"
+
+            if latest_sub and latest_sub.total_multiple is not None:
+                sub_str = f"Total {latest_sub.total_multiple:.1f}x (QIB {latest_sub.qib_multiple or 0:.1f}x, Retail {latest_sub.retail_multiple or 0:.1f}x)"
+            else:
+                sub_str = "N/A"
+
+            if ipo.score and ipo.score.composite_score is not None:
+                score_str = f"{ipo.score.composite_score:.1f}/100"
+            else:
+                score_str = "N/A"
+
+            if ipo.score and ipo.score.recommendation is not None:
+                rec_str = getattr(ipo.score.recommendation, "value", str(ipo.score.recommendation))
+            else:
+                rec_str = "N/A"
 
             ipos_data.append({
                 "symbol": ipo.symbol,
                 "company_name": ipo.company_name,
-                "status": ipo.status.value,
+                "status": getattr(ipo.status, "value", str(ipo.status)),
+                "ipo_type": getattr(ipo.ipo_type, "value", str(ipo.ipo_type)) if ipo.ipo_type else None,
+                "open_date": str(ipo.open_date) if ipo.open_date else None,
+                "close_date": str(ipo.close_date) if ipo.close_date else None,
                 "price_band": pband,
                 "gmp": gmp_str,
                 "subscription": sub_str,
@@ -355,14 +390,26 @@ async def ask_portfolio_advisor(
     except Exception as e:
         logger.warning("Could not fetch active IPOs for advisory context: %s", e)
 
-    answer, source = await groq_answer_query(
-        query=query,
-        advisory_data=advisory_data,
-        chat_history=history,
-        active_ipos=ipos_data,
-        portfolio_summary=summary,
-        db=db
-    )
+    try:
+        answer, source = await groq_answer_query(
+            query=query,
+            advisory_data=advisory_data,
+            chat_history=history,
+            active_ipos=ipos_data,
+            portfolio_summary=summary,
+            db=db
+        )
+    except Exception as e:
+        logger.error("Advisor query failed, using rule-engine fallback: %s", e)
+        answer = answer_portfolio_query(
+            query=query,
+            advisory_data=advisory_data,
+            portfolio_summary=summary,
+            active_ipos=ipos_data,
+            chat_history=history,
+        )
+        source = "fallback"
+
     return {"query": query, "answer": answer, "source": source}
 
 

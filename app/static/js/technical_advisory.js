@@ -424,18 +424,24 @@ async function submitAICopilotChat(e) {
     if (res.status === 429) {
       throw new Error('Rate limit reached (10 questions/min). Please wait a moment.');
     }
+    const rawText = await res.text();
     if (!res.ok) {
-      let errDetail = 'Failed to get answer';
-      try {
-        const errData = await res.json();
-        errDetail = errData.detail || errDetail;
-      } catch (_) {
-        const text = await res.text();
-        if (text) errDetail = text;
+      let errDetail = `Failed to get answer (HTTP ${res.status})`;
+      if (rawText) {
+        try {
+          const errData = JSON.parse(rawText);
+          errDetail = errData.detail || errData.message || errDetail;
+        } catch (_) {
+          if (/^\s*<!doctype|^\s*<html/i.test(rawText)) {
+            errDetail = `Advisor service temporarily unavailable or timed out (HTTP ${res.status}). Please try again.`;
+          } else {
+            errDetail = rawText.trim().slice(0, 240) || errDetail;
+          }
+        }
       }
       throw new Error(errDetail);
     }
-    const data = await res.json();
+    const data = JSON.parse(rawText);
 
     aiChatHistory.push({ role: 'assistant', content: data.answer });
     if (aiChatHistory.length > 20) aiChatHistory = aiChatHistory.slice(-20);

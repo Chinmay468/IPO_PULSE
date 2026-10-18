@@ -237,7 +237,14 @@ def evaluate_position_sizing(
     If a holding exceeds 25% of the portfolio, warn and do not suggest adding more;
     show a suggested max quantity (capped at 25% portfolio weight).
     """
-    if not portfolio_summary or entry_price <= 0:
+    summary_dict = None
+    if portfolio_summary is not None:
+        if hasattr(portfolio_summary, "model_dump"):
+            summary_dict = portfolio_summary.model_dump()
+        elif isinstance(portfolio_summary, dict):
+            summary_dict = portfolio_summary
+
+    if not summary_dict or entry_price <= 0:
         return {
             "weight_pct": 0.0,
             "can_add": True,
@@ -245,7 +252,13 @@ def evaluate_position_sizing(
             "warning": None
         }
 
-    total_val = float(portfolio_summary.get("total_current_value") or portfolio_summary.get("total_investment") or 0.0)
+    total_val = float(
+        summary_dict.get("current_value")
+        or summary_dict.get("total_current_value")
+        or summary_dict.get("total_invested")
+        or summary_dict.get("total_investment")
+        or 0.0
+    )
     if total_val <= 0:
         return {
             "weight_pct": 0.0,
@@ -257,12 +270,13 @@ def evaluate_position_sizing(
     from app.services.market_price_service import _clean_ticker
     target_clean = _clean_ticker(symbol)
 
-    holdings = portfolio_summary.get("holdings", [])
+    holdings = summary_dict.get("holdings", [])
     current_holding_val = 0.0
     for h in holdings:
-        h_sym = _clean_ticker(h.get("symbol", ""))
+        h_dict = h.model_dump() if hasattr(h, "model_dump") else (h if isinstance(h, dict) else getattr(h, "__dict__", {}))
+        h_sym = _clean_ticker(h_dict.get("symbol", ""))
         if h_sym == target_clean:
-            current_holding_val = float(h.get("current_value") or (h.get("quantity", 0) * entry_price))
+            current_holding_val = float(h_dict.get("current_value") or (h_dict.get("quantity", 0) * entry_price))
             break
 
     weight_pct = round((current_holding_val / total_val) * 100, 1)

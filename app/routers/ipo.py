@@ -1,4 +1,6 @@
-from typing import Optional
+import types
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, List, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,9 +19,9 @@ from app.schemas.ipo import (
     GMPResponse,
     ScoreResponse
 )
-from datetime import date
 from app.services.ipo_service import IPOService
 from app.services.scoring_service import ScoringService
+from app.services.consensus_gmp import ConsensusGmpService
 from app.auth import require_auth
 from app.core.ipo_timeline import derive_ipo_status, compute_day_label, get_ist_today
 
@@ -66,6 +68,17 @@ def _format_ipo_response(ipo) -> IPOResponse:
 
     if ipo.gmp_records and len(ipo.gmp_records) > 0:
         resp.latest_gmp = GMPResponse.model_validate(ipo.gmp_records[0])
+        resp.consensus_gmp = ConsensusGmpService.calculate_consensus_from_readings(ipo.gmp_records)
+    else:
+        resp.consensus_gmp = {
+            "gmp_amount": None,
+            "gmp_percentage": None,
+            "sources_count": 0,
+            "status": "missing",
+            "single_source": False,
+            "sources_disagree": False,
+            "sources": []
+        }
     if ipo.subscriptions and len(ipo.subscriptions) > 0:
         resp.latest_subscription = SubscriptionResponse.model_validate(ipo.subscriptions[0])
     if ipo.score:
@@ -95,12 +108,45 @@ def _format_ipo_detail_response(ipo) -> IPODetailResponse:
         detail.is_dates_unavailable = True
         detail.data_incomplete = True
 
+    consensus = ConsensusGmpService.calculate_consensus_from_readings(ipo.gmp_records or [])
+    detail.consensus_gmp = consensus
+
     if ipo.gmp_records and len(ipo.gmp_records) > 0:
         detail.latest_gmp = GMPResponse.model_validate(ipo.gmp_records[0])
+
+    gmp_obj = None
+    if consensus and consensus.get("status") == "fresh" and consensus.get("gmp_amount") is not None:
+        gmp_obj = types.SimpleNamespace(
+            gmp_amount=consensus.get("gmp_amount"),
+            gmp_percentage=consensus.get("gmp_percentage"),
+            subject_to_sauda=None,
+            recorded_at=datetime.now(timezone.utc),
+            source="consensus"
+        )
+
+    latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
     if ipo.subscriptions and len(ipo.subscriptions) > 0:
         detail.latest_subscription = SubscriptionResponse.model_validate(ipo.subscriptions[0])
+
+    fresh_score_eval = ScoringService.calculate_score(ipo, latest_sub, gmp_obj)
     if ipo.score:
         detail.score = ScoreResponse.model_validate(ipo.score)
+        detail.score.rationale = fresh_score_eval["rationale"]
+        detail.score.composite_score = fresh_score_eval["composite_score"]
+        rec = fresh_score_eval["recommendation"]
+        detail.score.recommendation = rec.value if hasattr(rec, "value") else str(rec)
+    else:
+        rec = fresh_score_eval["recommendation"]
+        detail.score = ScoreResponse(
+            composite_score=fresh_score_eval["composite_score"],
+            recommendation=rec.value if hasattr(rec, "value") else str(rec),
+            gmp_score=fresh_score_eval["gmp_score"],
+            subscription_score=fresh_score_eval["subscription_score"],
+            valuation_score=fresh_score_eval["valuation_score"],
+            structure_score=fresh_score_eval["structure_score"],
+            rationale=fresh_score_eval["rationale"],
+            calculated_at=datetime.now(timezone.utc)
+        )
 
     can_apply, is_pre_apply = _check_apply_eligibility(ipo)
     detail.can_apply = can_apply
@@ -109,7 +155,7 @@ def _format_ipo_detail_response(ipo) -> IPODetailResponse:
 
     if ipo.data_quality and ipo.data_quality.get("status") == "incomplete":
         detail.data_incomplete = True
-    elif ipo.score and ipo.score.rationale and isinstance(ipo.score.rationale, dict) and ipo.score.rationale.get("data_incomplete"):
+    elif detail.score and detail.score.rationale and isinstance(detail.score.rationale, dict) and detail.score.rationale.get("data_incomplete"):
         detail.data_incomplete = True
 
     return detail
@@ -244,9 +290,19 @@ async def get_score_breakdown(id: int, db: AsyncSession = Depends(get_db)):
     if not ipo:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"IPO with id {id} not found")
 
+    consensus = ConsensusGmpService.calculate_consensus_from_readings(ipo.gmp_records or [])
+    gmp_obj = None
+    if consensus and consensus.get("status") == "fresh" and consensus.get("gmp_amount") is not None:
+        gmp_obj = types.SimpleNamespace(
+            gmp_amount=consensus.get("gmp_amount"),
+            gmp_percentage=consensus.get("gmp_percentage"),
+            subject_to_sauda=None,
+            recorded_at=datetime.now(timezone.utc),
+            source="consensus"
+        )
+
     latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
-    latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
-    score_result = ScoringService.calculate_score(ipo, latest_sub, latest_gmp)
+    score_result = ScoringService.calculate_score(ipo, latest_sub, gmp_obj)
 
     rec_val = score_result["recommendation"]
     if hasattr(rec_val, "value"):
@@ -261,6 +317,70 @@ async def get_score_breakdown(id: int, db: AsyncSession = Depends(get_db)):
         "pillars": score_result["rationale"]["pillars"],
         "positive_factors": score_result["rationale"]["positive_factors"],
         "risk_factors": score_result["rationale"]["risk_factors"]
+    }
+
+
+@router.get("/{id}/gmp/trend", summary="Get multi-source and consensus GMP trend history")
+async def get_gmp_trend(id: int, db: AsyncSession = Depends(get_db)):
+    ipo = await IPOService.get_ipo_by_id(db, id)
+    if not ipo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"IPO with id {id} not found")
+
+    records = list(ipo.gmp_records or [])
+    records.sort(key=lambda r: r.recorded_at if r.recorded_at else datetime.min.replace(tzinfo=timezone.utc))
+
+    ist_tz = timezone(timedelta(hours=5, minutes=30))
+    sources_data: Dict[str, List[Dict[str, Any]]] = {}
+
+    for r in records:
+        if not r.recorded_at:
+            continue
+        src = r.source or "unknown"
+        if src not in sources_data:
+            sources_data[src] = []
+        r_dt = r.recorded_at if r.recorded_at.tzinfo else r.recorded_at.replace(tzinfo=timezone.utc)
+        ist_dt = r_dt.astimezone(ist_tz)
+        sources_data[src].append({
+            "recorded_at": ist_dt.isoformat(),
+            "gmp_amount": r.gmp_amount,
+            "gmp_percentage": r.gmp_percentage
+        })
+
+    unique_timestamps = sorted({
+        (r.recorded_at if r.recorded_at.tzinfo else r.recorded_at.replace(tzinfo=timezone.utc))
+        for r in records if r.recorded_at
+    })
+
+    consensus_line: List[Dict[str, Any]] = []
+    for ts in unique_timestamps:
+        active_at_ts = [
+            r for r in records
+            if r.recorded_at and (
+                (r.recorded_at if r.recorded_at.tzinfo else r.recorded_at.replace(tzinfo=timezone.utc)) <= ts and
+                (ts - (r.recorded_at if r.recorded_at.tzinfo else r.recorded_at.replace(tzinfo=timezone.utc))).total_seconds() <= 86400
+            )
+        ]
+        cons = ConsensusGmpService.calculate_consensus_from_readings(active_at_ts, now=ts)
+        amt = cons.get("gmp_amount")
+        pct = cons.get("gmp_percentage")
+        if amt is None and pct is None and cons.get("last_known"):
+            amt = cons["last_known"]["gmp_amount"]
+            pct = cons["last_known"]["gmp_percentage"]
+
+        if amt is not None or pct is not None:
+            consensus_line.append({
+                "recorded_at": ts.astimezone(ist_tz).isoformat(),
+                "gmp_amount": amt,
+                "gmp_percentage": pct,
+                "sources_count": cons.get("sources_count", 0)
+            })
+
+    return {
+        "ipo_id": ipo.id,
+        "symbol": ipo.symbol,
+        "sources": sources_data,
+        "consensus": consensus_line,
+        "total_readings": len(records)
     }
 
 

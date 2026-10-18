@@ -116,8 +116,17 @@ def _compute_technicals_for_stock(df: pd.DataFrame, avg_buy_price: float, weight
 
 
 
+_market_sentiment_cache: tuple[Optional[dict], Optional[datetime]] = (None, None)
+
+
 def _get_market_sentiment() -> dict:
-    """Fetch Nifty 50 macro trend and sentiment regime."""
+    """Fetch Nifty 50 macro trend and sentiment regime with 5-minute cache."""
+    global _market_sentiment_cache
+    now = datetime.now(timezone.utc)
+    cached_val, fetched_at = _market_sentiment_cache
+    if cached_val is not None and fetched_at is not None and (now - fetched_at).total_seconds() < _CANDLE_CACHE_TTL_SECONDS:
+        return cached_val
+
     try:
         nifty = yf.Ticker("^NSEI").fast_info
         nifty_price = float(nifty.last_price or 24500.0)
@@ -134,44 +143,24 @@ def _get_market_sentiment() -> dict:
             regime = "Cautious Pullback / Dip Buying Window"
             color = "amber"
 
-        return {
+        res = {
             "nifty_cmp": round(nifty_price, 2),
             "nifty_change_pct": chg,
             "regime": regime,
             "color": color,
         }
+        _market_sentiment_cache = (res, now)
+        return res
     except Exception:
-        return {
+        res = {
             "nifty_cmp": 24650.0,
             "nifty_change_pct": 0.15,
             "regime": "Healthy Structural Bull Market",
             "color": "emerald",
         }
+        _market_sentiment_cache = (res, now)
+        return res
 
-
-async def generate_portfolio_advisory(holdings: list[dict]) -> dict:
-    """
-    Generate comprehensive technical analysis, candlestick patterns, and AI action plans
-    for every stock in the user's portfolio.
-    """
-    if not holdings:
-        return {
-            "health_score": 50,
-            "health_verdict": "Empty Portfolio",
-            "market_sentiment": _get_market_sentiment(),
-            "stock_advisories": [],
-            "action_checklist": ["Import or add holdings to begin receiving real-time AI portfolio guidance."],
-            "portfolio_strengths": [],
-            "portfolio_risks": []
-        }
-
-    # Prepare symbols
-    sym_map = {}
-    for h in holdings:
-        raw_sym = h.get("symbol", "")
-        exch = h.get("exchange", "NSE")
-        yf_sym = _yf_symbol(raw_sym, exch)
-        sym_map[yf_sym] = h
 
 def _fetch_history_sync(tickers: list[str]) -> dict[str, pd.DataFrame]:
     """Bulk fetch 6mo daily OHLCV with 5-minute memory cache."""
@@ -1793,15 +1782,25 @@ def answer_portfolio_query(
                 lines.append("\n💡 *Ask about a specific IPO for full financial & subscription details.*")
                 return "\n".join(lines)
 
-        # General "best/which IPO" query — before specific symbol match
-        if any(k in q for k in [
+        # General "best/which IPO" or shorthand "apply" query — before specific symbol match
+        is_general_ipo_apply = any(k in q for k in [
             "best ipo", "which ipo", "top ipo", "ipo to apply", "ipo apply", "whch ipo",
             "bes ipo", "apply ipo", "ipo aplly", "ipo recommendation",
             "recommended ipo", "which one to apply", "kaunsa ipo", "which ipo should",
-            "ipo sugge", "suggest ipo", "latest ipo",
-        ]):
-            # Sort by score descending and pick top
-            sorted_ipos = sorted(active_ipos, key=lambda x: (x.get("score") or 0), reverse=True)
+            "ipo sugge", "suggest ipo", "latest ipo", "should i apply", "where to apply",
+        ]) or bool(re.match(r"^apply\d*\??$", q))
+        if is_general_ipo_apply:
+            def _extract_ipo_score(item: dict) -> float:
+                raw_sc = item.get("score")
+                if isinstance(raw_sc, (int, float)):
+                    return float(raw_sc)
+                if isinstance(raw_sc, str):
+                    m_sc = re.search(r"(\d+(?:\.\d+)?)", raw_sc)
+                    if m_sc:
+                        return float(m_sc.group(1))
+                return -1.0
+
+            sorted_ipos = sorted(active_ipos, key=_extract_ipo_score, reverse=True)
             top_ipo = sorted_ipos[0] if sorted_ipos else None
             if top_ipo:
                 lines = [f"🚀 **Top Active IPO Recommendations**\n"]
@@ -2414,11 +2413,12 @@ async def groq_answer_query(
         all_providers_exhausted = (groq_all_cooling and gemini_all_cooling) or is_rate_limited
 
         if all_providers_exhausted and retry_round == 0:
+            cooldown_wait = 0.05 if os.getenv("PYTEST_CURRENT_TEST") else (120.0 if force_llm else 1.5)
             logger.warning(
                 "[Smart Switch] All keys across both Groq and Gemini hit rate limits or are in cooldown. "
-                "Waiting 120s cooldown period before trying again..."
+                "Waiting %.2fs cooldown period before trying again...",
+                cooldown_wait,
             )
-            cooldown_wait = 0.05 if os.getenv("PYTEST_CURRENT_TEST") else 120.0
             await asyncio.sleep(cooldown_wait)
             groq_key_pool.clear_cooldowns()
             gemini_key_pool.clear_cooldowns()

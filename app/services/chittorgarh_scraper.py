@@ -721,21 +721,66 @@ def parse_ipo_detail(
             elif k == "open" and not parsed.get("listing_price"):
                 parsed["listing_price"] = clean_num(v)
 
-    # 3. Restated Financials YoY Growth Calculations
+    # 3. Restated Financials YoY Growth Calculations (comparing like periods only)
     for t in tables:
+        header_row = None
+        for tr in t.find_all("tr"):
+            th_cells = [c.get_text(" ", strip=True) for c in tr.find_all(["th", "td"])]
+            if th_cells and any("period ended" in c.lower() or "financial year" in c.lower() for c in th_cells):
+                header_row = th_cells
+                break
+
+        def _detect_period_duration_months(header_text: str) -> int:
+            txt = header_text.lower().strip()
+            m_dur = re.search(r"(\d+)\s*(?:month|m\b)", txt)
+            if m_dur:
+                return int(m_dur.group(1))
+            if "30 jun" in txt or "30 june" in txt:
+                return 3
+            if "30 sep" in txt or "30 sept" in txt:
+                return 6
+            if "31 dec" in txt or "31 dece" in txt:
+                return 9
+            if "31 mar" in txt or "31 marc" in txt:
+                return 12
+            return 12
+
+        def _find_like_period_columns(h_cells):
+            if len(h_cells) < 3:
+                return None, None
+            durations = [_detect_period_duration_months(c) for c in h_cells[1:]]
+            for i in range(len(durations)):
+                for j in range(i + 1, len(durations)):
+                    if durations[i] == durations[j]:
+                        return i + 1, j + 1
+            return None, None
+
+        curr_col, prior_col = 1, 2
+        if header_row and len(header_row) >= 3:
+            c1, c2 = _find_like_period_columns(header_row)
+            if c1 and c2:
+                curr_col, prior_col = c1, c2
+            else:
+                curr_col, prior_col = None, None
+
+        if curr_col is None or prior_col is None:
+            continue
+
         for tr in t.find_all("tr"):
             cells = [c.get_text(" ", strip=True) for c in tr.find_all(["th", "td"])]
-            if not cells:
+            if not cells or len(cells) <= max(curr_col, prior_col):
                 continue
             lbl = cells[0].strip().lower()
-            if "total income" in lbl or "revenue" in lbl:
-                nums = [clean_num(c) for c in cells[1:] if clean_num(c) is not None]
-                if len(nums) >= 2 and nums[1] > 0 and parsed.get("revenue_growth_yoy") is None:
-                    parsed["revenue_growth_yoy"] = round(((nums[0] - nums[1]) / nums[1]) * 100.0, 2)
-            elif "profit after tax" in lbl or lbl == "pat":
-                nums = [clean_num(c) for c in cells[1:] if clean_num(c) is not None]
-                if len(nums) >= 2 and nums[1] > 0 and parsed.get("pat_growth_yoy") is None:
-                    parsed["pat_growth_yoy"] = round(((nums[0] - nums[1]) / nums[1]) * 100.0, 2)
+            if ("total income" in lbl or "revenue" in lbl) and parsed.get("revenue_growth_yoy") is None:
+                curr_val = clean_num(cells[curr_col])
+                prior_val = clean_num(cells[prior_col])
+                if curr_val is not None and prior_val is not None and prior_val > 0:
+                    parsed["revenue_growth_yoy"] = round(((curr_val - prior_val) / prior_val) * 100.0, 2)
+            elif ("profit after tax" in lbl or lbl == "pat") and parsed.get("pat_growth_yoy") is None:
+                curr_val = clean_num(cells[curr_col])
+                prior_val = clean_num(cells[prior_col])
+                if curr_val is not None and prior_val is not None and prior_val > 0:
+                    parsed["pat_growth_yoy"] = round(((curr_val - prior_val) / prior_val) * 100.0, 2)
 
     # 4. Registrar Name Extraction
     for p in soup.find_all(["p", "div", "td"]):
@@ -1262,15 +1307,15 @@ async def sync_chittorgarh_data(
             await session.flush()
             created_count += 1
         else:
-            if matched.is_seed:
-                matched.is_seed = False
             if not matched.source:
                 matched.source = "chittorgarh"
             if s_id and not matched.source_id:
                 matched.source_id = s_id
             if item.get("source_url") and not matched.source_url:
                 matched.source_url = item.get("source_url")
-            if not matched.open_date and item.get("open_date"):
+            if matched.open_date is not None and matched.close_date is not None:
+                matched.dates_tba = False
+            elif not matched.open_date and item.get("open_date"):
                 matched.open_date = item.get("open_date")
                 matched.close_date = item.get("close_date")
                 matched.dates_tba = item.get("dates_tba", False)
@@ -1388,12 +1433,20 @@ async def sync_chittorgarh_data(
                 for f in core_fields:
                     val = parsed_detail.get(f)
                     if val is not None:
+                        # Guard against overwriting known dates with None or TBA
+                        if f in ("open_date", "close_date") and getattr(matched_ipo, f) is not None and val is None:
+                            continue
+                        if f == "dates_tba" and getattr(matched_ipo, "open_date") is not None and val is True:
+                            continue
                         if getattr(matched_ipo, f) != val:
                             data_changed = True
                         setattr(matched_ipo, f, val)
                 target_ipo = matched_ipo
-                target_ipo.is_seed = False
-                target_ipo.dates_tba = (target_ipo.open_date is None and target_ipo.close_date is None) or parsed_detail.get("dates_tba", False)
+                # Guard against overwriting known dates with TBA
+                if target_ipo.open_date is not None and target_ipo.close_date is not None:
+                    target_ipo.dates_tba = False
+                else:
+                    target_ipo.dates_tba = (target_ipo.open_date is None and target_ipo.close_date is None) or parsed_detail.get("dates_tba", False)
                 target_ipo.status = determine_status_from_dates(
                     target_ipo.open_date, target_ipo.close_date, target_ipo.listing_date, dates_tba=target_ipo.dates_tba
                 )
@@ -1455,25 +1508,40 @@ async def sync_chittorgarh_data(
             # 3b. Subscription Info
             sub_dict = parsed_detail.get("subscription_data")
             if sub_dict and sub_dict.get("total_multiple") is not None:
-                new_sub = IPOSubscription(
-                    ipo_id=target_ipo.id,
-                    qib_multiple=sub_dict.get("qib_multiple"),
-                    nii_multiple=sub_dict.get("nii_multiple"),
-                    retail_multiple=sub_dict.get("retail_multiple"),
-                    employee_multiple=sub_dict.get("employee_multiple"),
-                    total_multiple=sub_dict.get("total_multiple", 0.0),
-                    qib_shares_offered=sub_dict.get("qib_shares_offered"),
-                    qib_shares_bid=sub_dict.get("qib_shares_bid"),
-                    nii_shares_offered=sub_dict.get("nii_shares_offered"),
-                    nii_shares_bid=sub_dict.get("nii_shares_bid"),
-                    retail_shares_offered=sub_dict.get("retail_shares_offered"),
-                    retail_shares_bid=sub_dict.get("retail_shares_bid"),
-                    recorded_at=datetime.now(timezone.utc),
-                )
-                session.add(new_sub)
-                target_ipo.updated_at = datetime.now(timezone.utc)
-                await session.flush()
-                target_ipo.subscriptions.insert(0, new_sub)
+                prev_sub = target_ipo.subscriptions[0] if target_ipo.subscriptions else None
+                now = datetime.now(timezone.utc)
+                is_dup = False
+                if prev_sub:
+                    val_same = (
+                        prev_sub.total_multiple == sub_dict.get("total_multiple", 0.0)
+                        and prev_sub.qib_multiple == sub_dict.get("qib_multiple")
+                        and prev_sub.nii_multiple == sub_dict.get("nii_multiple")
+                        and prev_sub.retail_multiple == sub_dict.get("retail_multiple")
+                    )
+                    prev_dt = prev_sub.recorded_at if prev_sub.recorded_at.tzinfo else prev_sub.recorded_at.replace(tzinfo=timezone.utc)
+                    if val_same and (now - prev_dt).total_seconds() < 3600:
+                        is_dup = True
+
+                if not is_dup:
+                    new_sub = IPOSubscription(
+                        ipo_id=target_ipo.id,
+                        qib_multiple=sub_dict.get("qib_multiple"),
+                        nii_multiple=sub_dict.get("nii_multiple"),
+                        retail_multiple=sub_dict.get("retail_multiple"),
+                        employee_multiple=sub_dict.get("employee_multiple"),
+                        total_multiple=sub_dict.get("total_multiple", 0.0),
+                        qib_shares_offered=sub_dict.get("qib_shares_offered"),
+                        qib_shares_bid=sub_dict.get("qib_shares_bid"),
+                        nii_shares_offered=sub_dict.get("nii_shares_offered"),
+                        nii_shares_bid=sub_dict.get("nii_shares_bid"),
+                        retail_shares_offered=sub_dict.get("retail_shares_offered"),
+                        retail_shares_bid=sub_dict.get("retail_shares_bid"),
+                        recorded_at=datetime.now(timezone.utc),
+                    )
+                    session.add(new_sub)
+                    target_ipo.updated_at = datetime.now(timezone.utc)
+                    await session.flush()
+                    target_ipo.subscriptions.insert(0, new_sub)
 
             # 4. Recompute Composite Score
             latest_sub = target_ipo.subscriptions[0] if target_ipo.subscriptions else None

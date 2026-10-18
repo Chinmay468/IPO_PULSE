@@ -1,3 +1,5 @@
+import types
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 from sqlalchemy import select, func, desc, asc, or_, case
 from sqlalchemy.orm import selectinload
@@ -233,19 +235,58 @@ class IPOService:
         if not ipo:
             raise ValueError(f"IPO with id {ipo_id} not found")
 
-        sub = IPOSubscription(ipo_id=ipo_id, **data.model_dump())
-        session.add(sub)
-        await session.flush()
+        # Deduplication check
+        stmt = (
+            select(IPOSubscription)
+            .where(IPOSubscription.ipo_id == ipo_id)
+            .order_by(IPOSubscription.recorded_at.desc())
+            .limit(1)
+        )
+        prev_sub = (await session.execute(stmt)).scalar_one_or_none()
+        now = datetime.now(timezone.utc)
+        is_dup = False
+        if prev_sub:
+            values_same = (
+                prev_sub.total_multiple == data.total_multiple
+                and prev_sub.qib_multiple == data.qib_multiple
+                and prev_sub.nii_multiple == data.nii_multiple
+                and prev_sub.retail_multiple == data.retail_multiple
+            )
+            prev_dt = prev_sub.recorded_at if prev_sub.recorded_at.tzinfo else prev_sub.recorded_at.replace(tzinfo=timezone.utc)
+            if values_same and (now - prev_dt).total_seconds() < 3600:
+                is_dup = True
 
-        # Recalculate score
-        latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
-        score_data = ScoringService.calculate_score(ipo, sub, latest_gmp)
+        if is_dup:
+            sub = prev_sub
+        else:
+            sub = IPOSubscription(ipo_id=ipo_id, **data.model_dump())
+            session.add(sub)
+            await session.flush()
+            if ipo.subscriptions is not None:
+                ipo.subscriptions.insert(0, sub)
+
+        # Recalculate score using consensus GMP
+        from app.services.consensus_gmp import ConsensusGmpService
+        consensus = ConsensusGmpService.calculate_consensus_from_readings(ipo.gmp_records or [])
+        gmp_obj = None
+        if consensus and consensus.get("status") == "fresh" and consensus.get("gmp_amount") is not None:
+            gmp_obj = types.SimpleNamespace(
+                gmp_amount=consensus.get("gmp_amount"),
+                gmp_percentage=consensus.get("gmp_percentage"),
+                subject_to_sauda=None,
+                recorded_at=now,
+                source="consensus"
+            )
+
+        score_data = ScoringService.calculate_score(ipo, sub, gmp_obj)
         valid_keys = {"composite_score", "recommendation", "gmp_score", "subscription_score", "valuation_score", "structure_score", "rationale"}
         score_dict = {k: v for k, v in score_data.items() if k in valid_keys}
 
-        if ipo.score:
+        score_stmt = select(IPOScore).where(IPOScore.ipo_id == ipo_id)
+        existing_score = (await session.execute(score_stmt)).scalar_one_or_none()
+        if existing_score:
             for k, v in score_dict.items():
-                setattr(ipo.score, k, v)
+                setattr(existing_score, k, v)
         else:
             session.add(IPOScore(ipo_id=ipo_id, **score_dict))
 
@@ -259,19 +300,57 @@ class IPOService:
         if not ipo:
             raise ValueError(f"IPO with id {ipo_id} not found")
 
-        gmp = IPOGmp(ipo_id=ipo_id, **data.model_dump())
-        session.add(gmp)
-        await session.flush()
+        stmt = (
+            select(IPOGmp)
+            .where(IPOGmp.ipo_id == ipo_id, IPOGmp.source == data.source)
+            .order_by(IPOGmp.recorded_at.desc())
+            .limit(1)
+        )
+        prev_gmp = (await session.execute(stmt)).scalar_one_or_none()
+        now = datetime.now(timezone.utc)
+        is_dup = False
+        if prev_gmp:
+            values_same = (
+                prev_gmp.gmp_amount == data.gmp_amount
+                and prev_gmp.gmp_percentage == data.gmp_percentage
+            )
+            prev_dt = prev_gmp.recorded_at if prev_gmp.recorded_at.tzinfo else prev_gmp.recorded_at.replace(tzinfo=timezone.utc)
+            if values_same and (now - prev_dt).total_seconds() < 3600:
+                is_dup = True
 
-        # Recalculate score
+        if is_dup:
+            gmp = prev_gmp
+        else:
+            gmp = IPOGmp(ipo_id=ipo_id, **data.model_dump())
+            session.add(gmp)
+            await session.flush()
+            if ipo.gmp_records is not None:
+                ipo.gmp_records.insert(0, gmp)
+
+        # Recalculate score with updated consensus
+        from app.services.consensus_gmp import ConsensusGmpService
+        all_readings = [gmp] + [r for r in (ipo.gmp_records or []) if r.id != gmp.id]
+        consensus = ConsensusGmpService.calculate_consensus_from_readings(all_readings)
+        gmp_obj = None
+        if consensus and consensus.get("status") == "fresh" and consensus.get("gmp_amount") is not None:
+            gmp_obj = types.SimpleNamespace(
+                gmp_amount=consensus.get("gmp_amount"),
+                gmp_percentage=consensus.get("gmp_percentage"),
+                subject_to_sauda=None,
+                recorded_at=now,
+                source="consensus"
+            )
+
         latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
-        score_data = ScoringService.calculate_score(ipo, latest_sub, gmp)
+        score_data = ScoringService.calculate_score(ipo, latest_sub, gmp_obj)
         valid_keys = {"composite_score", "recommendation", "gmp_score", "subscription_score", "valuation_score", "structure_score", "rationale"}
         score_dict = {k: v for k, v in score_data.items() if k in valid_keys}
 
-        if ipo.score:
+        score_stmt = select(IPOScore).where(IPOScore.ipo_id == ipo_id)
+        existing_score = (await session.execute(score_stmt)).scalar_one_or_none()
+        if existing_score:
             for k, v in score_dict.items():
-                setattr(ipo.score, k, v)
+                setattr(existing_score, k, v)
         else:
             session.add(IPOScore(ipo_id=ipo_id, **score_dict))
 
@@ -285,17 +364,31 @@ class IPOService:
         if not ipo:
             raise ValueError(f"IPO with id {ipo_id} not found")
 
+        from app.services.consensus_gmp import ConsensusGmpService
+        now = datetime.now(timezone.utc)
+        consensus = ConsensusGmpService.calculate_consensus_from_readings(ipo.gmp_records or [])
+        gmp_obj = None
+        if consensus and consensus.get("status") == "fresh" and consensus.get("gmp_amount") is not None:
+            gmp_obj = types.SimpleNamespace(
+                gmp_amount=consensus.get("gmp_amount"),
+                gmp_percentage=consensus.get("gmp_percentage"),
+                subject_to_sauda=None,
+                recorded_at=now,
+                source="consensus"
+            )
+
         latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
-        latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
-        score_data = ScoringService.calculate_score(ipo, latest_sub, latest_gmp)
+        score_data = ScoringService.calculate_score(ipo, latest_sub, gmp_obj)
 
         valid_fields = {"composite_score", "recommendation", "gmp_score", "subscription_score", "valuation_score", "structure_score", "rationale"}
         filtered_data = {k: v for k, v in score_data.items() if k in valid_fields}
 
-        if ipo.score:
+        score_stmt = select(IPOScore).where(IPOScore.ipo_id == ipo_id)
+        existing_score = (await session.execute(score_stmt)).scalar_one_or_none()
+        if existing_score:
             for k, v in filtered_data.items():
-                setattr(ipo.score, k, v)
-            score_obj = ipo.score
+                setattr(existing_score, k, v)
+            score_obj = existing_score
         else:
             score_obj = IPOScore(ipo_id=ipo_id, **filtered_data)
             session.add(score_obj)

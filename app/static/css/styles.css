@@ -29,6 +29,11 @@ body {
   color: #065f46;
   border: 1px solid #a7f3d0;
 }
+.badge-APPLY_VERIFY_GMP, .badge-Apply_verify_GMP {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
 .badge-NEUTRAL {
   background: #fffbeb;
   color: #92400e;
@@ -38,6 +43,11 @@ body {
   background: #fef2f2;
   color: #991b1b;
   border: 1px solid #fecaca;
+}
+.badge-INSUFFICIENT_DATA, .badge-INSUFFICIENT\ DATA {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
 }
 
 .dark .badge-STRONG_APPLY, .dark .badge-STRONG\ APPLY {
@@ -50,6 +60,11 @@ body {
   color: #34d399;
   border-color: #059669;
 }
+.dark .badge-APPLY_VERIFY_GMP, .dark .badge-Apply_verify_GMP {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.5);
+}
 .dark .badge-NEUTRAL {
   background: #78350f;
   color: #fde68a;
@@ -59,6 +74,11 @@ body {
   background: #7f1d1d;
   color: #fca5a5;
   border-color: #b91c1c;
+}
+.dark .badge-INSUFFICIENT_DATA, .dark .badge-INSUFFICIENT\ DATA {
+  background: #1e293b;
+  color: #94a3b8;
+  border-color: #334155;
 }
 
 /* Category Badges */

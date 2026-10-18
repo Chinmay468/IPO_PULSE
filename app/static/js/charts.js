@@ -635,78 +635,354 @@ function renderPnlByStockChart(holdings) {
 }
 
 // ── IPO Analysis Trend Charts (GMP & Subscriptions) ──
+// ── IPO Analysis Trend Charts (GMP & Subscriptions) ──
+let currentSubIpoData = null;
+let currentSubViewMode = 'daily';
+
+window.toggleSubChartView = function(mode) {
+  currentSubViewMode = mode;
+  const dailyBtn = document.getElementById('sub-view-daily-btn');
+  const intraBtn = document.getElementById('sub-view-intraday-btn');
+  if (dailyBtn && intraBtn) {
+    if (mode === 'daily') {
+      dailyBtn.className = 'px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs';
+      intraBtn.className = 'px-1.5 py-0.5 rounded text-slate-500 hover:text-slate-900 dark:hover:text-white';
+    } else {
+      intraBtn.className = 'px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs';
+      dailyBtn.className = 'px-1.5 py-0.5 rounded text-slate-500 hover:text-slate-900 dark:hover:text-white';
+    }
+  }
+  if (currentSubIpoData) {
+    renderSubscriptionChart(currentSubIpoData, currentSubViewMode);
+  }
+};
+
+function renderSubscriptionChart(detailIpo, mode) {
+  const subEmpty = document.getElementById('modal-sub-empty');
+  const subBox = document.getElementById('modal-sub-chart-container');
+  const subLatest = document.getElementById('modal-sub-chart-latest');
+  const subSummary = document.getElementById('modal-sub-text-summary');
+  const subCanvas = document.getElementById('modal-sub-chart');
+  const isDark = document.documentElement.classList.contains('dark');
+
+  if (ipoSubChart) {
+    ipoSubChart.destroy();
+    ipoSubChart = null;
+  }
+
+  const rawSubs = (detailIpo.subscriptions || []).slice().sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
+
+  if (!rawSubs || rawSubs.length === 0) {
+    if (subEmpty) subEmpty.classList.remove('hidden');
+    if (subBox) subBox.classList.add('hidden');
+    if (subLatest) subLatest.textContent = '—';
+    if (subSummary) subSummary.textContent = 'No subscription bidding data recorded yet.';
+    return;
+  }
+
+  if (subEmpty) subEmpty.classList.add('hidden');
+  if (subBox) subBox.classList.remove('hidden');
+
+  const latestSub = rawSubs[rawSubs.length - 1];
+  if (subLatest) subLatest.textContent = `${latestSub.total_multiple}x Total`;
+
+  // Group snapshots by IST calendar date
+  const dateGroups = {};
+  rawSubs.forEach(s => {
+    let d = new Date(s.recorded_at);
+    if (isNaN(d.getTime())) d = new Date();
+    // Format YYYY-MM-DD in IST (+05:30)
+    const istOffset = 5.5 * 3600 * 1000;
+    const istDate = new Date(d.getTime() + istOffset);
+    const key = istDate.toISOString().slice(0, 10);
+    if (!dateGroups[key]) dateGroups[key] = [];
+    dateGroups[key].push(s);
+  });
+
+  const sortedDates = Object.keys(dateGroups).sort();
+  let plotItems = [];
+  let labels = [];
+
+  if (mode === 'intraday' && sortedDates.length > 0) {
+    // Intraday view for the final bidding day
+    const finalDateKey = sortedDates[sortedDates.length - 1];
+    plotItems = dateGroups[finalDateKey];
+    labels = plotItems.map(s => {
+      const d = new Date(s.recorded_at);
+      return !isNaN(d.getTime()) ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+    });
+  } else {
+    // Daily view: pick the LAST snapshot of each bidding day
+    plotItems = sortedDates.map(k => {
+      const daySnaps = dateGroups[k];
+      return daySnaps[daySnaps.length - 1];
+    });
+
+    labels = plotItems.map((s, idx) => {
+      let lbl = s.day_number ? `Day ${s.day_number}` : `Day ${idx + 1}`;
+      if (idx === plotItems.length - 1 && (plotItems.length >= 3 || detailIpo.status === 'CLOSED' || detailIpo.status === 'LISTED')) {
+        lbl += ' (close)';
+      }
+      return lbl;
+    });
+  }
+
+  const qib = plotItems.map(s => s.qib_multiple || 0);
+  const nii = plotItems.map(s => s.nii_multiple || 0);
+  const retail = plotItems.map(s => s.retail_multiple || 0);
+  const total = plotItems.map(s => s.total_multiple || 0);
+
+  if (subCanvas) {
+    const ctx = subCanvas.getContext('2d');
+    ipoSubChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'QIB',
+            data: qib,
+            backgroundColor: '#3b82f6',
+            borderRadius: 3,
+          },
+          {
+            label: 'NII',
+            data: nii,
+            backgroundColor: '#f59e0b',
+            borderRadius: 3,
+          },
+          {
+            label: 'Retail',
+            data: retail,
+            backgroundColor: '#8b5cf6',
+            borderRadius: 3,
+          },
+          {
+            label: 'Total',
+            data: total,
+            backgroundColor: '#10b981',
+            borderRadius: 3,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              boxWidth: 8,
+              font: { size: 9 },
+              color: isDark ? '#94a3b8' : '#64748b',
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.dataset.label}: ${ctx.raw}x`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: isDark ? '#94a3b8' : '#64748b', font: { size: 9 } }
+          },
+          y: {
+            grid: { color: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(241, 245, 249, 0.8)' },
+            ticks: {
+              color: isDark ? '#94a3b8' : '#64748b',
+              font: { size: 9 },
+              callback: v => `${v}x`
+            }
+          }
+        }
+      }
+    });
+
+    const subText = `Subscription demand (${mode} view). Latest total: ${latestSub.total_multiple}x (QIB: ${latestSub.qib_multiple || 0}x, NII: ${latestSub.nii_multiple || 0}x, Retail: ${latestSub.retail_multiple || 0}x).`;
+    if (subSummary) subSummary.textContent = subText;
+    subCanvas.setAttribute('aria-label', subText);
+  }
+}
+
 function renderIpoAnalysisCharts(detailIpo) {
   const gmpEmpty = document.getElementById('modal-gmp-empty');
   const gmpBox = document.getElementById('modal-gmp-chart-container');
   const gmpLatest = document.getElementById('modal-gmp-chart-latest');
   const gmpSummary = document.getElementById('modal-gmp-text-summary');
   const gmpCanvas = document.getElementById('modal-gmp-chart');
-
-  const subEmpty = document.getElementById('modal-sub-empty');
-  const subBox = document.getElementById('modal-sub-chart-container');
-  const subLatest = document.getElementById('modal-sub-chart-latest');
-  const subSummary = document.getElementById('modal-sub-text-summary');
-  const subCanvas = document.getElementById('modal-sub-chart');
-
   const isDark = document.documentElement.classList.contains('dark');
 
   if (typeof Chart === 'undefined') return;
 
-  // 1. GMP % Line Chart
+  // 1. Unify Analysis View GMP with Consensus Function
+  const cons = detailIpo.consensus_gmp || {};
+  if (cons.status === 'fresh' && cons.gmp_amount != null) {
+    if (gmpLatest) gmpLatest.textContent = `+${cons.gmp_percentage}% (₹${cons.gmp_amount})`;
+    const srcNote = cons.single_source ? `Source: ${cons.sources[0]?.source || 'primary'}` : `Consensus of ${cons.sources_count} sources`;
+    if (gmpSummary) gmpSummary.textContent = `Consensus GMP: +${cons.gmp_percentage}% (₹${cons.gmp_amount}). ${srcNote}.`;
+  } else {
+    // Missing or stale GMP
+    if (cons.last_known && cons.last_known.gmp_amount != null) {
+      const lk = cons.last_known;
+      const lkDate = new Date(lk.recorded_at);
+      const timeStr = !isNaN(lkDate.getTime()) ? lkDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + lkDate.toLocaleDateString() : '';
+      if (gmpLatest) gmpLatest.textContent = `No fresh GMP`;
+      if (gmpSummary) gmpSummary.textContent = `No GMP recorded in the last 24 hours. Last recorded: +${lk.gmp_percentage}% (₹${lk.gmp_amount}) at ${timeStr} (${lk.source}).`;
+    } else {
+      if (gmpLatest) gmpLatest.textContent = '—';
+      if (gmpSummary) gmpSummary.textContent = 'No GMP recorded in the last 24 hours.';
+    }
+  }
+
+  // 2. Multi-Source & Consensus GMP Trend Chart
   if (ipoGmpChart) {
     ipoGmpChart.destroy();
     ipoGmpChart = null;
   }
 
-  const gmpRecords = (detailIpo.gmp_records || []).slice().sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
-  if (!gmpRecords || gmpRecords.length === 0) {
-    if (gmpEmpty) gmpEmpty.classList.remove('hidden');
-    if (gmpBox) gmpBox.classList.add('hidden');
-    if (gmpLatest) gmpLatest.textContent = '—';
-    if (gmpSummary) gmpSummary.textContent = 'No GMP data recorded for this IPO yet.';
-  } else {
-    if (gmpEmpty) gmpEmpty.classList.add('hidden');
-    if (gmpBox) gmpBox.classList.remove('hidden');
+  fetch(`/api/v1/ipos/${detailIpo.id}/gmp/trend`)
+    .then(r => r.ok ? r.json() : null)
+    .then(trend => {
+      const totalReadings = (trend && trend.total_readings) || (detailIpo.gmp_records && detailIpo.gmp_records.length) || 0;
+      if (totalReadings === 0) {
+        if (gmpEmpty) gmpEmpty.classList.remove('hidden');
+        if (gmpBox) gmpBox.classList.add('hidden');
+        return;
+      }
 
-    const lastGmp = gmpRecords[gmpRecords.length - 1];
-    if (gmpLatest) gmpLatest.textContent = `+${lastGmp.gmp_percentage}% (₹${lastGmp.gmp_amount})`;
+      if (gmpEmpty) gmpEmpty.classList.add('hidden');
+      if (gmpBox) gmpBox.classList.remove('hidden');
 
-    const labels = gmpRecords.map(r => {
-      const d = new Date(r.recorded_at);
-      return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
-    });
-    const values = gmpRecords.map(r => r.gmp_percentage);
+      if (!gmpCanvas) return;
 
-    if (gmpCanvas) {
+      // Extract all unique timestamps
+      const sourcesData = (trend && trend.sources) || {};
+      const consensusLine = (trend && trend.consensus) || [];
+
+      // If backend trend didn't return series, fallback to detailIpo.gmp_records
+      if (Object.keys(sourcesData).length === 0 && (!consensusLine || consensusLine.length === 0)) {
+        const records = (detailIpo.gmp_records || []).slice().sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
+        const labels = records.map(r => {
+          const d = new Date(r.recorded_at);
+          return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
+        });
+        const values = records.map(r => r.gmp_percentage);
+
+        const ctx = gmpCanvas.getContext('2d');
+        ipoGmpChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Consensus GMP (%)',
+              data: values,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+              fill: false,
+              tension: 0.2,
+              borderWidth: 2.5,
+              pointRadius: records.length === 1 ? 6 : 4,
+              pointHoverRadius: 8,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { color: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(241, 245, 249, 0.8)' }, ticks: { color: isDark ? '#94a3b8' : '#64748b', font: { size: 9 } } },
+              y: { grid: { color: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(241, 245, 249, 0.8)' }, ticks: { color: isDark ? '#94a3b8' : '#64748b', font: { size: 9 }, callback: v => `+${v}%` } }
+            }
+          }
+        });
+        return;
+      }
+
+      // Collect all distinct timestamps across all sources and consensus
+      const allTimestampsSet = new Set();
+      Object.values(sourcesData).forEach(arr => arr.forEach(item => allTimestampsSet.add(item.recorded_at)));
+      consensusLine.forEach(item => allTimestampsSet.add(item.recorded_at));
+      const sortedTimestamps = Array.from(allTimestampsSet).sort();
+
+      const labels = sortedTimestamps.map(ts => {
+        const d = new Date(ts);
+        return !isNaN(d.getTime()) ? `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ts;
+      });
+
+      const colorPalette = {
+        'investorgain': '#f59e0b',
+        'ipowatch': '#6366f1',
+        'chittorgarh': '#06b6d4',
+        'consensus': '#10b981'
+      };
+
+      const datasets = [];
+
+      // Source lines
+      Object.keys(sourcesData).forEach(src => {
+        const srcMap = {};
+        sourcesData[src].forEach(item => { srcMap[item.recorded_at] = item.gmp_percentage; });
+        const dataValues = sortedTimestamps.map(ts => srcMap[ts] != null ? srcMap[ts] : null);
+        const col = colorPalette[src.toLowerCase()] || '#94a3b8';
+
+        datasets.push({
+          label: `${src.charAt(0).toUpperCase() + src.slice(1)}`,
+          data: dataValues,
+          borderColor: col,
+          backgroundColor: col,
+          fill: false,
+          tension: 0.2,
+          borderWidth: 1.5,
+          pointRadius: sortedTimestamps.length === 1 ? 5 : 3,
+          pointHoverRadius: 6,
+          spanGaps: true
+        });
+      });
+
+      // Consensus line
+      const consMap = {};
+      consensusLine.forEach(item => { consMap[item.recorded_at] = item.gmp_percentage; });
+      const consValues = sortedTimestamps.map(ts => consMap[ts] != null ? consMap[ts] : null);
+
+      datasets.push({
+        label: 'Consensus Median',
+        data: consValues,
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        fill: false,
+        tension: 0.2,
+        borderWidth: 2.5,
+        pointRadius: sortedTimestamps.length === 1 ? 6 : 4,
+        pointHoverRadius: 8,
+        spanGaps: true
+      });
+
       const ctx = gmpCanvas.getContext('2d');
       ipoGmpChart = new Chart(ctx, {
         type: 'line',
         data: {
           labels: labels,
-          datasets: [{
-            label: 'GMP (%)',
-            data: values,
-            borderColor: '#10b981',
-            backgroundColor: 'rgba(16, 185, 129, 0.12)',
-            fill: true,
-            tension: 0.3,
-            borderWidth: 2,
-            pointRadius: 3,
-            pointHoverRadius: 5,
-          }]
+          datasets: datasets
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: { display: false },
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                boxWidth: 8,
+                font: { size: 9 },
+                color: isDark ? '#94a3b8' : '#64748b'
+              }
+            },
             tooltip: {
               callbacks: {
-                label: function(ctx) {
-                  const idx = ctx.dataIndex;
-                  const amt = gmpRecords[idx]?.gmp_amount;
-                  return `GMP: +${ctx.raw}% (₹${amt})`;
-                }
+                label: ctx => `${ctx.dataset.label}: +${ctx.raw}%`
               }
             }
           },
@@ -726,109 +1002,14 @@ function renderIpoAnalysisCharts(detailIpo) {
           }
         }
       });
+    })
+    .catch(err => {
+      console.warn('GMP trend fetch error:', err);
+    });
 
-      const gmpText = `GMP percentage over ${gmpRecords.length} recorded dates. Latest GMP: +${lastGmp.gmp_percentage}% (₹${lastGmp.gmp_amount}).`;
-      if (gmpSummary) gmpSummary.textContent = gmpText;
-      gmpCanvas.setAttribute('aria-label', gmpText);
-    }
-  }
-
-  // 2. Subscription Multiples Bar Chart
-  if (ipoSubChart) {
-    ipoSubChart.destroy();
-    ipoSubChart = null;
-  }
-
-  const subscriptions = (detailIpo.subscriptions || []).slice().sort((a, b) => {
-    if (a.day_number != null && b.day_number != null) return a.day_number - b.day_number;
-    return new Date(a.recorded_at) - new Date(b.recorded_at);
-  });
-
-  if (!subscriptions || subscriptions.length === 0) {
-    if (subEmpty) subEmpty.classList.remove('hidden');
-    if (subBox) subBox.classList.add('hidden');
-    if (subLatest) subLatest.textContent = '—';
-    if (subSummary) subSummary.textContent = 'No subscription bidding data recorded yet.';
-  } else {
-    if (subEmpty) subEmpty.classList.add('hidden');
-    if (subBox) subBox.classList.remove('hidden');
-
-    const lastSub = subscriptions[subscriptions.length - 1];
-    if (subLatest) subLatest.textContent = `${lastSub.total_multiple}x Total`;
-
-    const labels = subscriptions.map((s, idx) => s.day_number ? `Day ${s.day_number}` : `Day ${idx + 1}`);
-    const qib = subscriptions.map(s => s.qib_multiple || 0);
-    const retail = subscriptions.map(s => s.retail_multiple || 0);
-    const total = subscriptions.map(s => s.total_multiple || 0);
-
-    if (subCanvas) {
-      const ctx = subCanvas.getContext('2d');
-      ipoSubChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: 'QIB',
-              data: qib,
-              backgroundColor: '#3b82f6',
-              borderRadius: 3,
-            },
-            {
-              label: 'Retail',
-              data: retail,
-              backgroundColor: '#8b5cf6',
-              borderRadius: 3,
-            },
-            {
-              label: 'Total',
-              data: total,
-              backgroundColor: '#10b981',
-              borderRadius: 3,
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: true,
-              position: 'top',
-              labels: {
-                boxWidth: 8,
-                font: { size: 9 },
-                color: isDark ? '#94a3b8' : '#64748b',
-              }
-            },
-            tooltip: {
-              callbacks: {
-                label: ctx => `${ctx.dataset.label}: ${ctx.raw}x`
-              }
-            }
-          },
-          scales: {
-            x: {
-              grid: { display: false },
-              ticks: { color: isDark ? '#94a3b8' : '#64748b', font: { size: 9 } }
-            },
-            y: {
-              grid: { color: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(241, 245, 249, 0.8)' },
-              ticks: {
-                color: isDark ? '#94a3b8' : '#64748b',
-                font: { size: 9 },
-                callback: v => `${v}x`
-              }
-            }
-          }
-        }
-      });
-
-      const subText = `Subscription demand across ${subscriptions.length} bidding days. Final overall subscription: ${lastSub.total_multiple}x (QIB: ${lastSub.qib_multiple || 0}x, Retail: ${lastSub.retail_multiple || 0}x).`;
-      if (subSummary) subSummary.textContent = subText;
-      subCanvas.setAttribute('aria-label', subText);
-    }
-  }
+  // 3. Subscription Multiples Chart
+  currentSubIpoData = detailIpo;
+  renderSubscriptionChart(detailIpo, currentSubViewMode);
 }
 
 // ── Render Portfolio Allocation Donut Chart (SVG) ──

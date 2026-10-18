@@ -63,6 +63,21 @@ async function loadScraperFreshness() {
         dotEl.classList.add('bg-[var(--accent-green)]');
       }
     }
+
+    // GMP Quality Alert Banner (Step 9)
+    const gmpAlertEl = document.getElementById('gmp-quality-alert-banner');
+    if (gmpAlertEl) {
+      if (data.gmp_quality && data.gmp_quality.alert_active) {
+        gmpAlertEl.classList.remove('hidden');
+        const gmpMsgEl = document.getElementById('gmp-quality-alert-msg');
+        if (gmpMsgEl && data.gmp_quality.message) {
+          gmpMsgEl.textContent = data.gmp_quality.message;
+        }
+      } else {
+        gmpAlertEl.classList.add('hidden');
+      }
+    }
+
     if (window.lucide) window.lucide.createIcons();
   } catch (err) {
     console.warn("Failed to check scraper freshness:", err);
@@ -163,17 +178,66 @@ function renderIpos(items) {
   }
 
   function renderCard(ipo) {
-    const score = ipo.score ? ipo.score.composite_score : null;
-    const scoreDisplay = score !== null ? score.toFixed(1) : '—';
     const rec = ipo.score ? ipo.score.recommendation : 'NEUTRAL';
-    const recClean = rec.replace(' ', '_');
-    const gmp = ipo.latest_gmp;
-    const sub = ipo.latest_subscription;
-    const gmpDisplay = gmp ? `+₹${gmp.gmp_amount} (${gmp.gmp_percentage.toFixed(1)}%)` : 'N/A';
+    const confidence = (ipo.score && ipo.score.rationale && ipo.score.rationale.confidence != null) ? ipo.score.rationale.confidence : 1.0;
+    const isInsufficientData = rec === 'INSUFFICIENT DATA' || confidence < 0.50;
+    const isClosed = ipo.status === 'CLOSED';
+    const isListed = ipo.status === 'LISTED';
+    const isClosedOrListed = isClosed || isListed;
 
-    const isClosedOrListed = ipo.status === 'CLOSED' || ipo.status === 'LISTED';
+    const score = ipo.score ? ipo.score.composite_score : null;
+    // Step 4: Below 50% confidence, NO numeric score is displayed
+    const scoreDisplay = (!isInsufficientData && score !== null) ? score.toFixed(1) : '—';
+
+    // Consensus GMP (Step 4 & Step 10)
+    const consensus = ipo.consensus_gmp;
+    let gmpDisplay = 'N/A';
+    let sourceBadge = '';
+    let disagreeBadge = '';
+    let extremeGmpBadge = '';
+    let gmpTooltip = '';
+
+    // Step 7: Extreme GMP (>50% of issue price)
+    const basePrice = ipo.issue_price || ipo.price_band_high || ipo.price_band_low;
+    if (consensus && consensus.gmp_amount !== null && basePrice && basePrice > 0) {
+      const gmpRatio = consensus.gmp_amount / basePrice;
+      const gmpPct = consensus.gmp_percentage != null ? consensus.gmp_percentage : (gmpRatio * 100.0);
+      if (gmpRatio > 0.50 || gmpPct > 50.0) {
+        extremeGmpBadge = `<span class="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/30" title="Consensus GMP is >50% of issue price">Verify before relying</span>`;
+      }
+    }
+
+    if (consensus && consensus.gmp_amount !== null && consensus.status === 'fresh') {
+      gmpDisplay = `+₹${consensus.gmp_amount} (${consensus.gmp_percentage.toFixed(1)}%)`;
+      const count = consensus.sources_count || 1;
+      sourceBadge = `<span class="text-[9px] px-1 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium">${count} source${count > 1 ? 's' : ''}</span>`;
+      if (consensus.sources_disagree) {
+        disagreeBadge = `<span class="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/30" title="Sources differ by >30%">⚠️ Disagree</span>`;
+      }
+      if (consensus.sources && consensus.sources.length > 0) {
+        gmpTooltip = consensus.sources.map(s => {
+          let tStr = '';
+          if (s.recorded_at) {
+            const dt = new Date(s.recorded_at);
+            const diffMin = Math.round(Math.max(0, Date.now() - dt.getTime()) / 60000);
+            tStr = diffMin < 60 ? `${diffMin}m ago` : `${Math.round(diffMin/60)}h ago`;
+          }
+          return `${s.source}: ₹${s.gmp_amount} (${s.gmp_percentage ? s.gmp_percentage.toFixed(1) : 0}%)${tStr ? ' ' + tStr : ''}`;
+        }).join(' | ');
+      }
+    } else if (ipo.latest_gmp && ipo.latest_gmp.gmp_amount !== null) {
+      gmpDisplay = `+₹${ipo.latest_gmp.gmp_amount} (${ipo.latest_gmp.gmp_percentage.toFixed(1)}%)`;
+      sourceBadge = `<span class="text-[9px] px-1 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium">1 source</span>`;
+      gmpTooltip = `${ipo.latest_gmp.source}: ₹${ipo.latest_gmp.gmp_amount} (${ipo.latest_gmp.gmp_percentage.toFixed(1)}%)`;
+    }
+
+    const sub = ipo.latest_subscription;
     const subLabel = isClosedOrListed ? 'Final Subscription' : 'Subscribed';
-    const totalSubDisplay = sub ? `${sub.total_multiple.toFixed(1)}x` : (ipo.status === 'UPCOMING' ? 'Awaiting Bids' : '0.0x');
+    let totalSubDisplay = sub ? `${sub.total_multiple.toFixed(1)}x` : (ipo.status === 'UPCOMING' ? 'Awaiting Bids' : '0.0x');
+    if (isClosedOrListed && ipo.listing_info && ipo.listing_info.listing_gain_pct != null) {
+      const gSign = ipo.listing_info.listing_gain_pct >= 0 ? '+' : '';
+      totalSubDisplay += ` · Listing: ${gSign}${ipo.listing_info.listing_gain_pct.toFixed(1)}%`;
+    }
 
     const isSME = (ipo.ipo_type || '').toUpperCase() === 'SME';
     const typeBadge = isSME
@@ -235,10 +299,10 @@ function renderIpos(items) {
       ? `<p class="text-[9px] text-purple-600 dark:text-purple-400 leading-snug mt-0.5">SME: higher minimum bid, lower liquidity</p>`
       : '';
 
-    // Apply button logic
+    // Apply button logic (Step 7: Suppressed for Closed / Listed)
     let applyBtn = '';
     if (ipo.can_apply && !isClosedOrListed) {
-      if (rec === 'AVOID') {
+      if (rec === 'AVOID' || rec === 'INSUFFICIENT DATA') {
         applyBtn = '';
       } else if (rec === 'NEUTRAL') {
         applyBtn = `<a href="${ipo.angelone_apply_url || ('/api/v1/ipos/' + ipo.id + '/apply/angelone')}" target="_blank"
@@ -259,6 +323,44 @@ function renderIpos(items) {
       statusClass = 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-semibold';
     }
 
+    // Step 4 & 5: Score section rendering
+    let scoreSection = '';
+    if (isClosed) {
+      scoreSection = `
+        <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">Closed</span>
+            <div class="flex items-center text-xs">
+              <span class="text-[10px] text-slate-400 font-medium mr-1.5">Score at close:</span>
+              <span class="font-mono font-bold text-slate-800 dark:text-white">${scoreDisplay}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (isInsufficientData) {
+      const missingList = (ipo.score && ipo.score.rationale && ipo.score.rationale.missing_inputs) || [];
+      const missingText = missingList.length > 0 ? `Missing: ${missingList.join(', ')}` : 'Inputs pending';
+      scoreSection = `
+        <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold badge-INSUFFICIENT_DATA">Insufficient data</span>
+            <span class="font-mono text-xs font-bold text-slate-400">—</span>
+          </div>
+          <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-1">${missingText}</div>
+        </div>
+      `;
+    } else {
+      const recClean = rec.replace(/[ ,]/g, '_').replace(/_+/g, '_');
+      scoreSection = `
+        <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold badge-${recClean}">${rec}</span>
+            <span class="font-mono text-xs font-bold text-slate-800 dark:text-white">${scoreDisplay} <span class="text-[9px] text-slate-400">/100</span></span>
+          </div>
+        </div>
+      `;
+    }
+
     return `
       <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 flex flex-col justify-between space-y-3 hover:border-slate-300 dark:hover:border-slate-700 transition">
         <div class="space-y-2">
@@ -276,15 +378,23 @@ function renderIpos(items) {
 
           ${staleWarning}
 
-          <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between">
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold badge-${recClean}">${rec}</span>
-            <span class="font-mono text-xs font-bold text-slate-800 dark:text-white">${scoreDisplay} <span class="text-[9px] text-slate-400">/100</span></span>
-          </div>
+          ${scoreSection}
 
           <div class="grid grid-cols-2 gap-2 text-[11px]">
-            <div class="p-2 rounded bg-slate-50 dark:bg-slate-900"><span class="text-[10px] text-slate-400 block">GMP</span><strong class="font-mono text-emerald-600 dark:text-emerald-400">${gmpDisplay}</strong></div>
-            <div class="p-2 rounded bg-slate-50 dark:bg-slate-900"><span class="text-[10px] text-slate-400 block">${subLabel}</span><strong class="font-mono text-slate-800 dark:text-white">${totalSubDisplay}</strong></div>
+            <div class="p-2 rounded bg-slate-50 dark:bg-slate-900" title="${gmpTooltip || 'Consensus GMP'}">
+              <div class="flex items-center justify-between gap-1 mb-0.5">
+                <span class="text-[10px] text-slate-400">GMP</span>
+                <div class="flex items-center gap-1 flex-wrap">${sourceBadge}${disagreeBadge}${extremeGmpBadge}</div>
+              </div>
+              <strong class="font-mono text-emerald-600 dark:text-emerald-400">${gmpDisplay}</strong>
+            </div>
+            <div class="p-2 rounded bg-slate-50 dark:bg-slate-900">
+              <span class="text-[10px] text-slate-400 block">${subLabel}</span>
+              <strong class="font-mono text-slate-800 dark:text-white">${totalSubDisplay}</strong>
+            </div>
           </div>
+
+          <p class="text-[8.5px] text-slate-400 dark:text-slate-500 leading-tight">GMP is unofficial and can change anytime; not investment advice.</p>
 
           <div class="flex items-center justify-between text-[9px] text-slate-400">
             ${dayLabel}
@@ -452,7 +562,7 @@ function populateModalDetails(data) {
   const modalApplyBtn = document.getElementById('modal-angelone-btn');
   if (modalApplyBtn) {
     const isClosedOrListed = (data.status === 'CLOSED' || data.status === 'LISTED');
-    if (data.can_apply && !isClosedOrListed && data.status === 'LIVE' && data.score && data.score.recommendation !== 'AVOID') {
+    if (data.can_apply && !isClosedOrListed && data.status === 'LIVE' && data.score && data.score.recommendation !== 'AVOID' && data.score.recommendation !== 'INSUFFICIENT DATA') {
       modalApplyBtn.classList.remove('hidden');
       modalApplyBtn.href = data.angelone_apply_url || ('/api/v1/ipos/' + data.id + '/apply/angelone');
       modalApplyBtn.textContent = 'Apply via Angel One ↗';
@@ -476,13 +586,26 @@ function openModal(ipoId) {
   const typeContainer = document.getElementById('modal-ipo-type');
   if (typeContainer) typeContainer.innerHTML = typeBadge;
 
-  document.getElementById('modal-score').textContent = ipo.score.composite_score;
-
   const rec = ipo.score.recommendation;
-  const recClean = rec.replace(' ', '_');
+  const confidence = (ipo.score.rationale && ipo.score.rationale.confidence != null) ? ipo.score.rationale.confidence : 1.0;
+  const isInsufficient = rec === 'INSUFFICIENT DATA' || confidence < 0.50;
+  const isClosed = ipo.status === 'CLOSED';
   const badge = document.getElementById('modal-rec-badge');
-  badge.textContent = rec;
-  badge.className = `px-2.5 py-1 rounded-lg font-bold text-xs badge-${recClean}`;
+
+  if (isInsufficient) {
+    document.getElementById('modal-score').textContent = '—';
+    badge.textContent = 'Insufficient data';
+    badge.className = 'px-2.5 py-1 rounded-lg font-bold text-xs badge-INSUFFICIENT_DATA';
+  } else if (isClosed) {
+    document.getElementById('modal-score').textContent = ipo.score.composite_score;
+    badge.textContent = 'Closed';
+    badge.className = 'px-2.5 py-1 rounded-lg font-bold text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300';
+  } else {
+    document.getElementById('modal-score').textContent = ipo.score.composite_score;
+    const recClean = rec.replace(/[ ,]/g, '_').replace(/_+/g, '_');
+    badge.textContent = rec;
+    badge.className = `px-2.5 py-1 rounded-lg font-bold text-xs badge-${recClean}`;
+  }
 
   function updateModalBreakdownBars(gmp, sub, val, struct, composite) {
     const gmpNum = Number(gmp) || 0;
@@ -530,9 +653,59 @@ function openModal(ipoId) {
     ipo.score.composite_score
   );
 
-  document.getElementById('modal-rev-growth').textContent = ipo.revenue_growth_yoy ? `+${ipo.revenue_growth_yoy}%` : '—';
-  document.getElementById('modal-pat-growth').textContent = ipo.pat_growth_yoy ? `+${ipo.pat_growth_yoy}%` : '—';
-  document.getElementById('modal-debt-equity').textContent = ipo.debt_to_equity ? `${ipo.debt_to_equity}x` : '—';
+  function renderFinancialStats(item) {
+    // Rev Growth
+    const revEl = document.getElementById('modal-rev-growth');
+    if (revEl) {
+      if (item.revenue_growth_yoy != null) {
+        if (item.revenue_growth_yoy < 0) {
+          revEl.textContent = `Declined ${Math.abs(item.revenue_growth_yoy)}%`;
+        } else {
+          revEl.textContent = `+${item.revenue_growth_yoy}%`;
+        }
+      } else {
+        revEl.textContent = '—';
+      }
+    }
+
+    // PAT Growth
+    const patEl = document.getElementById('modal-pat-growth');
+    if (patEl) {
+      const isSwungLoss = (item.pat_growth_yoy != null && item.pat_growth_yoy <= -100) || (item.pat_margin_pct != null && item.pat_margin_pct < 0);
+      if (isSwungLoss) {
+        patEl.textContent = 'Swung to a loss';
+      } else if (item.pat_growth_yoy != null) {
+        if (item.pat_growth_yoy < 0) {
+          patEl.textContent = `Declined ${Math.abs(item.pat_growth_yoy)}%`;
+        } else {
+          patEl.textContent = `+${item.pat_growth_yoy}%`;
+        }
+      } else {
+        patEl.textContent = '—';
+      }
+    }
+
+    // P/E Ratio
+    const peEl = document.getElementById('modal-pe-ratio');
+    if (peEl) {
+      const isLossMaking = (item.eps != null && item.eps < 0) || (item.pat_margin_pct != null && item.pat_margin_pct < 0) || (item.ronw != null && item.ronw < 0) || (item.pe_ratio != null && item.pe_ratio <= 0);
+      if (isLossMaking) {
+        peEl.textContent = 'Not Meaningful';
+      } else if (item.pe_ratio != null && item.pe_ratio > 0) {
+        peEl.textContent = `${item.pe_ratio}x`;
+      } else {
+        peEl.textContent = '—';
+      }
+    }
+
+    // Debt to Equity
+    const deEl = document.getElementById('modal-debt-equity');
+    if (deEl) {
+      deEl.textContent = item.debt_to_equity ? `${item.debt_to_equity}x` : '—';
+    }
+  }
+
+  renderFinancialStats(ipo);
 
   const rationale = ipo.score.rationale || {};
   const pos = rationale.positive_factors || ["Sound issue fundamentals and valuation."];
@@ -555,6 +728,7 @@ function openModal(ipoId) {
     .then(r => r.ok ? r.json() : null)
     .then(detail => {
       if (detail) {
+        renderFinancialStats(detail);
         populateModalDetails(detail);
         if (typeof renderIpoAnalysisCharts === 'function') {
           renderIpoAnalysisCharts(detail);

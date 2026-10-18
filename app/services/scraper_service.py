@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 
 from app.models.ipo import (
     IPO,
@@ -17,6 +17,10 @@ from app.models.ipo import (
     IPOStatus
 )
 from app.services.scoring_service import ScoringService
+from app.services.consensus_gmp import ConsensusGmpService
+from app.services.ipowatch_scraper import IPOWatchScraper
+from app.services.gmp_matcher import match_gmp_records_to_ipos, normalize_for_gmp_match
+from app.services.telegram_service import TelegramService
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +29,41 @@ class ScraperService:
     """
     Market scraper for IPO master data, subscription status, and Grey Market Premium (GMP).
     """
+
+    _gmp_alert_active: bool = False
+    _gmp_quality_status: Dict[str, Any] = {"alert_active": False, "message": ""}
+
+    @classmethod
+    def get_gmp_quality_status(cls) -> Dict[str, Any]:
+        return cls._gmp_quality_status
+
+    @classmethod
+    def evaluate_gmp_quality(
+        cls,
+        ig_count: int,
+        iw_count: int,
+        live_ipos_count: int,
+        live_ipos_with_fresh_gmp: int
+    ) -> Dict[str, Any]:
+        """
+        Determines whether the 'GMP source unavailable, scores are partial' banner
+        should be active: strictly when all GMP sources fail OR fewer than 50% of live IPOs have fresh GMP.
+        """
+        all_sources_failed = (ig_count == 0 and iw_count == 0)
+        low_coverage = (live_ipos_count > 0 and (live_ipos_with_fresh_gmp / live_ipos_count) < 0.50)
+
+        if all_sources_failed or low_coverage:
+            reason = "All GMP sources failed" if all_sources_failed else "Fewer than 50% of live IPOs have fresh GMP data"
+            return {
+                "alert_active": True,
+                "message": "GMP source unavailable, scores are partial.",
+                "reason": reason
+            }
+        return {
+            "alert_active": False,
+            "message": "",
+            "reason": "OK"
+        }
 
     HEADERS = {
         "User-Agent": (
@@ -47,41 +86,141 @@ class ScraperService:
             return None
 
     @classmethod
-    async def scrape_gmp_feed(cls) -> List[Dict[str, Any]]:
+    def parse_investorgain_table(cls, html: str) -> List[Dict[str, Any]]:
         """
-        Attempts to scrape current GMP updates from public market sources.
-        Returns a list of structured GMP records.
+        Parses InvestorGain GMP table mapping columns by header text dynamically:
+        - Required headers: Name/Company and GMP.
+        - Raises ValueError and logs alert if required headers are missing.
+        - Alerts if >50% of parsed rows have empty GMP (once per incident).
+        - Never writes a default 0 if GMP is '--' or missing.
         """
         results: List[Dict[str, Any]] = []
+        soup = BeautifulSoup(html, "html.parser")
+        table = soup.find("table")
+        if not table:
+            return results
+
+        rows = table.find_all("tr")
+        if not rows:
+            return results
+
+        # 1. Map columns by header text
+        header_row = rows[0]
+        header_cells = [th.get_text(strip=True).lower() for th in header_row.find_all(["th", "td"])]
+
+        name_idx: Optional[int] = None
+        gmp_idx: Optional[int] = None
+        sub_idx: Optional[int] = None
+        price_idx: Optional[int] = None
+        open_idx: Optional[int] = None
+        close_idx: Optional[int] = None
+
+        for idx, h in enumerate(header_cells):
+            if name_idx is None and ("name" in h or "company" in h):
+                name_idx = idx
+            elif gmp_idx is None and "gmp" in h:
+                gmp_idx = idx
+            elif sub_idx is None and "sub" in h:
+                sub_idx = idx
+            elif price_idx is None and "price" in h:
+                price_idx = idx
+            elif open_idx is None and "open" in h:
+                open_idx = idx
+            elif close_idx is None and "close" in h:
+                close_idx = idx
+
+        # Required headers check
+        if name_idx is None or gmp_idx is None:
+            err_msg = f"InvestorGain required header missing (Name or GMP). Found: {header_cells}"
+            logger.error(f"[InvestorGain] {err_msg}")
+            raise ValueError(err_msg)
+
+        total_rows = 0
+        empty_gmp_rows = 0
+
+        for row in rows[1:]:
+            cols = [td.get_text().strip() for td in row.find_all(["td", "th"])]
+            if len(cols) > max(name_idx, gmp_idx):
+                name = cols[name_idx]
+                if not name or name.lower() in ("name", "company"):
+                    continue
+
+                total_rows += 1
+                gmp_col = cols[gmp_idx] if gmp_idx is not None and gmp_idx < len(cols) else ""
+                sub_col = cols[sub_idx] if sub_idx is not None and sub_idx < len(cols) else ""
+                price_col = cols[price_idx] if price_idx is not None and price_idx < len(cols) else ""
+                open_col = cols[open_idx] if open_idx is not None and open_idx < len(cols) else ""
+                close_col = cols[close_idx] if close_idx is not None and close_idx < len(cols) else ""
+
+                # Parse GMP and Percentage: e.g. '₹88(12.70%)83 ↓ / 95 ↑'
+                m_gmp = re.search(r"₹\s*([0-9,.]+)\s*\(([0-9,.]+)%\)", gmp_col)
+                gmp_amt = float(m_gmp.group(1).replace(",", "")) if m_gmp else None
+                gmp_pct = float(m_gmp.group(2).replace(",", "")) if m_gmp else None
+
+                if gmp_amt is None:
+                    empty_gmp_rows += 1
+
+                # Price band / issue price
+                price_nums = [float(p.replace(",", "")) for p in re.findall(r"\b[0-9,.]+\b", price_col) if p.replace(",", "").replace(".", "").isdigit()]
+                price = max(price_nums) if price_nums else None
+
+                # Sub total multiple
+                sub_val = None
+                m_sub = re.search(r"([0-9,.]+)\s*x", sub_col)
+                if m_sub:
+                    try:
+                        sub_val = float(m_sub.group(1).replace(",", ""))
+                    except ValueError:
+                        pass
+
+                # If '--' in gmp_col and no numeric match, keep gmp_amt None (never write default 0)
+                if gmp_amt is not None:
+                    # Strip any appended GMP note from date cells
+                    m_open = re.search(r"(\d{1,2}\s*[-/]\s*[A-Za-z]{3})", open_col)
+                    m_close = re.search(r"(\d{1,2}\s*[-/]\s*[A-Za-z]{3})", close_col)
+                    clean_open = m_open.group(1) if m_open else open_col
+                    clean_close = m_close.group(1) if m_close else close_col
+                    date_span = f"{clean_open} - {clean_close}".strip(" -")
+
+                    results.append({
+                        "company_name": name,
+                        "gmp_amount": gmp_amt,
+                        "gmp_percentage": gmp_pct if gmp_pct is not None else 0.0,
+                        "price": price,
+                        "date_str": date_span,
+                        "subscription_total": sub_val,
+                        "source": "investorgain"
+                    })
+
+        # Quality check: >50% empty GMP
+        if total_rows > 0 and (empty_gmp_rows / total_rows) > 0.50:
+            cls._gmp_quality_status = {
+                "alert_active": True,
+                "message": "More than 50% of parsed InvestorGain rows have empty GMP."
+            }
+            logger.warning(f"[InvestorGain Quality Alert] {empty_gmp_rows}/{total_rows} rows have empty GMP.")
+
+        return results
+
+    @classmethod
+    async def scrape_gmp_feed(cls) -> List[Dict[str, Any]]:
+        """
+        Attempts to scrape current GMP updates from public market sources (InvestorGain).
+        Returns a list of structured GMP records.
+        """
         url = "https://www.investorgain.com/report/live-ipo-gmp/331/"
 
         try:
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
                 res = await client.get(url, headers=cls.HEADERS)
                 if res.status_code == 200:
-                    soup = BeautifulSoup(res.text, "html.parser")
-                    table = soup.find("table")
-                    if table:
-                        rows = table.find_all("tr")
-                        for row in rows[1:]:
-                            cols = [td.get_text().strip() for td in row.find_all(["td", "th"])]
-                            if len(cols) >= 4:
-                                name = cols[0]
-                                gmp_raw = cols[2] if len(cols) > 2 else ""
-                                pct_raw = cols[3] if len(cols) > 3 else ""
-                                gmp_val = cls._clean_number(gmp_raw)
-                                pct_val = cls._clean_number(pct_raw)
-                                if name and (gmp_val is not None or pct_val is not None):
-                                    results.append({
-                                        "company_name": name,
-                                        "gmp_amount": gmp_val,
-                                        "gmp_percentage": pct_val,
-                                        "source": "investorgain"
-                                    })
+                    return cls.parse_investorgain_table(res.text)
+                else:
+                    logger.warning(f"InvestorGain returned HTTP {res.status_code}")
         except Exception as exc:
             logger.info(f"Live GMP web scrape encountered network/html variance: {exc}")
 
-        return results
+        return []
 
     @classmethod
     async def scrape_subscription_feed(cls) -> List[Dict[str, Any]]:
@@ -733,142 +872,253 @@ class ScraperService:
     @classmethod
     async def sync_market_data(cls, session: AsyncSession) -> Dict[str, Any]:
         """
-        Runs complete sync: scrapes live feeds, updates DB records, and recalculates composite scores.
+        Runs complete sync:
+        1. Scrapes InvestorGain and IPOWatch (second source) with robots.txt compliance and rate limits.
+        2. Matches scraped rows via aliases and normalized rapidfuzz with cross-checks.
+        3. Saves readings per source into IPOGmp without overwriting.
+        4. Matches subscription data (including InvestorGain total multiple fallback).
+        5. Computes 12-hour consensus median GMP with source disagreement tracking.
+        6. Recomputes composite scores with missing-data proportional scaling.
+        7. Triggers GMP data quality alerts (Telegram and banner) if sources fail or <50% live IPOs fresh.
         """
-        logger.info("Starting market data sync...")
-        gmp_records = await cls.scrape_gmp_feed()
-        sub_records = await cls.scrape_subscription_feed()
+        logger.info("Starting multi-source market data sync (InvestorGain + IPOWatch)...")
+        now_sync = datetime.now(timezone.utc)
 
-        # Query all active or upcoming IPOs (excluding seed data)
+        # 1. Scrape InvestorGain
+        try:
+            ig_records = await cls.scrape_gmp_feed()
+        except Exception as exc:
+            logger.error(f"Error scraping InvestorGain: {exc}")
+            ig_records = []
+
+        # 2. Scrape IPOWatch
+        try:
+            iw_records = await IPOWatchScraper.fetch_feed()
+        except Exception as exc:
+            logger.error(f"Error scraping IPOWatch: {exc}")
+            iw_records = []
+
+        # 3. Scrape Chittorgarh Subscriptions
+        try:
+            sub_records = await cls.scrape_subscription_feed()
+        except Exception as exc:
+            logger.error(f"Error scraping subscription feed: {exc}")
+            sub_records = []
+
+        # 4. Correct stored statuses and query target IPOs (Live, Upcoming, and Closed until listing date, excluding seeds)
+        from app.services.scheduler import correct_ipo_statuses
+        await correct_ipo_statuses(session)
+
+        today_dt = date.today()
         stmt = select(IPO).where(
-            IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]),
-            IPO.is_seed.is_(False)
+            IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING, IPOStatus.CLOSED]),
+            IPO.is_seed.is_(False),
+            or_(IPO.listing_date.is_(None), IPO.listing_date >= today_dt)
         )
         result = await session.execute(stmt)
         active_ipos = result.scalars().all()
 
-        now_sync = datetime.now(timezone.utc)
-        updated_count = 0
-        for ipo in active_ipos:
-            data_changed = False
+        # 5. Match GMP rows against target IPOs
+        ig_matched, ig_unmatched = await match_gmp_records_to_ipos(
+            session, ig_records, active_ipos, source_name="investorgain"
+        )
+        iw_matched, iw_unmatched = await match_gmp_records_to_ipos(
+            session, iw_records, active_ipos, source_name="ipowatch"
+        )
 
-            # Existing latest records
-            gmp_stmt = select(IPOGmp).where(IPOGmp.ipo_id == ipo.id).order_by(IPOGmp.recorded_at.desc()).limit(1)
-            prev_gmp = (await session.execute(gmp_stmt)).scalar_one_or_none()
+        # 6. Save each reading in ipo_gmp with source and recorded_at
+        all_matched_pairs = ig_matched + iw_matched
+        for ipo, scraped_item in all_matched_pairs:
+            src = scraped_item.get("source", "market")
+            gmp_amt = scraped_item.get("gmp_amount")
+            gmp_pct = scraped_item.get("gmp_percentage")
+            base_price = ipo.issue_price or ipo.price_band_high or ipo.price_band_low or scraped_item.get("price") or 0.0
 
-            sub_stmt = select(IPOSubscription).where(IPOSubscription.ipo_id == ipo.id).order_by(IPOSubscription.recorded_at.desc()).limit(1)
-            prev_sub = (await session.execute(sub_stmt)).scalar_one_or_none()
+            if gmp_amt is None and gmp_pct is not None and base_price > 0:
+                gmp_amt = round((gmp_pct / 100.0) * base_price, 2)
+            if gmp_pct is None and gmp_amt is not None and base_price > 0:
+                gmp_pct = round((gmp_amt / base_price) * 100.0, 2)
 
-            # Match GMP
-            matched_gmp = next(
-                (g for g in gmp_records if ipo.symbol.lower() in g["company_name"].lower() or g["company_name"].lower() in ipo.company_name.lower()),
-                None
+            # Never write default 0 if gmp_amt is None
+            if gmp_amt is None:
+                continue
+
+            # Check latest reading for this source
+            prev_stmt = (
+                select(IPOGmp)
+                .where(IPOGmp.ipo_id == ipo.id, IPOGmp.source == src)
+                .order_by(IPOGmp.recorded_at.desc())
+                .limit(1)
             )
-            latest_gmp_obj: Optional[IPOGmp] = None
-            if matched_gmp:
-                gmp_amt = matched_gmp.get("gmp_amount")
-                gmp_pct = matched_gmp.get("gmp_percentage")
-                base_price = ipo.issue_price or ipo.price_band_high or ipo.price_band_low or 0.0
-                if gmp_amt is None and gmp_pct is not None and base_price > 0:
-                    gmp_amt = round((gmp_pct / 100.0) * base_price, 2)
-                elif gmp_amt is None:
-                    gmp_amt = 0.0
+            prev_gmp = (await session.execute(prev_stmt)).scalar_one_or_none()
 
-                if gmp_pct is None and gmp_amt is not None and base_price > 0:
-                    gmp_pct = round((gmp_amt / base_price) * 100.0, 2)
-                elif gmp_pct is None:
-                    gmp_pct = 0.0
+            # Record if changed or no previous reading (deduplicate within 1 hour if values unchanged)
+            is_gmp_dup = False
+            if prev_gmp:
+                val_same = (prev_gmp.gmp_amount == gmp_amt and prev_gmp.gmp_percentage == gmp_pct)
+                prev_dt = prev_gmp.recorded_at if prev_gmp.recorded_at.tzinfo else prev_gmp.recorded_at.replace(tzinfo=timezone.utc)
+                if val_same and (now_sync - prev_dt).total_seconds() < 3600:
+                    is_gmp_dup = True
 
-                is_gmp_changed = (
-                    prev_gmp is None
-                    or prev_gmp.gmp_amount != gmp_amt
-                    or prev_gmp.gmp_percentage != gmp_pct
+            if prev_gmp is None or (not is_gmp_dup and (prev_gmp.gmp_amount != gmp_amt or prev_gmp.gmp_percentage != gmp_pct)):
+                new_gmp = IPOGmp(
+                    ipo_id=ipo.id,
+                    gmp_amount=gmp_amt,
+                    gmp_percentage=gmp_pct or 0.0,
+                    source=src,
+                    recorded_at=now_sync
                 )
-                if is_gmp_changed:
-                    latest_gmp_obj = IPOGmp(
-                        ipo_id=ipo.id,
-                        gmp_amount=gmp_amt,
-                        gmp_percentage=gmp_pct,
-                        source=matched_gmp.get("source", "market"),
-                        recorded_at=now_sync
-                    )
-                    session.add(latest_gmp_obj)
-                    data_changed = True
-                else:
-                    latest_gmp_obj = prev_gmp
-            else:
-                latest_gmp_obj = prev_gmp
+                session.add(new_gmp)
 
-            # Match Subscription
+        # 7. Match and record subscriptions
+        for ipo in active_ipos:
+            norm_name = normalize_for_gmp_match(ipo.company_name)
             matched_sub = next(
-                (s for s in sub_records if ipo.symbol.lower() in s["company_name"].lower() or s["company_name"].lower() in ipo.company_name.lower()),
+                (s for s in sub_records if norm_name and (norm_name in normalize_for_gmp_match(s["company_name"]) or normalize_for_gmp_match(s["company_name"]) in norm_name)),
                 None
             )
-            latest_sub_obj: Optional[IPOSubscription] = None
+            # If Chittorgarh sub not found, check if InvestorGain scraped item had subscription_total (e.g. 131.7x for HD Fire Protect)
+            ig_item = next((item for target_ipo, item in ig_matched if target_ipo.id == ipo.id), None)
+
+            tot_mult = None
+            qib_mult = None
+            nii_mult = None
+            ret_mult = None
+
             if matched_sub:
                 tot_mult = matched_sub.get("total_multiple")
-                if tot_mult is None:
-                    tot_mult = 0.0
                 qib_mult = matched_sub.get("qib_multiple")
                 nii_mult = matched_sub.get("nii_multiple")
                 ret_mult = matched_sub.get("retail_multiple")
+            elif ig_item and ig_item.get("subscription_total") is not None:
+                tot_mult = ig_item.get("subscription_total")
 
-                is_sub_changed = (
-                    prev_sub is None
-                    or prev_sub.total_multiple != tot_mult
+            if tot_mult is not None or qib_mult is not None or ret_mult is not None:
+                prev_sub_stmt = (
+                    select(IPOSubscription)
+                    .where(IPOSubscription.ipo_id == ipo.id)
+                    .order_by(IPOSubscription.recorded_at.desc())
+                    .limit(1)
+                )
+                prev_sub = (await session.execute(prev_sub_stmt)).scalar_one_or_none()
+                is_sub_dup = False
+                if prev_sub:
+                    sub_val_same = (
+                        prev_sub.total_multiple == tot_mult
+                        and prev_sub.qib_multiple == qib_mult
+                        and prev_sub.nii_multiple == nii_mult
+                        and prev_sub.retail_multiple == ret_mult
+                    )
+                    prev_sub_dt = prev_sub.recorded_at if prev_sub.recorded_at.tzinfo else prev_sub.recorded_at.replace(tzinfo=timezone.utc)
+                    if sub_val_same and (now_sync - prev_sub_dt).total_seconds() < 3600:
+                        is_sub_dup = True
+
+                if prev_sub is None or (not is_sub_dup and (
+                    prev_sub.total_multiple != tot_mult
                     or prev_sub.qib_multiple != qib_mult
                     or prev_sub.nii_multiple != nii_mult
                     or prev_sub.retail_multiple != ret_mult
-                )
-                if is_sub_changed:
-                    latest_sub_obj = IPOSubscription(
+                )):
+                    new_sub = IPOSubscription(
                         ipo_id=ipo.id,
                         qib_multiple=qib_mult,
                         nii_multiple=nii_mult,
                         retail_multiple=ret_mult,
-                        total_multiple=tot_mult,
+                        total_multiple=tot_mult if tot_mult is not None else 0.0,
                         recorded_at=now_sync
                     )
-                    session.add(latest_sub_obj)
-                    data_changed = True
-                else:
-                    latest_sub_obj = prev_sub
-            else:
-                latest_sub_obj = prev_sub
+                    session.add(new_sub)
 
-            if data_changed:
-                ipo.updated_at = now_sync
-                await session.flush()
+        await session.flush()
 
-                # Recalculate score
-                score_data = ScoringService.calculate_score(
-                    ipo=ipo,
-                    latest_subscription=latest_sub_obj,
-                    latest_gmp=latest_gmp_obj
+        # 8. Consensus GMP Calculation and Score Recalculation
+        updated_count = 0
+        live_ipos_count = 0
+        live_ipos_with_fresh_gmp = 0
+
+        for ipo in active_ipos:
+            # Latest subscription
+            sub_stmt = select(IPOSubscription).where(IPOSubscription.ipo_id == ipo.id).order_by(IPOSubscription.recorded_at.desc()).limit(1)
+            latest_sub_obj = (await session.execute(sub_stmt)).scalar_one_or_none()
+
+            # All recent GMP readings
+            gmp_all_stmt = select(IPOGmp).where(IPOGmp.ipo_id == ipo.id).order_by(IPOGmp.recorded_at.desc())
+            readings = (await session.execute(gmp_all_stmt)).scalars().all()
+            consensus = ConsensusGmpService.calculate_consensus_from_readings(readings, now=now_sync)
+
+            if ipo.status == IPOStatus.LIVE:
+                live_ipos_count += 1
+                if consensus["status"] == "fresh":
+                    live_ipos_with_fresh_gmp += 1
+
+            # Prepare GMP input for ScoringService:
+            # Use consensus median if fresh; None if missing or stale (>24h)
+            consensus_gmp_obj: Optional[IPOGmp] = None
+            if consensus["status"] == "fresh" and consensus["gmp_amount"] is not None:
+                consensus_gmp_obj = IPOGmp(
+                    ipo_id=ipo.id,
+                    gmp_amount=consensus["gmp_amount"],
+                    gmp_percentage=consensus["gmp_percentage"],
+                    source="consensus",
+                    recorded_at=now_sync
                 )
 
-                score_stmt = select(IPOScore).where(IPOScore.ipo_id == ipo.id)
-                score_obj = (await session.execute(score_stmt)).scalar_one_or_none()
-                if score_obj:
-                    score_obj.composite_score = score_data["composite_score"]
-                    score_obj.recommendation = score_data["recommendation"]
-                    score_obj.gmp_score = score_data["gmp_score"]
-                    score_obj.subscription_score = score_data["subscription_score"]
-                    score_obj.valuation_score = score_data["valuation_score"]
-                    score_obj.structure_score = score_data["structure_score"]
-                    score_obj.rationale = score_data["rationale"]
-                    score_obj.calculated_at = now_sync
-                else:
-                    valid_keys = {"composite_score", "recommendation", "gmp_score", "subscription_score", "valuation_score", "structure_score", "rationale"}
-                    filtered_score = {k: v for k, v in score_data.items() if k in valid_keys}
-                    session.add(IPOScore(ipo_id=ipo.id, calculated_at=now_sync, **filtered_score))
+            # Recalculate score
+            score_data = ScoringService.calculate_score(
+                ipo=ipo,
+                latest_subscription=latest_sub_obj,
+                latest_gmp=consensus_gmp_obj
+            )
 
-                updated_count += 1
+            ipo.updated_at = now_sync
+
+            score_stmt = select(IPOScore).where(IPOScore.ipo_id == ipo.id)
+            score_obj = (await session.execute(score_stmt)).scalar_one_or_none()
+            if score_obj:
+                score_obj.composite_score = score_data["composite_score"]
+                score_obj.recommendation = score_data["recommendation"]
+                score_obj.gmp_score = score_data["gmp_score"]
+                score_obj.subscription_score = score_data["subscription_score"]
+                score_obj.valuation_score = score_data["valuation_score"]
+                score_obj.structure_score = score_data["structure_score"]
+                score_obj.rationale = score_data["rationale"]
+                score_obj.calculated_at = now_sync
+            else:
+                valid_keys = {"composite_score", "recommendation", "gmp_score", "subscription_score", "valuation_score", "structure_score", "rationale"}
+                filtered_score = {k: v for k, v in score_data.items() if k in valid_keys}
+                session.add(IPOScore(ipo_id=ipo.id, calculated_at=now_sync, **filtered_score))
+
+            updated_count += 1
+
+        # 9. Step 9: GMP Data Quality Alert
+        quality_status = cls.evaluate_gmp_quality(
+            ig_count=len(ig_records),
+            iw_count=len(iw_records),
+            live_ipos_count=live_ipos_count,
+            live_ipos_with_fresh_gmp=live_ipos_with_fresh_gmp
+        )
+        cls._gmp_quality_status = quality_status
+
+        if quality_status["alert_active"]:
+            if not cls._gmp_alert_active:
+                cls._gmp_alert_active = True
+                msg = f"⚠️ <b>IPO Market Data Alert</b>: {quality_status['message']} ({quality_status.get('reason', '')})"
+                try:
+                    await TelegramService.send_message(msg)
+                except Exception as t_err:
+                    logger.error(f"Failed to send Telegram alert for GMP quality: {t_err}")
+        else:
+            cls._gmp_alert_active = False
 
         await session.commit()
         return {
             "status": "success",
-            "gmp_scraped": len(gmp_records),
+            "investorgain_scraped": len(ig_records),
+            "investorgain_matched": len(ig_matched),
+            "investorgain_unmatched": len(ig_unmatched),
+            "ipowatch_scraped": len(iw_records),
+            "ipowatch_matched": len(iw_matched),
+            "ipowatch_unmatched": len(iw_unmatched),
             "subscription_scraped": len(sub_records),
             "ipos_updated": updated_count,
             "timestamp": datetime.now().isoformat()

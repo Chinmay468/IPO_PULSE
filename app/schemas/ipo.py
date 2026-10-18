@@ -223,6 +223,7 @@ class IPOResponse(IPOBase):
 
     # Computed or joined fields
     latest_gmp: Optional[GMPResponse] = None
+    consensus_gmp: Optional[Dict[str, Any]] = None
     latest_subscription: Optional[SubscriptionResponse] = None
     score: Optional[ScoreResponse] = None
     angelone_apply_url: Optional[str] = None
