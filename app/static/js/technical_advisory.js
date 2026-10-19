@@ -282,9 +282,10 @@ function initAICopilotGreeting() {
       <p class="text-[11px] text-[#7C7164] dark:text-slate-400">
         Click a suggested topic below or type anything in the prompt box to begin.
       </p>
-      <p class="text-[10px] text-[#8E8477] dark:text-slate-400 italic pt-0.5 border-t border-[#E8DFD5]/60 dark:border-slate-700/40">
-        IPO PULSE Copilot is an AI and can make mistakes.
-      </p>
+      <div class="pt-2 border-t border-[#E8DFD5] dark:border-slate-700/60 flex items-center gap-1.5 text-[11px] text-[#8E8477] dark:text-slate-400 font-medium">
+        <i data-lucide="info" class="w-3.5 h-3.5 text-amber-600 dark:text-amber-500 shrink-0"></i>
+        <span>IPO PULSE Copilot is an AI and can make mistakes.</span>
+      </div>
     </div>
 
     <div class="flex flex-wrap gap-2 pt-1" id="ai-quick-suggestions-box">
