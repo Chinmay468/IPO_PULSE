@@ -217,3 +217,151 @@ html, body {
   color: #94a3b8 !important;
   font-weight: 500 !important;
 }
+
+/* ==========================================================================
+   WARM TONE THEME (LIGHT MODE)
+   Transforms cold slate/clinical white into an inviting, premium warm stone,
+   linen and parchment palette while keeping dark mode crisp and untouched.
+   ========================================================================== */
+
+:root {
+  --warm-bg: #FAF7F2;
+  --warm-card: #FFFFFF;
+  --warm-subtle: #F6F3EC;
+  --warm-subtle-hover: #EFEAE2;
+  --warm-border: #E8E2D7;
+  --warm-border-subtle: #F1ECE4;
+  --warm-text-primary: #1C1917;
+  --warm-text-secondary: #44403C;
+  --warm-text-muted: #78716C;
+  --warm-text-subtle: #8C827A;
+}
+
+html:not(.dark) body {
+  background-color: var(--warm-bg) !important;
+  color: var(--warm-text-primary);
+}
+
+html:not(.dark) header {
+  background-color: rgba(250, 247, 242, 0.95) !important;
+  border-bottom-color: var(--warm-border) !important;
+}
+
+/* Warm cards and borders */
+html:not(.dark) .border-\[\#E8EAEE\],
+html:not(.dark) .border-\[\#EAE3DA\],
+html:not(.dark) .border-slate-200,
+html:not(.dark) .border-gray-200 {
+  border-color: var(--warm-border) !important;
+}
+
+html:not(.dark) .border-slate-100,
+html:not(.dark) .border-gray-100 {
+  border-color: var(--warm-border-subtle) !important;
+}
+
+html:not(.dark) .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--warm-border-subtle) !important;
+}
+
+/* Warm sub-containers, chips, inputs, toolbars */
+html:not(.dark) .bg-slate-50,
+html:not(.dark) .bg-gray-50,
+html:not(.dark) [class*="bg-slate-50/"] {
+  background-color: var(--warm-subtle) !important;
+}
+
+html:not(.dark) .bg-slate-100,
+html:not(.dark) .bg-gray-100,
+html:not(.dark) [class*="bg-slate-100/"] {
+  background-color: var(--warm-subtle-hover) !important;
+}
+
+/* Warm typography in light mode */
+html:not(.dark) .text-slate-900,
+html:not(.dark) .text-gray-900 {
+  color: var(--warm-text-primary) !important;
+}
+
+html:not(.dark) .text-slate-800,
+html:not(.dark) .text-gray-800 {
+  color: #292524 !important;
+}
+
+html:not(.dark) .text-slate-700,
+html:not(.dark) .text-gray-700 {
+  color: var(--warm-text-secondary) !important;
+}
+
+html:not(.dark) .text-slate-600,
+html:not(.dark) .text-gray-600 {
+  color: #57534E !important;
+}
+
+html:not(.dark) .text-slate-500,
+html:not(.dark) .text-gray-500 {
+  color: var(--warm-text-muted) !important;
+}
+
+html:not(.dark) .text-slate-400,
+html:not(.dark) .text-gray-400 {
+  color: var(--warm-text-subtle) !important;
+}
+
+/* Form inputs & search boxes */
+html:not(.dark) input[type="text"],
+html:not(.dark) input[type="search"],
+html:not(.dark) input[type="number"],
+html:not(.dark) input[type="date"],
+html:not(.dark) select {
+  background-color: #F8F5EE !important;
+  border-color: var(--warm-border) !important;
+  color: var(--warm-text-primary) !important;
+}
+
+html:not(.dark) input[type="text"]:focus,
+html:not(.dark) input[type="search"]:focus,
+html:not(.dark) input[type="number"]:focus,
+html:not(.dark) input[type="date"]:focus,
+html:not(.dark) select:focus {
+  background-color: #FFFFFF !important;
+  border-color: #10B981 !important;
+}
+
+/* Dropdown buttons & filters */
+html:not(.dark) button[id^="filter-"] {
+  background-color: var(--warm-subtle) !important;
+  border-color: var(--warm-border) !important;
+  color: var(--warm-text-secondary) !important;
+}
+html:not(.dark) button[id^="filter-"]:hover {
+  background-color: var(--warm-subtle-hover) !important;
+  border-color: #D6CCC0 !important;
+}
+
+/* Warm soft shadows */
+html:not(.dark) .shadow-soft {
+  box-shadow: 0 1px 3px rgba(70, 50, 30, 0.04), 0 1px 2px rgba(70, 50, 30, 0.02) !important;
+}
+
+html:not(.dark) .shadow-card {
+  box-shadow: 0 4px 6px -1px rgba(70, 50, 30, 0.05), 0 2px 4px -2px rgba(70, 50, 30, 0.03) !important;
+}
+
+html:not(.dark) .shadow-dropdown {
+  box-shadow: 0 10px 25px -5px rgba(70, 50, 30, 0.08), 0 8px 10px -6px rgba(70, 50, 30, 0.04) !important;
+}
+
+/* Hover border for cards */
+html:not(.dark) .hover\:border-slate-300:hover {
+  border-color: #D6CCC0 !important;
+}
+
+/* Insufficient Data badge in warm stone */
+html:not(.dark) .badge-INSUFFICIENT_DATA,
+html:not(.dark) .badge-INSUFFICIENT\ DATA {
+  background: #F5F1EA !important;
+  color: #57534E !important;
+  border-color: #E4DCD2 !important;
+}
+
