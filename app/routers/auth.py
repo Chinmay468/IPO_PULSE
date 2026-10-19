@@ -12,6 +12,8 @@ from app.auth import (
     verify_password,
     hash_password_secure,
     create_access_token,
+    decode_access_token,
+    create_reset_token,
     require_auth,
     limiter
 )
@@ -19,6 +21,28 @@ from app.auth import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1, description="Current account password")
+    new_password: str = Field(..., min_length=6, max_length=128, description="New password (at least 6 characters)")
+
+
+class ForgotPasswordRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=100, description="Username of the account")
+    email: Optional[str] = Field(None, max_length=255, description="Registered email address if applicable")
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+    reset_token: str
+    username: str
+    has_email: bool
+
+
+class ResetPasswordWithTokenRequest(BaseModel):
+    reset_token: str = Field(..., description="Password reset verification token")
+    new_password: str = Field(..., min_length=6, max_length=128, description="New password (at least 6 characters)")
 
 
 class LoginRequest(BaseModel):
@@ -297,3 +321,207 @@ async def get_me(payload: dict = Depends(require_auth), db: AsyncSession = Depen
         "full_name": "Admin",
         "is_superuser": (sub == settings.ADMIN_USERNAME)
     }
+
+
+@router.post(
+    "/change-password",
+    summary="Change or reset password for the currently authenticated user"
+)
+@limiter.limit("10/minute")
+async def change_password(
+    request: Request,
+    body: ChangePasswordRequest,
+    payload: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Allows an authenticated user to update their account password.
+    Requires verifying their current password and hashes the new password
+    using salted PBKDF2-HMAC-SHA256 (100,000 iterations).
+    """
+    sub = payload.get("sub")
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials."
+        )
+
+    clean_user = sub.strip()
+    stmt = select(User).where(func.lower(User.username) == clean_user.lower())
+    res = await db.execute(stmt)
+    user = res.scalar_one_or_none()
+
+    if not user:
+        # Check if environment admin user
+        configured_user = settings.ADMIN_USERNAME
+        configured_hash = getattr(settings, "ADMIN_PASSWORD", None) or settings.ADMIN_PASSWORD_HASH
+        if clean_user == configured_user and configured_hash:
+            if not verify_password(body.current_password, configured_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Current password is incorrect."
+                )
+            if body.current_password == body.new_password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="New password must be different from current password."
+                )
+            # Provision admin user in DB with newly hashed password
+            user = User(
+                username=configured_user,
+                hashed_password=hash_password_secure(body.new_password),
+                is_superuser=True,
+                is_active=True
+            )
+            db.add(user)
+            await db.commit()
+            return {"message": "Password changed successfully."}
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User account not found."
+        )
+
+    if not verify_password(body.current_password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect."
+        )
+
+    if body.current_password == body.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from current password."
+        )
+
+    user.hashed_password = hash_password_secure(body.new_password)
+    await db.commit()
+    logger.info("Password updated successfully for user '%s'", user.username)
+    return {"message": "Password updated successfully."}
+
+
+@router.post(
+    "/forgot-password",
+    response_model=ForgotPasswordResponse,
+    summary="Verify account credentials to initiate password recovery"
+)
+@limiter.limit("10/minute")
+async def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Step 1 of password recovery: verifies user identity via username and (if configured) registered email.
+    Returns a signed, short-lived reset token (valid for 15 minutes) to securely authorize password update.
+    """
+    clean_user = body.username.strip()
+    stmt = select(User).where(func.lower(User.username) == clean_user.lower())
+    res = await db.execute(stmt)
+    user = res.scalar_one_or_none()
+
+    # Check environment admin fallback if record not yet instantiated in DB
+    if not user and clean_user.lower() == settings.ADMIN_USERNAME.lower():
+        configured_hash = getattr(settings, "ADMIN_PASSWORD", None) or settings.ADMIN_PASSWORD_HASH
+        user = User(
+            username=settings.ADMIN_USERNAME,
+            hashed_password=configured_hash or hash_password_secure("admin123"),
+            is_superuser=True,
+            is_active=True
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No account found with username '{clean_user}'."
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account has been disabled. Please contact an administrator."
+        )
+
+    # If the user registered an email, require matching email for identity verification
+    if user.email:
+        if not body.email or not body.email.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This account has a registered email address. Please enter your email to verify your identity."
+            )
+        if body.email.strip().lower() != user.email.strip().lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The provided email address does not match our records for this account."
+            )
+
+    reset_token = create_reset_token(user.username, user.id, expires_minutes=15)
+    return ForgotPasswordResponse(
+        message="Account identity verified. Please proceed to set your new password.",
+        reset_token=reset_token,
+        username=user.username,
+        has_email=bool(user.email)
+    )
+
+
+@router.post(
+    "/reset-password-with-token",
+    response_model=LoginResponse,
+    summary="Reset password using a validated recovery token"
+)
+@limiter.limit("10/minute")
+async def reset_password_with_token(
+    request: Request,
+    body: ResetPasswordWithTokenRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Step 2 of password recovery: verifies signed reset token and updates the user's password.
+    Returns a fresh login access token so the user is immediately logged in.
+    """
+    payload = decode_access_token(body.reset_token)
+    if not payload or payload.get("type") != "password_reset":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token. Please start the recovery process again."
+        )
+
+    username = payload.get("sub")
+    user_id = payload.get("user_id")
+
+    stmt = select(User).where((User.id == user_id) | (func.lower(User.username) == username.lower()))
+    res = await db.execute(stmt)
+    user = res.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account associated with this reset token could not be found."
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account has been disabled."
+        )
+
+    user.hashed_password = hash_password_secure(body.new_password)
+    await db.commit()
+    logger.info("Password successfully reset via recovery token for user '%s'", user.username)
+
+    # Auto-login: issue fresh access token
+    new_token = create_access_token({
+        "sub": user.username,
+        "user_id": user.id,
+        "is_superuser": user.is_superuser
+    })
+
+    return LoginResponse(
+        access_token=new_token,
+        token_type="bearer",
+        user_id=user.id,
+        username=user.username,
+        is_admin=user.is_superuser
+    )

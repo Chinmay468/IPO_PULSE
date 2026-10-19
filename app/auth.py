@@ -102,6 +102,18 @@ def decode_access_token(token: str) -> Optional[dict]:
         return None
 
 
+def create_reset_token(username: str, user_id: int, expires_minutes: int = 15) -> str:
+    """Encodes a signed JWT specifically for password recovery."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+    payload = {
+        "sub": username,
+        "user_id": user_id,
+        "type": "password_reset",
+        "exp": expire
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
 async def require_auth(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer)
 ) -> dict:

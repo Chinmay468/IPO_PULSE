@@ -36,24 +36,30 @@ function updateAuthUI() {
   const icon = document.getElementById('auth-header-icon');
   const btn = document.getElementById('auth-header-btn');
   const menuLabel = document.getElementById('menu-auth-label');
+  const changePassBtn = document.getElementById('menu-change-password-btn');
   if (token) {
     const user = getAuthUser();
     if (label) label.textContent = `${user} (Logout)`;
     if (menuLabel) menuLabel.textContent = `${user} (Logout)`;
     if (icon) icon.setAttribute('data-lucide', 'unlock');
     if (btn) btn.classList.add('border-emerald-500/50', 'text-emerald-600', 'dark:text-emerald-400');
+    if (changePassBtn) changePassBtn.classList.remove('hidden');
   } else {
     if (label) label.textContent = 'Sign In';
     if (menuLabel) menuLabel.textContent = 'Sign In / Register';
     if (icon) icon.setAttribute('data-lucide', 'lock');
     if (btn) btn.classList.remove('border-emerald-500/50', 'text-emerald-600', 'dark:text-emerald-400');
+    if (changePassBtn) changePassBtn.classList.add('hidden');
   }
   refreshLucideIcons();
 }
 
+let currentResetToken = null;
+
 function switchAuthTab(tab) {
   const signinForm = document.getElementById('login-form');
   const signupForm = document.getElementById('register-form');
+  const forgotForm = document.getElementById('forgot-form');
   const signinBtn = document.getElementById('tab-btn-signin');
   const signupBtn = document.getElementById('tab-btn-signup');
   const modalTitle = document.getElementById('login-modal-title');
@@ -76,6 +82,7 @@ function switchAuthTab(tab) {
 
   if (tab === 'signup') {
     if (signinForm) signinForm.classList.add('hidden');
+    if (forgotForm) forgotForm.classList.add('hidden');
     if (signupForm) signupForm.classList.remove('hidden');
     if (modalTitle) modalTitle.textContent = 'Create New Account';
     if (modalSub) modalSub.textContent = 'Sign up to build and manage your portfolio';
@@ -88,8 +95,32 @@ function switchAuthTab(tab) {
       signinBtn.classList.remove(...activeClasses);
       signinBtn.classList.add(...inactiveClasses);
     }
+  } else if (tab === 'forgot') {
+    if (signinForm) signinForm.classList.add('hidden');
+    if (signupForm) signupForm.classList.add('hidden');
+    if (forgotForm) forgotForm.classList.remove('hidden');
+    if (modalTitle) modalTitle.textContent = 'Password Recovery';
+    if (modalSub) modalSub.textContent = 'Verify your identity to reset your password';
+
+    // Deselect both tabs visually
+    if (signinBtn) {
+      signinBtn.classList.remove(...activeClasses);
+      signinBtn.classList.add(...inactiveClasses);
+    }
+    if (signupBtn) {
+      signupBtn.classList.remove(...activeClasses);
+      signupBtn.classList.add(...inactiveClasses);
+    }
+
+    // Reset forgot form steps
+    const step1 = document.getElementById('forgot-step-1');
+    const step2 = document.getElementById('forgot-step-2');
+    if (step1) step1.classList.remove('hidden');
+    if (step2) step2.classList.add('hidden');
+    currentResetToken = null;
   } else {
     if (signupForm) signupForm.classList.add('hidden');
+    if (forgotForm) forgotForm.classList.add('hidden');
     if (signinForm) signinForm.classList.remove('hidden');
     if (modalTitle) modalTitle.textContent = 'Account Access';
     if (modalSub) modalSub.textContent = 'Sign in to manage your portfolio';
@@ -349,6 +380,272 @@ async function submitRegister(e) {
     spinner.classList.add('hidden');
     submitText.textContent = 'Create Account';
     submitBtn.disabled = false;
+    refreshLucideIcons();
+  }
+}
+
+
+// ==================== FORGOT & RESET PASSWORD ====================
+
+async function submitForgotVerify() {
+  const username = (document.getElementById('forgot-username')?.value || '').trim();
+  const email = (document.getElementById('forgot-email')?.value || '').trim();
+  const errEl = document.getElementById('login-error');
+  const succEl = document.getElementById('login-success');
+  const spinner = document.getElementById('forgot-verify-spinner');
+  const btn = document.getElementById('forgot-verify-btn');
+  const text = document.getElementById('forgot-verify-text');
+
+  if (errEl) errEl.classList.add('hidden');
+  if (succEl) succEl.classList.add('hidden');
+
+  if (!username) {
+    if (errEl) {
+      errEl.textContent = 'Please enter your username to continue.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (spinner) spinner.classList.remove('hidden');
+  if (text) text.textContent = 'Verifying...';
+  if (btn) btn.disabled = true;
+
+  try {
+    const payload = { username };
+    if (email) payload.email = email;
+
+    const res = await fetch('/api/v1/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || 'Identity verification failed.');
+    }
+
+    currentResetToken = data.reset_token;
+    const userLabel = document.getElementById('forgot-verified-user');
+    if (userLabel) userLabel.textContent = data.username;
+
+    const step1 = document.getElementById('forgot-step-1');
+    const step2 = document.getElementById('forgot-step-2');
+    if (step1) step1.classList.add('hidden');
+    if (step2) step2.classList.remove('hidden');
+
+    if (succEl) {
+      succEl.textContent = 'Account verified! Please enter your new password below.';
+      succEl.classList.remove('hidden');
+    }
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+    }
+  } finally {
+    if (spinner) spinner.classList.add('hidden');
+    if (text) text.textContent = 'Verify & Continue';
+    if (btn) btn.disabled = false;
+    refreshLucideIcons();
+  }
+}
+
+async function submitForgotReset() {
+  const newPass = document.getElementById('forgot-new-password')?.value || '';
+  const confirmPass = document.getElementById('forgot-confirm-password')?.value || '';
+  const errEl = document.getElementById('login-error');
+  const succEl = document.getElementById('login-success');
+  const spinner = document.getElementById('forgot-reset-spinner');
+  const btn = document.getElementById('forgot-reset-btn');
+  const text = document.getElementById('forgot-reset-text');
+
+  if (errEl) errEl.classList.add('hidden');
+  if (succEl) succEl.classList.add('hidden');
+
+  if (!currentResetToken) {
+    if (errEl) {
+      errEl.textContent = 'Reset session has expired. Please verify your identity again.';
+      errEl.classList.remove('hidden');
+    }
+    const step1 = document.getElementById('forgot-step-1');
+    const step2 = document.getElementById('forgot-step-2');
+    if (step1) step1.classList.remove('hidden');
+    if (step2) step2.classList.add('hidden');
+    return;
+  }
+
+  if (newPass.length < 6) {
+    if (errEl) {
+      errEl.textContent = 'Password must be at least 6 characters long.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (newPass !== confirmPass) {
+    if (errEl) {
+      errEl.textContent = 'Passwords do not match. Please verify and try again.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (spinner) spinner.classList.remove('hidden');
+  if (text) text.textContent = 'Updating...';
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/v1/auth/reset-password-with-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reset_token: currentResetToken,
+        new_password: newPass
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || 'Failed to reset password.');
+    }
+
+    if (succEl) {
+      succEl.textContent = 'Password reset successfully! Logging you in...';
+      succEl.classList.remove('hidden');
+    }
+
+    setAuthToken(data.access_token, data.username);
+    setTimeout(async () => {
+      closeLoginModal();
+      document.getElementById('forgot-new-password').value = '';
+      document.getElementById('forgot-confirm-password').value = '';
+      currentResetToken = null;
+      if (typeof loadPortfolio === 'function') await loadPortfolio();
+      if (typeof loadMFSummary === 'function') await loadMFSummary();
+    }, 800);
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+    }
+  } finally {
+    if (spinner) spinner.classList.add('hidden');
+    if (text) text.textContent = 'Set New Password & Login';
+    if (btn) btn.disabled = false;
+    refreshLucideIcons();
+  }
+}
+
+// ==================== AUTHENTICATED CHANGE PASSWORD ====================
+
+function openChangePasswordModal() {
+  if (!getAuthToken()) {
+    openLoginModal('signin');
+    return;
+  }
+  const modal = document.getElementById('change-password-modal');
+  const errEl = document.getElementById('change-pass-error');
+  const succEl = document.getElementById('change-pass-success');
+  if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+  if (succEl) { succEl.classList.add('hidden'); succEl.textContent = ''; }
+  const cur = document.getElementById('change-pass-current');
+  const np = document.getElementById('change-pass-new');
+  const cp = document.getElementById('change-pass-confirm');
+  if (cur) cur.value = '';
+  if (np) np.value = '';
+  if (cp) cp.value = '';
+
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+  refreshLucideIcons();
+}
+
+function closeChangePasswordModal() {
+  const modal = document.getElementById('change-password-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+}
+
+async function submitChangePassword(e) {
+  e.preventDefault();
+  const currentPassword = (document.getElementById('change-pass-current')?.value || '');
+  const newPassword = (document.getElementById('change-pass-new')?.value || '');
+  const confirmPassword = (document.getElementById('change-pass-confirm')?.value || '');
+  const errEl = document.getElementById('change-pass-error');
+  const succEl = document.getElementById('change-pass-success');
+  const spinner = document.getElementById('change-pass-spinner');
+  const btn = document.getElementById('change-pass-submit-btn');
+  const text = document.getElementById('change-pass-submit-text');
+
+  if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+  if (succEl) { succEl.classList.add('hidden'); succEl.textContent = ''; }
+
+  if (newPassword.length < 6) {
+    if (errEl) {
+      errEl.textContent = 'New password must be at least 6 characters long.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    if (errEl) {
+      errEl.textContent = 'New password and confirmation do not match.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (newPassword === currentPassword) {
+    if (errEl) {
+      errEl.textContent = 'New password must be different from current password.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (spinner) spinner.classList.remove('hidden');
+  if (text) text.textContent = 'Updating...';
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/v1/auth/change-password', {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || 'Failed to update password.');
+    }
+
+    if (succEl) {
+      succEl.textContent = data.message || 'Password updated successfully!';
+      succEl.classList.remove('hidden');
+    }
+
+    setTimeout(() => {
+      closeChangePasswordModal();
+    }, 1200);
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+    }
+  } finally {
+    if (spinner) spinner.classList.add('hidden');
+    if (text) text.textContent = 'Update Password';
+    if (btn) btn.disabled = false;
     refreshLucideIcons();
   }
 }

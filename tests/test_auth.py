@@ -131,3 +131,122 @@ async def test_advisory_ask_rate_limiting(client: AsyncClient, monkeypatch):
 
     # Requests beyond 10 must receive 429 Too Many Requests
     assert 429 in responses
+
+
+@pytest.mark.asyncio
+async def test_change_password_flow(client: AsyncClient):
+    """Test authenticated password change and login with updated password."""
+    # Register a new user
+    uname = "pwchange_user"
+    pwd_old = "initial_pass_123"
+    pwd_new = "updated_pass_456"
+
+    reg_res = await client.post("/api/v1/auth/register", json={
+        "username": uname,
+        "password": pwd_old,
+        "email": "pwchange@example.com"
+    })
+    assert reg_res.status_code == 201
+    token = reg_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Attempt with incorrect current password -> 400
+    bad_change = await client.post("/api/v1/auth/change-password", headers=headers, json={
+        "current_password": "wrong_password",
+        "new_password": pwd_new
+    })
+    assert bad_change.status_code == 400
+
+    # 2. Attempt with same password -> 400
+    same_change = await client.post("/api/v1/auth/change-password", headers=headers, json={
+        "current_password": pwd_old,
+        "new_password": pwd_old
+    })
+    assert same_change.status_code == 400
+
+    # 3. Successful password change
+    good_change = await client.post("/api/v1/auth/change-password", headers=headers, json={
+        "current_password": pwd_old,
+        "new_password": pwd_new
+    })
+    assert good_change.status_code == 200
+    assert "successfully" in good_change.json()["message"]
+
+    # 4. Old password no longer works
+    old_login = await client.post("/api/v1/auth/login", json={
+        "username": uname,
+        "password": pwd_old
+    })
+    assert old_login.status_code == 401
+
+    # 5. New password works
+    new_login = await client.post("/api/v1/auth/login", json={
+        "username": uname,
+        "password": pwd_new
+    })
+    assert new_login.status_code == 200
+    assert "access_token" in new_login.json()
+
+
+@pytest.mark.asyncio
+async def test_forgot_and_reset_password_flow(client: AsyncClient):
+    """Test recovery flow: forgot password verification + token-based reset."""
+    uname = "forgot_user"
+    email = "forgot_user@example.com"
+    pwd_init = "forgot_pass_old"
+    pwd_reset = "forgot_pass_new123"
+
+    reg_res = await client.post("/api/v1/auth/register", json={
+        "username": uname,
+        "password": pwd_init,
+        "email": email
+    })
+    assert reg_res.status_code == 201
+
+    # 1. Non-existent username -> 404
+    f_bad_user = await client.post("/api/v1/auth/forgot-password", json={
+        "username": "non_existent_user_999",
+        "email": email
+    })
+    assert f_bad_user.status_code == 404
+
+    # 2. Wrong email -> 400
+    f_bad_email = await client.post("/api/v1/auth/forgot-password", json={
+        "username": uname,
+        "email": "wrong_email@example.com"
+    })
+    assert f_bad_email.status_code == 400
+
+    # 3. Valid identity verification -> 200 with reset token
+    f_good = await client.post("/api/v1/auth/forgot-password", json={
+        "username": uname,
+        "email": email
+    })
+    assert f_good.status_code == 200
+    data = f_good.json()
+    assert "reset_token" in data
+    reset_token = data["reset_token"]
+
+    # 4. Attempt reset with invalid token -> 400
+    bad_reset = await client.post("/api/v1/auth/reset-password-with-token", json={
+        "reset_token": "tampered_or_invalid_token",
+        "new_password": pwd_reset
+    })
+    assert bad_reset.status_code == 400
+
+    # 5. Valid reset with token -> 200 with new login token
+    good_reset = await client.post("/api/v1/auth/reset-password-with-token", json={
+        "reset_token": reset_token,
+        "new_password": pwd_reset
+    })
+    assert good_reset.status_code == 200
+    reset_data = good_reset.json()
+    assert "access_token" in reset_data
+
+    # 6. Verify login with newly reset password
+    fresh_login = await client.post("/api/v1/auth/login", json={
+        "username": uname,
+        "password": pwd_reset
+    })
+    assert fresh_login.status_code == 200
+    assert "access_token" in fresh_login.json()

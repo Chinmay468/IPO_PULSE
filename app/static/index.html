@@ -146,6 +146,9 @@
               <button onclick="handleAuthButtonClick(); closeAllDropdowns();" id="menu-auth-btn" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition text-left cursor-pointer">
                 <i data-lucide="user" class="w-3.5 h-3.5 text-slate-400"></i> <span id="menu-auth-label">Sign In / Register</span>
               </button>
+              <button onclick="openChangePasswordModal(); closeAllDropdowns();" id="menu-change-password-btn" class="hidden w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition text-left cursor-pointer">
+                <i data-lucide="key-round" class="w-3.5 h-3.5 text-amber-500"></i> Reset Password
+              </button>
               <button onclick="switchTab('methodology'); closeAllDropdowns();" id="header-scoring-formula-btn" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition text-left cursor-pointer">
                 <i data-lucide="bar-chart-2" class="w-3.5 h-3.5 text-slate-400"></i> Scoring Formula
               </button>
@@ -1469,6 +1472,12 @@
           <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Password</label>
           <input type="password" id="login-password" required placeholder="••••••••"
                  class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <div class="flex items-center justify-between text-[11px] pt-1">
+            <span class="text-slate-400">Can't remember?</span>
+            <button type="button" onclick="switchAuthTab('forgot')" class="font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition cursor-pointer">
+              Forgot password?
+            </button>
+          </div>
         </div>
         <button type="submit" id="login-submit-btn"
                 class="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
@@ -1510,6 +1519,111 @@
                 class="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
           <span id="register-spinner" class="hidden"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i></span>
           <span id="register-submit-text">Create Account</span>
+        </button>
+      </form>
+
+      <!-- Forgot Password Recovery Form (hidden by default) -->
+      <form id="forgot-form" onsubmit="event.preventDefault();" class="p-5 pt-2 space-y-3.5 hidden">
+        <!-- Step 1: Verification -->
+        <div id="forgot-step-1" class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Account Username</label>
+            <input type="text" id="forgot-username" required placeholder="Enter registered username"
+                   class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              Registered Email <span class="text-slate-400 font-normal">(if registered with email)</span>
+            </label>
+            <input type="email" id="forgot-email" placeholder="name@example.com"
+                   class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <button type="button" id="forgot-verify-btn" onclick="submitForgotVerify()"
+                  class="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
+            <span id="forgot-verify-spinner" class="hidden"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i></span>
+            <span id="forgot-verify-text">Verify & Continue</span>
+          </button>
+        </div>
+
+        <!-- Step 2: Set New Password -->
+        <div id="forgot-step-2" class="space-y-3 hidden">
+          <div class="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2">
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+            <span>Identity verified for <strong id="forgot-verified-user">user</strong></span>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">New Password</label>
+            <input type="password" id="forgot-new-password" minlength="6" placeholder="At least 6 characters"
+                   class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Confirm New Password</label>
+            <input type="password" id="forgot-confirm-password" minlength="6" placeholder="Repeat new password"
+                   class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <button type="button" id="forgot-reset-btn" onclick="submitForgotReset()"
+                  class="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
+            <span id="forgot-reset-spinner" class="hidden"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i></span>
+            <span id="forgot-reset-text">Set New Password & Login</span>
+          </button>
+        </div>
+
+        <!-- Back to Sign In Link -->
+        <div class="pt-2 text-center border-t border-slate-100 dark:border-slate-800">
+          <button type="button" onclick="switchAuthTab('signin')" class="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition cursor-pointer">
+            ← Back to Sign In
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== RESET / CHANGE PASSWORD MODAL ==================== -->
+  <div id="change-password-modal" role="dialog" aria-modal="true" aria-labelledby="change-password-title" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white dark:bg-[#121826] rounded-2xl max-w-sm w-full shadow-dropdown border border-[#E8EAEE] dark:border-[#1F2937] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <!-- Header -->
+      <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-600">
+            <i data-lucide="key-round" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 id="change-password-title" class="font-bold text-sm text-slate-900 dark:text-white">Reset Password</h3>
+            <p class="text-[11px] text-slate-400">Update your account security password</p>
+          </div>
+        </div>
+        <button onclick="closeChangePasswordModal()" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Alerts -->
+      <div class="px-5 pt-3">
+        <div id="change-pass-error" class="hidden bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs rounded-lg px-3 py-2 font-medium"></div>
+        <div id="change-pass-success" class="hidden bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs rounded-lg px-3 py-2 font-medium"></div>
+      </div>
+
+      <!-- Form -->
+      <form id="change-password-form" onsubmit="submitChangePassword(event)" class="p-5 pt-2 space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Current Password</label>
+          <input type="password" id="change-pass-current" required placeholder="••••••••"
+                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">New Password</label>
+          <input type="password" id="change-pass-new" required minlength="6" placeholder="At least 6 characters"
+                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Confirm New Password</label>
+          <input type="password" id="change-pass-confirm" required minlength="6" placeholder="Repeat new password"
+                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500">
+        </div>
+        <button type="submit" id="change-pass-submit-btn"
+                class="w-full mt-2 bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
+          <span id="change-pass-spinner" class="hidden"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i></span>
+          <span id="change-pass-submit-text">Update Password</span>
         </button>
       </form>
     </div>
@@ -2149,13 +2263,13 @@
   </div>
 
   <!-- ==================== FRONTEND JS MODULES ==================== -->
-  <script src="/static/js/utils.js?v=20261019_6"></script>
-  <script src="/static/js/auth.js?v=20261019_6"></script>
-  <script src="/static/js/charts.js?v=20261019_6"></script>
-  <script src="/static/js/technical_advisory.js?v=20261019_6"></script>
-  <script src="/static/js/ipos.js?v=20261019_6"></script>
-  <script src="/static/js/portfolio.js?v=20261019_6"></script>
-  <script src="/static/js/mutual_funds.js?v=20261019_6"></script>
-  <script src="/static/js/app.js?v=20261019_6"></script>
+  <script src="/static/js/utils.js?v=20261019_7"></script>
+  <script src="/static/js/auth.js?v=20261019_7"></script>
+  <script src="/static/js/charts.js?v=20261019_7"></script>
+  <script src="/static/js/technical_advisory.js?v=20261019_7"></script>
+  <script src="/static/js/ipos.js?v=20261019_7"></script>
+  <script src="/static/js/portfolio.js?v=20261019_7"></script>
+  <script src="/static/js/mutual_funds.js?v=20261019_7"></script>
+  <script src="/static/js/app.js?v=20261019_7"></script>
 </body>
 </html>
