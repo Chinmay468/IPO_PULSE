@@ -77,6 +77,7 @@ async function loadMFSummary(silent = false) {
 }
 
 function resetMFUI() {
+  if (typeof resetCombinedNetWorthUI === 'function') resetCombinedNetWorthUI(true);
   document.getElementById('mf-invested').textContent = '—';
   document.getElementById('mf-current-value').textContent = '—';
   document.getElementById('mf-pnl').textContent = '—';

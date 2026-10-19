@@ -1,9 +1,34 @@
-// ==================== PORTFOLIO & HOLDINGS MANAGEMENT ====================
+function resetCombinedNetWorthUI(isSignedOut = true) {
+  const pfTotal = document.getElementById('pf-net-worth-total');
+  if (pfTotal) pfTotal.textContent = isSignedOut ? '—' : '₹0.00';
+  const pfStocks = document.getElementById('pf-net-worth-stocks');
+  if (pfStocks) pfStocks.textContent = isSignedOut ? '—' : '₹0.00';
+  const pfMf = document.getElementById('pf-net-worth-mf');
+  if (pfMf) pfMf.textContent = isSignedOut ? '—' : '₹0.00';
+
+  const mfTotal = document.getElementById('mf-total-net-worth');
+  if (mfTotal) mfTotal.textContent = isSignedOut ? '—' : '₹0.00';
+  const mfPnlChip = document.getElementById('mf-total-pnl-chip');
+  if (mfPnlChip) mfPnlChip.innerHTML = '—';
+
+  const mfStocksVal = document.getElementById('mf-combined-stocks-val');
+  if (mfStocksVal) mfStocksVal.textContent = isSignedOut ? '—' : '₹0.00';
+  const mfStocksPct = document.getElementById('mf-combined-stocks-pct');
+  if (mfStocksPct) mfStocksPct.textContent = '0%';
+
+  const mfFundsVal = document.getElementById('mf-combined-funds-val');
+  if (mfFundsVal) mfFundsVal.textContent = isSignedOut ? '—' : '₹0.00';
+  const mfFundsPct = document.getElementById('mf-combined-funds-pct');
+  if (mfFundsPct) mfFundsPct.textContent = '0%';
+}
 
 function resetPortfolioUI(isSignedOut = true) {
   currentPortfolioHoldings = [];
   previousHoldingsPrices = {};
   globalAdvisoryData = null;
+
+  // Combined Net Worth Strip
+  resetCombinedNetWorthUI(isSignedOut);
 
   // Summary Strip
   const investedEl = document.getElementById('pf-invested');
@@ -1221,7 +1246,10 @@ async function submitAddHolding(e) {
 
 // ── Combined Net Worth ──
 async function loadCombinedNetWorth() {
-  if (!getAuthToken()) return;
+  if (!getAuthToken()) {
+    resetCombinedNetWorthUI(true);
+    return;
+  }
   try {
     const res = await fetch(`${API}/net-worth`, { headers: getAuthHeaders() });
     if (!res.ok) return;

@@ -131,6 +131,7 @@ function handleAuthButtonClick() {
       setAuthToken(null);
       if (typeof resetPortfolioUI === 'function') resetPortfolioUI(true);
       if (typeof resetMFUI === 'function') resetMFUI();
+      if (typeof resetCombinedNetWorthUI === 'function') resetCombinedNetWorthUI(true);
     }
   } else {
     openLoginModal('signin');
