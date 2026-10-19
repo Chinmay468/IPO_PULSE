@@ -478,7 +478,7 @@ class TelegramService:
                 lines.append(f"• <b>{h.symbol}</b> ({h.quantity} sh): ₹{(h.current_value or 0.0):,.0f} | <i>{h_sign}{h_pnl_pct:.1f}%</i>")
 
         lines.append("")
-        lines.append("💬 <i>Reply with any stock symbol (e.g. \"ARMEE\" or \"ITC\") for AI analysis. Type /mf for Mutual Funds.</i>")
+        lines.append("💬 <i>Reply with any stock symbol for AI analysis. Type /mf for Mutual Funds.</i>")
         return "\n".join(lines)
 
     @staticmethod

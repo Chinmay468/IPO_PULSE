@@ -1898,12 +1898,12 @@ def answer_portfolio_query(
         f"🩺 **Portfolio Health — {hs_str}**\n\n"
         f"You have **{len(stocks)} active holdings**. {advisory_data.get('summary', '')}\n\n"
         "Ask me anything, such as:\n"
-        "- *'At what price did I buy Praj share?'*\n"
-        "- *'How can I improve health of my portfolio?'*\n"
-        "- *'How many shares of Ashok Leyland do I have?'*\n"
-        "- *'What is the stop loss for Armee?'*\n"
+        "- *'How can I improve the health of my portfolio?'*\n"
         "- *'What is my overall profit and loss till now?'*\n"
-        "- *'Show stop-loss table for all holdings'*"
+        "- *'Show stop-loss table for all holdings'*\n"
+        "- *'What is my sector allocation and diversification?'*\n"
+        "- *'Which positions have the highest unrealized returns?'*\n"
+        "- *'What is my mutual fund net worth and XIRR?'*"
     )
 
 
