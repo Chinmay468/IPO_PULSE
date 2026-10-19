@@ -1155,8 +1155,16 @@ async def sync_chittorgarh_allotment_reports(
 
             open_d = item.get("open_date")
             close_d = item.get("close_date")
-            dates_tba = (open_d is None and close_d is None)
-            st = determine_status_from_dates(open_d, close_d, None, dates_tba=dates_tba)
+            allot_d = item.get("allotment_date")
+            # Allotment reports only list IPOs that have already concluded their bidding.
+            # They must never be classified as UPCOMING or dates_tba.
+            if open_d and close_d:
+                st = determine_status_from_dates(open_d, close_d, item.get("listing_date"), dates_tba=False)
+            elif allot_d and allot_d < date.today():
+                st = IPOStatus.LISTED
+            else:
+                st = IPOStatus.CLOSED
+            dates_tba = False
 
             new_ipo = IPO(
                 symbol=sym,
