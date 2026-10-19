@@ -248,11 +248,31 @@ async function loadScorecard() {
 }
 
 // ── AI Portfolio Copilot Floating Dock & Interactive Chat ──
+function updateWelcomeBoxVisibility() {
+  const welcomeBox = document.getElementById('ai-welcome-box');
+  if (!welcomeBox) return;
+  const input = document.getElementById('ai-modal-input');
+  const hasText = input && input.value.trim().length > 0;
+  if (hasText) {
+    welcomeBox.classList.add('hidden');
+  } else if (!aiChatHistory || aiChatHistory.length === 0) {
+    welcomeBox.classList.remove('hidden');
+  }
+}
+
+function setupAICopilotInputListener() {
+  const input = document.getElementById('ai-modal-input');
+  if (!input || input.dataset.welcomeListenerBound) return;
+  input.dataset.welcomeListenerBound = 'true';
+  input.addEventListener('input', updateWelcomeBoxVisibility);
+  input.addEventListener('keyup', updateWelcomeBoxVisibility);
+}
+
 function initAICopilotGreeting() {
   const chatContainer = document.getElementById('ai-modal-chat-messages');
   if (!chatContainer) return;
   chatContainer.innerHTML = `
-    <div class="bg-[#F5EFEB] dark:bg-[#1B2433] border border-[#E8DFD5] dark:border-slate-700/60 rounded-[22px] p-4 sm:p-5 text-[#2D2A26] dark:text-slate-200 text-xs sm:text-[13px] leading-relaxed space-y-2.5 shadow-2xs">
+    <div id="ai-welcome-box" class="bg-[#F5EFEB] dark:bg-[#1B2433] border border-[#E8DFD5] dark:border-slate-700/60 rounded-[22px] p-4 sm:p-5 text-[#2D2A26] dark:text-slate-200 text-xs sm:text-[13px] leading-relaxed space-y-2.5 shadow-2xs">
       <p class="font-bold text-[#1C1A17] dark:text-white flex items-center gap-2">
         <span>Welcome to IPO Pulse AI Copilot</span>
       </p>
@@ -280,6 +300,7 @@ function initAICopilotGreeting() {
     </div>
   `;
   refreshLucideIcons();
+  setupAICopilotInputListener();
 }
 
 function openAICopilotModal() {
@@ -292,6 +313,7 @@ function openAICopilotModal() {
   if (chatContainer && chatContainer.children.length === 0) {
     initAICopilotGreeting();
   }
+  setupAICopilotInputListener();
 
   refreshLucideIcons();
   setTimeout(() => {
@@ -314,6 +336,7 @@ function resetAICopilotChat() {
   const input = document.getElementById('ai-modal-input');
   if (input) {
     input.value = '';
+    updateWelcomeBoxVisibility();
     input.focus();
   }
 }
@@ -351,6 +374,7 @@ function toggleQuickPromptSuggestions() {
     if (!input.value) {
       input.value = 'How to make my portfolio green?';
     }
+    updateWelcomeBoxVisibility();
   }
 }
 
@@ -365,7 +389,10 @@ function toggleAICopilotModal() {
 
 function askAICopilotPrompt(promptText) {
   const input = document.getElementById('ai-modal-input');
-  if (input) input.value = promptText;
+  if (input) {
+    input.value = promptText;
+    updateWelcomeBoxVisibility();
+  }
   submitAICopilotChat();
 }
 
@@ -382,6 +409,12 @@ async function submitAICopilotChat(e) {
 
   const query = input.value.trim();
   if (!query) return;
+
+  // Immediately remove welcome box and quick suggestions on first question
+  const welcomeBox = document.getElementById('ai-welcome-box');
+  if (welcomeBox) welcomeBox.remove();
+  const suggestionsBox = document.getElementById('ai-quick-suggestions-box');
+  if (suggestionsBox) suggestionsBox.remove();
 
   // 1. Append User Bubble (Warm dark tone)
   const userBubble = document.createElement('div');
@@ -486,3 +519,12 @@ async function submitAICopilotChat(e) {
     refreshLucideIcons();
   }
 }
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupAICopilotInputListener);
+  } else {
+    setupAICopilotInputListener();
+  }
+}
+
