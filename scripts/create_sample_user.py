@@ -115,6 +115,54 @@ async def create_sample_user(db_url: str):
                 "avg_buy_price": 880.00,
                 "buy_date": date.today() - timedelta(days=30),
             },
+            {
+                "symbol": "ITC",
+                "company_name": "ITC Limited",
+                "exchange": Exchange.NSE,
+                "quantity": 75.0,
+                "avg_buy_price": 440.00,
+                "buy_date": date.today() - timedelta(days=60),
+            },
+            {
+                "symbol": "ICICIBANK",
+                "company_name": "ICICI Bank Limited",
+                "exchange": Exchange.NSE,
+                "quantity": 30.0,
+                "avg_buy_price": 1150.00,
+                "buy_date": date.today() - timedelta(days=45),
+            },
+            {
+                "symbol": "SBIN",
+                "company_name": "State Bank of India",
+                "exchange": Exchange.NSE,
+                "quantity": 40.0,
+                "avg_buy_price": 780.00,
+                "buy_date": date.today() - timedelta(days=40),
+            },
+            {
+                "symbol": "BHARTIARTL",
+                "company_name": "Bharti Airtel Limited",
+                "exchange": Exchange.NSE,
+                "quantity": 20.0,
+                "avg_buy_price": 1550.00,
+                "buy_date": date.today() - timedelta(days=35),
+            },
+            {
+                "symbol": "LT",
+                "company_name": "Larsen & Toubro Limited",
+                "exchange": Exchange.NSE,
+                "quantity": 10.0,
+                "avg_buy_price": 3420.00,
+                "buy_date": date.today() - timedelta(days=80),
+            },
+            {
+                "symbol": "HINDUNILVR",
+                "company_name": "Hindustan Unilever Limited",
+                "exchange": Exchange.NSE,
+                "quantity": 15.0,
+                "avg_buy_price": 2360.00,
+                "buy_date": date.today() - timedelta(days=90),
+            },
         ]
 
         for s in sample_stocks:
@@ -315,7 +363,7 @@ async def create_sample_user(db_url: str):
         print("\nSUCCESS: Sample user and portfolio initialized successfully!")
         print(f"Username : {username}")
         print(f"Password : {password_plain}")
-        print(f"Stocks   : {len(sample_stocks)} positions (Reliance, TCS, Infosys, HDFC Bank, Tata Motors)")
+        print(f"Stocks   : {len(sample_stocks)} positions (Reliance, TCS, Infosys, HDFC Bank, Tata Motors, ITC, ICICI Bank, SBI, Airtel, L&T, HUL)")
         print(f"Mutual F.: {len(sample_funds)} schemes (PPFAS Flexi Cap, Mirae Asset Large & Midcap, Nippon Small Cap)")
         print(f"Total Invested: Rs {combined_invested:,.2f}")
         print(f"Current Value : Rs {combined_value:,.2f} (+Rs {combined_pnl:,.2f})")
