@@ -6,6 +6,27 @@ function resetCombinedNetWorthUI(isSignedOut = true) {
   const pfMf = document.getElementById('pf-net-worth-mf');
   if (pfMf) pfMf.textContent = isSignedOut ? '—' : '₹0.00';
 
+  const pnlChip = document.getElementById('pf-net-worth-pnl-chip');
+  if (pnlChip) {
+    pnlChip.innerHTML = '—';
+    pnlChip.className = 'inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tabular-nums';
+  }
+
+  const stocksPctEl = document.getElementById('pf-net-worth-stocks-pct');
+  if (stocksPctEl) stocksPctEl.textContent = '—';
+  const mfPctEl = document.getElementById('pf-net-worth-mf-pct');
+  if (mfPctEl) mfPctEl.textContent = '—';
+
+  const barStocks = document.getElementById('pf-net-worth-bar-stocks');
+  if (barStocks) barStocks.style.width = '50%';
+  const barMf = document.getElementById('pf-net-worth-bar-mf');
+  if (barMf) barMf.style.width = '50%';
+
+  const sCount = document.getElementById('pf-net-worth-stocks-count');
+  if (sCount) sCount.textContent = isSignedOut ? '—' : '0 stocks';
+  const mCount = document.getElementById('pf-net-worth-mf-count');
+  if (mCount) mCount.textContent = isSignedOut ? '—' : '0 funds';
+
   const mfTotal = document.getElementById('mf-total-net-worth');
   if (mfTotal) mfTotal.textContent = isSignedOut ? '—' : '₹0.00';
   const mfPnlChip = document.getElementById('mf-total-pnl-chip');
@@ -1263,6 +1284,37 @@ async function loadCombinedNetWorth() {
     const pfMf = document.getElementById('pf-net-worth-mf');
     if (pfMf) pfMf.textContent = fmtINR(nw.mutual_funds.current_value);
 
+    const pnlChip = document.getElementById('pf-net-worth-pnl-chip');
+    if (pnlChip) {
+      const isPos = (nw.total_pnl || 0) >= 0;
+      const sign = isPos ? '+' : '';
+      pnlChip.innerHTML = `${sign}${fmtINR(nw.total_pnl)} (${sign}${(nw.total_pnl_pct || 0).toFixed(1)}%)`;
+      pnlChip.className = isPos
+        ? 'inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40 tabular-nums'
+        : 'inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200/60 dark:border-rose-800/40 tabular-nums';
+    }
+
+    const totalVal = nw.total_net_worth || 0;
+    const sVal = (nw.stocks && nw.stocks.current_value) || 0;
+    const mVal = (nw.mutual_funds && nw.mutual_funds.current_value) || 0;
+    const sPct = totalVal > 0 ? (sVal / totalVal * 100) : 50;
+    const mPct = totalVal > 0 ? (mVal / totalVal * 100) : 50;
+
+    const stocksPctEl = document.getElementById('pf-net-worth-stocks-pct');
+    if (stocksPctEl) stocksPctEl.textContent = totalVal > 0 ? sPct.toFixed(1) + '%' : '—';
+    const mfPctEl = document.getElementById('pf-net-worth-mf-pct');
+    if (mfPctEl) mfPctEl.textContent = totalVal > 0 ? mPct.toFixed(1) + '%' : '—';
+
+    const barStocks = document.getElementById('pf-net-worth-bar-stocks');
+    if (barStocks) barStocks.style.width = (totalVal > 0 ? Math.max(4, Math.min(96, sPct)) : 50) + '%';
+    const barMf = document.getElementById('pf-net-worth-bar-mf');
+    if (barMf) barMf.style.width = (totalVal > 0 ? Math.max(4, Math.min(96, mPct)) : 50) + '%';
+
+    const sCount = document.getElementById('pf-net-worth-stocks-count');
+    if (sCount) sCount.textContent = `${(nw.stocks && nw.stocks.holdings_count) || 0} stocks`;
+    const mCount = document.getElementById('pf-net-worth-mf-count');
+    if (mCount) mCount.textContent = `${(nw.mutual_funds && nw.mutual_funds.holdings_count) || 0} funds`;
+
     // 2. Update Mutual Funds tab banner
     const mfTotal = document.getElementById('mf-total-net-worth');
     if (mfTotal) mfTotal.textContent = fmtINR(nw.total_net_worth);
@@ -1284,6 +1336,7 @@ async function loadCombinedNetWorth() {
       const fPct = nw.total_net_worth > 0 ? (nw.mutual_funds.current_value / nw.total_net_worth * 100) : 0;
       mfFundsPct.textContent = fPct.toFixed(1) + '%';
     }
+    refreshLucideIcons();
   } catch (err) {
     console.warn('Failed to load combined net worth:', err);
   }

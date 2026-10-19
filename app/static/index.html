@@ -193,28 +193,78 @@
     <section id="tab-portfolio" class="space-y-6">
 
       <!-- Combined Net Worth Summary Strip (Stocks + MFs) -->
-      <div id="pf-net-worth-banner" class="bg-white dark:bg-gradient-to-r dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 text-slate-900 dark:text-white rounded-xl p-3.5 sm:p-4 shadow-soft border border-[#E8EAEE] dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors">
-        <div class="flex items-center gap-2.5">
-          <span class="h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs border border-emerald-200 dark:border-emerald-500/30">
-            <i data-lucide="wallet" class="w-4 h-4"></i>
-          </span>
-          <div>
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Combined Net Worth</span>
-            <span id="pf-net-worth-total" class="text-lg sm:text-xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">—</span>
+      <div id="pf-net-worth-banner" class="bg-[#FFFDFB] dark:bg-[#121826] rounded-2xl p-4 sm:p-5 shadow-soft border border-[#E7DFD5] dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-colors">
+        <!-- Left: Net Worth & Total Return -->
+        <div class="flex items-center gap-3.5 min-w-0">
+          <div class="h-11 w-11 rounded-xl bg-gradient-to-tr from-emerald-500/15 via-amber-500/10 to-emerald-500/25 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/20 shadow-2xs shrink-0">
+            <i data-lucide="wallet-cards" class="w-5 h-5"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-[#7C7164] dark:text-slate-400 block truncate">Combined Net Worth</span>
+              <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60 uppercase tracking-wider select-none shrink-0">LIVE</span>
+            </div>
+            <div class="flex flex-wrap items-baseline gap-2.5 mt-0.5">
+              <span id="pf-net-worth-total" class="text-2xl sm:text-3xl font-extrabold font-mono text-[#1C1A17] dark:text-white tabular-nums tracking-tight">—</span>
+              <span id="pf-net-worth-pnl-chip" class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tabular-nums">—</span>
+            </div>
           </div>
         </div>
-        <div class="flex items-center gap-3 text-xs">
-          <div class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span class="text-slate-500 dark:text-slate-400 text-[11px]">Stocks:</span>
-            <span id="pf-net-worth-stocks" class="font-mono font-bold text-slate-900 dark:text-white">—</span>
+
+        <!-- Center: Visual Asset Allocation Track -->
+        <div class="hidden lg:flex flex-col justify-center min-w-[240px] max-w-[300px] flex-1 px-5 border-x border-[#EAE3DA] dark:border-slate-800/80 space-y-1.5">
+          <div class="flex items-center justify-between text-[11px] font-semibold">
+            <span class="flex items-center gap-1.5 text-[#4A443B] dark:text-slate-300">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span>Stocks</span>
+              <span id="pf-net-worth-stocks-pct" class="font-mono text-[#7C7164] dark:text-slate-400 text-[10px]">—</span>
+            </span>
+            <span class="flex items-center gap-1.5 text-[#4A443B] dark:text-slate-300">
+              <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+              <span>Mutual Funds</span>
+              <span id="pf-net-worth-mf-pct" class="font-mono text-[#7C7164] dark:text-slate-400 text-[10px]">—</span>
+            </span>
           </div>
-          <div class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
-            <span class="text-slate-500 dark:text-slate-400 text-[11px]">Mutual Funds:</span>
-            <span id="pf-net-worth-mf" class="font-mono font-bold text-slate-900 dark:text-white">—</span>
+          <!-- Visual Segmented Track Bar -->
+          <div class="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 flex overflow-hidden p-0.5 gap-0.5">
+            <div id="pf-net-worth-bar-stocks" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 50%"></div>
+            <div id="pf-net-worth-bar-mf" class="bg-indigo-500 h-full rounded-full transition-all duration-500" style="width: 50%"></div>
           </div>
-          <button onclick="switchTab('mf')" class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 underline ml-1 cursor-pointer">View MFs →</button>
+          <div class="flex items-center justify-between text-[10px] text-[#7C7164] dark:text-slate-400">
+            <span id="pf-net-worth-stocks-count">— stocks</span>
+            <span id="pf-net-worth-mf-count">— funds</span>
+          </div>
+        </div>
+
+        <!-- Right: Breakdown Chips & CTA -->
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+          <!-- Stocks Capsule -->
+          <div class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-[#F6F1EA] dark:bg-slate-800/60 border border-[#E8DFD5] dark:border-slate-700/60 shadow-2xs">
+            <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
+              <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+            </div>
+            <div>
+              <span class="text-[10px] font-semibold text-[#7C7164] dark:text-slate-400 block uppercase tracking-wider">Stocks</span>
+              <span id="pf-net-worth-stocks" class="text-xs sm:text-sm font-bold font-mono text-[#2D2A26] dark:text-white tabular-nums">—</span>
+            </div>
+          </div>
+
+          <!-- Mutual Funds Capsule -->
+          <div class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-[#F6F1EA] dark:bg-slate-800/60 border border-[#E8DFD5] dark:border-slate-700/60 shadow-2xs">
+            <div class="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs font-bold shrink-0">
+              <i data-lucide="pie-chart" class="w-3.5 h-3.5"></i>
+            </div>
+            <div>
+              <span class="text-[10px] font-semibold text-[#7C7164] dark:text-slate-400 block uppercase tracking-wider">Mutual Funds</span>
+              <span id="pf-net-worth-mf" class="text-xs sm:text-sm font-bold font-mono text-[#2D2A26] dark:text-white tabular-nums">—</span>
+            </div>
+          </div>
+
+          <!-- Explore Button -->
+          <button onclick="switchTab('mf')" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 shadow-sm transition active:scale-95 cursor-pointer ml-auto sm:ml-0">
+            <span>Manage MFs</span>
+            <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+          </button>
         </div>
       </div>
 
@@ -2099,13 +2149,13 @@
   </div>
 
   <!-- ==================== FRONTEND JS MODULES ==================== -->
-  <script src="/static/js/utils.js?v=20261019_4"></script>
-  <script src="/static/js/auth.js?v=20261019_4"></script>
-  <script src="/static/js/charts.js?v=20261019_4"></script>
-  <script src="/static/js/technical_advisory.js?v=20261019_4"></script>
-  <script src="/static/js/ipos.js?v=20261019_4"></script>
-  <script src="/static/js/portfolio.js?v=20261019_4"></script>
-  <script src="/static/js/mutual_funds.js?v=20261019_4"></script>
-  <script src="/static/js/app.js?v=20261019_4"></script>
+  <script src="/static/js/utils.js?v=20261019_5"></script>
+  <script src="/static/js/auth.js?v=20261019_5"></script>
+  <script src="/static/js/charts.js?v=20261019_5"></script>
+  <script src="/static/js/technical_advisory.js?v=20261019_5"></script>
+  <script src="/static/js/ipos.js?v=20261019_5"></script>
+  <script src="/static/js/portfolio.js?v=20261019_5"></script>
+  <script src="/static/js/mutual_funds.js?v=20261019_5"></script>
+  <script src="/static/js/app.js?v=20261019_5"></script>
 </body>
 </html>
