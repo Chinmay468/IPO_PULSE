@@ -373,7 +373,31 @@ function renderHoldings(holdings, skipSorting = false, forceFullBuild = false) {
   if (!tbody) return;
 
   if (!holdings || holdings.length === 0) {
-    document.getElementById('pf-empty').classList.remove('hidden');
+    const emptyEl = document.getElementById('pf-empty');
+    if (emptyEl) {
+      emptyEl.classList.remove('hidden');
+      if (getAuthToken()) {
+        emptyEl.innerHTML = `
+          <div class="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+            <i data-lucide="briefcase" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h4 class="font-bold text-slate-800 dark:text-white text-sm">No holdings yet</h4>
+            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm mx-auto">Import your broker Excel/CSV statement or add your first stock to begin tracking.</p>
+          </div>
+          <div class="flex items-center justify-center gap-2 pt-2">
+            <label class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer">
+              Import Statement (.xlsx / .csv)
+              <input type="file" accept=".csv, .xlsx, .xls" class="hidden" onchange="importCSV(event)">
+            </label>
+            <button onclick="openAddHoldingModal()" class="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+              + Add Manually
+            </button>
+          </div>
+        `;
+        refreshLucideIcons();
+      }
+    }
     if (container) container.classList.add('hidden');
     tbody.innerHTML = '';
     if (cardsWrap) cardsWrap.innerHTML = '';

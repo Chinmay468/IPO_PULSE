@@ -145,9 +145,14 @@ function renderAdvisoryData(data) {
   }
 
   const summaryEl = document.getElementById('adv-summary-text');
-  if (summaryEl && data.summary) {
-    summaryEl.textContent = data.summary;
-    summaryEl.setAttribute('title', data.summary);
+  if (summaryEl) {
+    if (data.summary) {
+      summaryEl.textContent = data.summary;
+      summaryEl.setAttribute('title', data.summary);
+    } else if (getAuthToken()) {
+      summaryEl.textContent = 'Add holdings to analyze technical indicators and momentum.';
+      summaryEl.setAttribute('title', '');
+    }
   }
 
   // Render 3 Horizontal Strategic Priority Cards
