@@ -1134,9 +1134,11 @@ function showAngelOneSyncErrorModal(detail, diag) {
 async function syncAngelOne() {
   if (!getAuthToken()) { openLoginModal(); return; }
   const btn = document.getElementById('ao-sync-btn');
-  const origHTML = btn.innerHTML;
-  btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Syncing...</span>';
-  btn.disabled = true;
+  const origHTML = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Syncing...</span>';
+    btn.disabled = true;
+  }
   try {
     const res = await fetch(`${API}/import/angelone`, { method: 'POST', headers: getAuthHeaders() });
     if (res.status === 401) {
@@ -1172,8 +1174,10 @@ async function syncAngelOne() {
       step: 'connect'
     }, diag);
   } finally {
-    btn.innerHTML = origHTML;
-    btn.disabled = false;
+    if (btn) {
+      btn.innerHTML = origHTML;
+      btn.disabled = false;
+    }
     refreshLucideIcons();
   }
 }
