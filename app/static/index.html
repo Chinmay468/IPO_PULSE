@@ -78,7 +78,7 @@
       <div class="flex justify-between items-center h-14 sm:h-16 gap-3">
         
         <!-- Left: Brand Logo -->
-        <div class="flex items-center gap-2.5 cursor-pointer select-none shrink-0" onclick="switchTab(document.getElementById('tab-portfolio') ? 'portfolio' : 'ipos')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')switchTab(document.getElementById('tab-portfolio') ? 'portfolio' : 'ipos')">
+        <div class="flex items-center gap-2.5 cursor-pointer select-none shrink-0" onclick="switchTab('portfolio')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('portfolio')">
           <div class="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white shadow-sm font-bold text-sm">
             <i data-lucide="trending-up" class="w-4 h-4"></i>
           </div>
@@ -92,23 +92,18 @@
 
         <!-- Center: Underline-Style Navigation Tabs (Centered) -->
         <nav class="hidden md:flex items-center justify-center gap-1 sm:gap-4 h-full flex-1">
-          <!-- Stocks Tab (Commented out - restorable by uncommenting)
           <button onclick="switchTab('portfolio')" id="nav-portfolio" class="h-full px-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-500 transition-all flex items-center gap-1.5 cursor-pointer">
             <i data-lucide="briefcase" class="w-3.5 h-3.5"></i> Stocks
           </button>
-          -->
-          <!-- Mutual Funds Tab (Commented out - restorable by uncommenting)
           <button onclick="switchTab('mf')" id="nav-mf" class="h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5 cursor-pointer">
             <i data-lucide="layers" class="w-3.5 h-3.5"></i> Mutual Funds
           </button>
-          -->
-          <!-- Circular AI Button (Commented out - restorable by uncommenting)
+          <!-- Circular AI Button placed in between tabs -->
           <button onclick="openAICopilot()" id="nav-ai-btn" title="Ask AI Portfolio Doctor & Copilot" aria-label="Ask AI"
                   class="self-center flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-tr from-violet-600 via-indigo-600 to-sky-500 text-white shadow-xs hover:shadow-md hover:shadow-indigo-500/30 transition-transform duration-200 ease-out hover:scale-120 active:scale-95 cursor-pointer shrink-0 mx-1">
             <span class="text-[10px] font-black tracking-tight leading-none select-none">AI</span>
           </button>
-          -->
-          <button onclick="switchTab('ipos')" id="nav-ipos" class="h-full px-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-500 transition-all flex items-center gap-1.5 cursor-pointer">
+          <button onclick="switchTab('ipos')" id="nav-ipos" class="h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5 cursor-pointer">
             <i data-lucide="compass" class="w-3.5 h-3.5"></i> IPO Suggester
           </button>
           <button onclick="switchTab('allotment')" id="nav-allotment" class="h-full px-3 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-b-2 border-transparent transition-all flex items-center gap-1.5 cursor-pointer">
@@ -157,11 +152,9 @@
               <button onclick="switchTab('methodology'); closeAllDropdowns();" id="header-scoring-formula-btn" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition text-left cursor-pointer">
                 <i data-lucide="bar-chart-2" class="w-3.5 h-3.5 text-slate-400"></i> Scoring Formula
               </button>
-              <!-- AI Portfolio Copilot (Commented out - restorable by uncommenting)
               <button onclick="openAICopilotModal(); closeAllDropdowns();" id="header-ai-copilot-btn" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition text-left cursor-pointer">
                 <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-500"></i> AI Portfolio Copilot
               </button>
-              -->
               <button onclick="openTelegramModal(); closeAllDropdowns();" id="header-telegram-btn" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/50 transition text-left cursor-pointer">
                 <i data-lucide="send" class="w-3.5 h-3.5 text-sky-500"></i> Telegram Bot Alerts
               </button>
@@ -184,19 +177,13 @@
 
   <!-- Mobile Tab Strip (Below 768px) -->
   <div class="md:hidden flex items-center border-b border-[#E8EAEE] dark:border-[#1F2937] bg-white dark:bg-[#121826] px-3 py-1.5 gap-1 overflow-x-auto">
-    <!-- Stocks Mobile Tab (Commented out - restorable by uncommenting)
     <button onclick="switchTab('portfolio')" id="mobile-nav-portfolio" class="flex-1 py-1.5 px-2.5 text-center text-xs font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 shrink-0 cursor-pointer">Stocks</button>
-    -->
-    <!-- Mutual Funds Mobile Tab (Commented out - restorable by uncommenting)
     <button onclick="switchTab('mf')" id="mobile-nav-mf" class="flex-1 py-1.5 px-2.5 text-center text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 cursor-pointer">Mutual Funds</button>
-    -->
-    <!-- AI Mobile Button (Commented out - restorable by uncommenting)
     <button onclick="openAICopilot()" id="mobile-nav-ai-btn" title="Ask AI Portfolio Doctor & Copilot" aria-label="Ask AI"
             class="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-tr from-violet-600 via-indigo-600 to-sky-500 text-white shadow-xs transition-transform duration-200 ease-out hover:scale-120 active:scale-95 shrink-0 mx-1 cursor-pointer">
       <span class="text-[9px] font-black tracking-tight leading-none select-none">AI</span>
     </button>
-    -->
-    <button onclick="switchTab('ipos')" id="mobile-nav-ipos" class="flex-1 py-1.5 px-2.5 text-center text-xs font-bold rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 shrink-0 cursor-pointer">IPOs</button>
+    <button onclick="switchTab('ipos')" id="mobile-nav-ipos" class="flex-1 py-1.5 px-2.5 text-center text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 cursor-pointer">IPOs</button>
     <button onclick="switchTab('allotment')" id="mobile-nav-allotment" class="flex-1 py-1.5 px-2.5 text-center text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 cursor-pointer">Allotment</button>
   </div>
 
@@ -206,12 +193,11 @@
     <!-- ================================================================ -->
     <!-- ==================== TAB: MY PORTFOLIO (HERO) ================== -->
     <!-- ================================================================ -->
-    <!-- ==================== [COMMENTED OUT: PORTFOLIO DASHBOARD (STOCKS) - RESTORABLE BY UNCOMMENTING] ====================
-<section id="tab-portfolio" class="space-y-6">
+    <section id="tab-portfolio" class="space-y-6">
 
-      <!- Combined Net Worth Summary Strip (Stocks + MFs) ->
+      <!-- Combined Net Worth Summary Strip (Stocks + MFs) -->
       <div id="pf-net-worth-banner" class="bg-[#FFFDFB] dark:bg-[#121826] rounded-2xl p-4 sm:p-5 shadow-soft border border-[#E7DFD5] dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-colors">
-        <!- Left: Net Worth & Total Return ->
+        <!-- Left: Net Worth & Total Return -->
         <div class="flex items-center gap-3.5 min-w-0">
           <div class="h-11 w-11 rounded-xl bg-gradient-to-tr from-emerald-500/15 via-amber-500/10 to-emerald-500/25 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/20 shadow-2xs shrink-0">
             <i data-lucide="wallet-cards" class="w-5 h-5"></i>
@@ -228,7 +214,7 @@
           </div>
         </div>
 
-        <!- Center: Visual Asset Allocation Track ->
+        <!-- Center: Visual Asset Allocation Track -->
         <div class="hidden lg:flex flex-col justify-center min-w-[240px] max-w-[300px] flex-1 px-5 border-x border-[#EAE3DA] dark:border-slate-800/80 space-y-1.5">
           <div class="flex items-center justify-between text-[11px] font-semibold">
             <span class="flex items-center gap-1.5 text-[#4A443B] dark:text-slate-300">
@@ -242,7 +228,7 @@
               <span id="pf-net-worth-mf-pct" class="font-mono text-[#7C7164] dark:text-slate-400 text-[10px]">—</span>
             </span>
           </div>
-          <!- Visual Segmented Track Bar ->
+          <!-- Visual Segmented Track Bar -->
           <div class="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 flex overflow-hidden p-0.5 gap-0.5">
             <div id="pf-net-worth-bar-stocks" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 50%"></div>
             <div id="pf-net-worth-bar-mf" class="bg-indigo-500 h-full rounded-full transition-all duration-500" style="width: 50%"></div>
@@ -253,9 +239,9 @@
           </div>
         </div>
 
-        <!- Right: Breakdown Chips & CTA ->
+        <!-- Right: Breakdown Chips & CTA -->
         <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-          <!- Stocks Capsule ->
+          <!-- Stocks Capsule -->
           <div class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-[#F6F1EA] dark:bg-slate-800/60 border border-[#E8DFD5] dark:border-slate-700/60 shadow-2xs">
             <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
               <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
@@ -266,7 +252,7 @@
             </div>
           </div>
 
-          <!- Mutual Funds Capsule ->
+          <!-- Mutual Funds Capsule -->
           <div class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-[#F6F1EA] dark:bg-slate-800/60 border border-[#E8DFD5] dark:border-slate-700/60 shadow-2xs">
             <div class="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs font-bold shrink-0">
               <i data-lucide="pie-chart" class="w-3.5 h-3.5"></i>
@@ -277,7 +263,7 @@
             </div>
           </div>
 
-          <!- Explore Button ->
+          <!-- Explore Button -->
           <button onclick="switchTab('mf')" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 shadow-sm transition active:scale-95 cursor-pointer ml-auto sm:ml-0">
             <span>Manage MFs</span>
             <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
@@ -285,18 +271,18 @@
         </div>
       </div>
 
-      <!- 2. SUMMARY STRIP: ONE CARD SPLIT INTO 4 COLUMNS WITH DIVIDERS ->
+      <!-- 2. SUMMARY STRIP: ONE CARD SPLIT INTO 4 COLUMNS WITH DIVIDERS -->
       <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft overflow-hidden">
         <div class="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800">
           
-          <!- Column 1: Invested ->
+          <!-- Column 1: Invested -->
           <div class="p-4 sm:p-5">
             <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Invested</span>
             <h3 id="pf-invested" class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 tabular-nums">—</h3>
             <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Cost basis</p>
           </div>
 
-          <!- Column 2: Current Value ->
+          <!-- Column 2: Current Value -->
           <div class="p-4 sm:p-5">
             <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Current Value</span>
             <h3 id="pf-value" aria-live="polite" class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 tabular-nums">—</h3>
@@ -305,7 +291,7 @@
             </div>
           </div>
 
-          <!- Column 3: Overall Profit & Loss (Till Now) ->
+          <!-- Column 3: Overall Profit & Loss (Till Now) -->
           <div class="p-4 sm:p-5">
             <div class="flex items-center justify-between">
               <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Overall Profit &amp; Loss</span>
@@ -320,7 +306,7 @@
             <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">All-time Net Return</p>
           </div>
 
-          <!- Column 4: Positions ->
+          <!-- Column 4: Positions -->
           <div class="p-4 sm:p-5">
             <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Positions</span>
             <h3 id="pf-count" class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 tabular-nums">—</h3>
@@ -334,26 +320,26 @@
         </div>
       </div>
 
-      <!- 3. TWO-COLUMN AREA: HOLDINGS TABLE (75%) + AI DOCTOR & ALLOCATION (25%) ->
+      <!-- 3. TWO-COLUMN AREA: HOLDINGS TABLE (75%) + AI DOCTOR & ALLOCATION (25%) -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        <!- LEFT COLUMN: HOLDINGS TABLE (HERO) ->
+        <!-- LEFT COLUMN: HOLDINGS TABLE (HERO) -->
         <div class="lg:col-span-9 xl:col-span-9 space-y-4">
           
-          <!- Holdings Table Card ->
+          <!-- Holdings Table Card -->
           <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft overflow-hidden">
             
-            <!- 4. Holdings Table Toolbar ->
+            <!-- 4. Holdings Table Toolbar -->
             <div class="p-3.5 sm:p-4 border-b border-[#E8EAEE] dark:border-[#1F2937] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-900/30">
               
-              <!- Search Box ->
+              <!-- Search Box -->
               <div class="relative w-full sm:w-64">
                 <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400"></i>
                 <input type="text" id="holdings-search-input" oninput="filterHoldingsTable()" placeholder="Search holdings..." 
                        class="w-full bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition" />
               </div>
 
-              <!- Action Buttons ->
+              <!-- Action Buttons -->
               <div class="flex flex-wrap items-center gap-2">
                 <button onclick="loadPortfolio()" title="Refresh live quotes" 
                         class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition flex items-center gap-1.5 active:scale-95 cursor-pointer">
@@ -383,7 +369,7 @@
 
             </div>
 
-            <!- Loading Skeleton State ->
+            <!-- Loading Skeleton State -->
             <div id="pf-loading" class="p-12 text-center text-slate-400 dark:text-slate-500 text-xs">
               <div class="animate-spin inline-block mb-2">
                 <i data-lucide="loader-2" class="w-6 h-6 text-emerald-500"></i>
@@ -391,7 +377,7 @@
               <p>Fetching real-time stock prices...</p>
             </div>
 
-            <!- Friendly Empty State ->
+            <!-- Friendly Empty State -->
             <div id="pf-empty" class="hidden p-12 text-center space-y-3">
               <div class="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
                 <i data-lucide="briefcase" class="w-6 h-6"></i>
@@ -411,10 +397,10 @@
               </div>
             </div>
 
-            <!- 5. Holdings Content Container (holds Desktop Table & Mobile Cards) ->
+            <!-- 5. Holdings Content Container (holds Desktop Table & Mobile Cards) -->
             <div id="pf-holdings-container" class="hidden">
               
-              <!- Desktop Holdings Table with Sortable Headers (md and up) ->
+              <!-- Desktop Holdings Table with Sortable Headers (md and up) -->
               <div class="hidden md:block overflow-x-auto">
                 <table class="w-full min-w-[800px] text-xs text-left border-collapse">
                   <thead class="bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-xs text-[11px] font-semibold text-slate-400 dark:text-slate-500 border-b border-[#E8EAEE] dark:border-[#1F2937] sticky top-0 z-10 select-none">
@@ -459,7 +445,7 @@
                     </tr>
                   </thead>
                   <tbody id="pf-tbody" class="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
-                    <!- Injected via JavaScript ->
+                    <!-- Injected via JavaScript -->
                   </tbody>
                   <tfoot id="pf-tfoot" class="bg-slate-50/95 dark:bg-slate-900/90 border-t-2 border-slate-200 dark:border-slate-700/80 text-xs font-bold text-slate-900 dark:text-white">
                     <tr>
@@ -485,9 +471,9 @@
                 </table>
               </div>
 
-              <!- Mobile Holdings Stacked Cards (< 768px) ->
+              <!-- Mobile Holdings Stacked Cards (< 768px) -->
               <div id="pf-cards-wrap" class="block md:hidden divide-y divide-slate-100 dark:divide-slate-800">
-                <!- Injected via JavaScript ->
+                <!-- Injected via JavaScript -->
               </div>
 
             </div>
@@ -496,10 +482,10 @@
 
         </div>
 
-        <!- RIGHT COLUMN (25%): AI DOCTOR + DONUT CHART ->
+        <!-- RIGHT COLUMN (25%): AI DOCTOR + DONUT CHART -->
         <div class="lg:col-span-3 xl:col-span-3 space-y-4">
           
-          <!- Card 1: AI Portfolio Doctor Health Score ->
+          <!-- Card 1: AI Portfolio Doctor Health Score -->
           <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 space-y-4">
             
             <div class="flex items-center justify-between">
@@ -520,7 +506,7 @@
               </button>
             </div>
 
-            <!- Health Score Radial Meter ->
+            <!-- Health Score Radial Meter -->
             <div class="flex items-center gap-4 p-3 rounded-lg bg-slate-50/70 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
               <div class="relative flex items-center justify-center shrink-0">
                 <svg class="w-14 h-14 transform -rotate-90" viewBox="0 0 36 36">
@@ -545,7 +531,7 @@
               </div>
             </div>
 
-            <!- Stock Allocation Donut Chart ->
+            <!-- Stock Allocation Donut Chart -->
             <div class="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
               <div class="flex items-center justify-between text-[11px]">
                 <span class="font-bold text-slate-700 dark:text-slate-300">Portfolio Weight Distribution</span>
@@ -555,26 +541,26 @@
               <div class="flex flex-col sm:flex-row items-center gap-3.5">
                 <div class="relative shrink-0 w-22 h-22 flex items-center justify-center">
                   <svg id="donut-chart-svg" class="w-22 h-22 transform -rotate-90" viewBox="0 0 42 42">
-                    <!- SVG Donut circles rendered by JS ->
+                    <!-- SVG Donut circles rendered by JS -->
                   </svg>
                 </div>
                 <div id="donut-legend" class="text-[11px] text-slate-600 dark:text-slate-400 space-y-1 flex-1 w-full">
-                  <!- Legend items rendered by JS ->
+                  <!-- Legend items rendered by JS -->
                 </div>
               </div>
             </div>
 
-            <!- Strategic Action Insights Chips ->
+            <!-- Strategic Action Insights Chips -->
             <div class="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
               <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">AI Strategic Priorities</span>
               <div id="adv-checklist" class="space-y-2">
-                <!- Action checklist items rendered by JS ->
+                <!-- Action checklist items rendered by JS -->
               </div>
             </div>
 
           </div>
 
-          <!- Card 2: Technical Diagnosis Scorecard ->
+          <!-- Card 2: Technical Diagnosis Scorecard -->
           <div id="pf-scorecard-card" class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 space-y-3">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
@@ -612,9 +598,9 @@
 
       </div>
 
-      <!- Portfolio Analytics Charts: Value Over Time & P&L by Stock ->
+      <!-- Portfolio Analytics Charts: Value Over Time & P&L by Stock -->
       <div id="pf-analytics-charts-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-        <!- Portfolio Value Over Time (Chart.js) ->
+        <!-- Portfolio Value Over Time (Chart.js) -->
         <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 flex flex-col justify-between">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
@@ -648,7 +634,7 @@
           <p id="snapshots-text-summary" class="sr-only">Portfolio historical equity trajectory data.</p>
         </div>
 
-        <!- P&L by Stock (Chart.js Horizontal Bars) ->
+        <!-- P&L by Stock (Chart.js Horizontal Bars) -->
         <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 flex flex-col justify-between">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
@@ -675,13 +661,11 @@
       </div>
 
     </section>
-==================== [END COMMENTED OUT: PORTFOLIO DASHBOARD (STOCKS)] ==================== -->
 
     <!-- ==================== TAB: MUTUAL FUNDS ==================== -->
-    <!-- ==================== [COMMENTED OUT: MUTUAL FUNDS DASHBOARD - RESTORABLE BY UNCOMMENTING] ====================
-<section id="tab-mf" class="space-y-6 hidden">
+    <section id="tab-mf" class="space-y-6 hidden">
 
-      <!- Combined Net Worth Header Banner ->
+      <!-- Combined Net Worth Header Banner -->
       <div id="mf-combined-net-worth-banner" class="bg-white dark:bg-gradient-to-r dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white rounded-2xl p-4 sm:p-5 shadow-soft border border-[#E8EAEE] dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-500/30">
@@ -713,18 +697,18 @@
         </div>
       </div>
 
-      <!- Mutual Funds Summary Strip: 4 KPI Columns ->
+      <!-- Mutual Funds Summary Strip: 4 KPI Columns -->
       <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft overflow-hidden">
         <div class="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800">
           
-          <!- Col 1: Total Invested ->
+          <!-- Col 1: Total Invested -->
           <div class="p-4 sm:p-5">
             <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Total Invested</span>
             <h3 id="mf-invested" class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 tabular-nums">—</h3>
             <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Cost basis of all holdings</p>
           </div>
 
-          <!- Col 2: Current Value with NAV as of date ->
+          <!-- Col 2: Current Value with NAV as of date -->
           <div class="p-4 sm:p-5">
             <div class="flex items-center justify-between">
               <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Current Value</span>
@@ -734,7 +718,7 @@
             <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Based on latest published NAV</p>
           </div>
 
-          <!- Col 3: Profit & Loss ->
+          <!-- Col 3: Profit & Loss -->
           <div class="p-4 sm:p-5">
             <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Total Profit &amp; Loss</span>
             <div class="flex items-baseline gap-2 mt-1">
@@ -744,7 +728,7 @@
             <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Total unrealized return</p>
           </div>
 
-          <!- Col 4: Overall XIRR & Positions ->
+          <!-- Col 4: Overall XIRR & Positions -->
           <div class="p-4 sm:p-5">
             <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Overall XIRR</span>
             <div class="flex items-baseline gap-2 mt-1">
@@ -758,13 +742,13 @@
         </div>
       </div>
 
-      <!- 3. TWO-COLUMN LAYOUT: HOLDINGS (LEFT 75%) + ALLOCATION SIDEBAR (RIGHT 25%) ->
+      <!-- 3. TWO-COLUMN LAYOUT: HOLDINGS (LEFT 75%) + ALLOCATION SIDEBAR (RIGHT 25%) -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-        <!- LEFT HERO COLUMN: HISTORICAL CHART & HOLDINGS TABLE (lg:col-span-8 xl:col-span-9) ->
+        <!-- LEFT HERO COLUMN: HISTORICAL CHART & HOLDINGS TABLE (lg:col-span-8 xl:col-span-9) -->
         <div class="lg:col-span-8 xl:col-span-9 space-y-4">
 
-      <!- Historical NAV Chart Panel (Expandable on fund select) ->
+      <!-- Historical NAV Chart Panel (Expandable on fund select) -->
       <div id="mf-nav-chart-card" class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 hidden space-y-3">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2.5">
@@ -793,20 +777,20 @@
         </div>
       </div>
 
-      <!- Mutual Funds Holdings Table Card ->
+      <!-- Mutual Funds Holdings Table Card -->
       <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft overflow-hidden">
         
-        <!- Table Toolbar ->
+        <!-- Table Toolbar -->
         <div class="p-3.5 sm:p-4 border-b border-[#E8EAEE] dark:border-[#1F2937] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-900/30">
           
-          <!- Search Input ->
+          <!-- Search Input -->
           <div class="relative w-full sm:w-72">
             <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400"></i>
             <input type="text" id="mf-search-input" oninput="filterMFTable()" placeholder="Search scheme, AMC, category..." 
                    class="w-full bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition" />
           </div>
 
-          <!- Action Buttons ->
+          <!-- Action Buttons -->
           <div class="flex flex-wrap items-center gap-2">
             <button onclick="loadMFSummary()" title="Refresh Mutual Funds" 
                     class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 transition flex items-center gap-1.5 active:scale-95 cursor-pointer">
@@ -835,7 +819,7 @@
 
         </div>
 
-        <!- Loading State ->
+        <!-- Loading State -->
         <div id="mf-loading" class="p-12 text-center text-slate-400 dark:text-slate-500 text-xs">
           <div class="animate-spin inline-block mb-2">
             <i data-lucide="loader-2" class="w-6 h-6 text-indigo-500"></i>
@@ -843,7 +827,7 @@
           <p>Fetching mutual fund holdings &amp; latest NAVs...</p>
         </div>
 
-        <!- Empty State ->
+        <!-- Empty State -->
         <div id="mf-empty" class="hidden p-12 text-center space-y-3">
           <div class="h-12 w-12 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-500 flex items-center justify-center mx-auto">
             <i data-lucide="layers" class="w-6 h-6"></i>
@@ -864,7 +848,7 @@
           </div>
         </div>
 
-        <!- Holdings Table Container ->
+        <!-- Holdings Table Container -->
         <div id="mf-holdings-container" class="hidden overflow-x-auto">
           <table class="w-full min-w-[950px] text-xs text-left border-collapse">
             <thead class="bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-xs text-[11px] font-semibold text-slate-400 dark:text-slate-500 border-b border-[#E8EAEE] dark:border-[#1F2937] sticky top-0 z-10 select-none">
@@ -895,7 +879,7 @@
               </tr>
             </thead>
             <tbody id="mf-tbody" class="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
-              <!- Populated by JS ->
+              <!-- Populated by JS -->
             </tbody>
             <tfoot id="mf-tfoot" class="bg-slate-50/95 dark:bg-slate-900/90 border-t-2 border-slate-200 dark:border-slate-700/80 text-xs font-bold text-slate-900 dark:text-white">
               <tr>
@@ -921,9 +905,9 @@
       </div>
       </div>
 
-      <!- RIGHT SIDEBAR (30%): ALLOCATION DONUTS ->
+      <!-- RIGHT SIDEBAR (30%): ALLOCATION DONUTS -->
       <div class="lg:col-span-4 xl:col-span-3 space-y-4">
-        <!- Category Allocation Card ->
+        <!-- Category Allocation Card -->
         <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 flex flex-col justify-between">
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
@@ -944,7 +928,7 @@
           </div>
         </div>
 
-        <!- AMC Allocation Card ->
+        <!-- AMC Allocation Card -->
         <div class="bg-white dark:bg-[#121826] rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft p-4 sm:p-5 flex flex-col justify-between">
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
@@ -968,10 +952,9 @@
 
       </div>
     </section>
-==================== [END COMMENTED OUT: MUTUAL FUNDS DASHBOARD] ==================== -->
 
     <!-- ==================== TAB 2: IPO SUGGESTER ==================== -->
-    <section id="tab-ipos" class="space-y-6">
+    <section id="tab-ipos" class="space-y-6 hidden">
       <!-- Top Stat Metric Cards -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div class="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex items-center justify-between">
@@ -2220,11 +2203,10 @@
   </div>
 
   <!-- ==================== AI COPILOT FLOATING DOCK (BOTTOM-RIGHT) ==================== -->
-<!-- ==================== [COMMENTED OUT: AI COPILOT FLOATING DOCK - RESTORABLE BY UNCOMMENTING] ====================
   <div id="ai-copilot-modal" role="dialog" aria-modal="true" aria-labelledby="copilot-modal-title" class="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-24px)] sm:w-[390px] md:w-[410px] max-w-[95vw] ai-modal-closed">
     <div id="ai-copilot-card" class="bg-[#FCFAF7] dark:bg-[#121826] rounded-[28px] sm:rounded-[32px] border border-[#EAE3DA] dark:border-slate-800 shadow-[0_20px_50px_-10px_rgba(40,30,20,0.18)] dark:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6)] w-full flex flex-col h-[520px] sm:h-[580px] max-h-[85vh] overflow-hidden">
       
-      <!- Header Bar with Warm Hue ->
+      <!-- Header Bar with Warm Hue -->
       <div class="px-5 py-3.5 border-b border-[#ECE5DC] dark:border-slate-800/90 flex items-center justify-between bg-[#FAF6F0] dark:bg-[#151D2C] select-none">
         <div class="flex items-center gap-2.5 min-w-0">
           <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-rose-500 flex items-center justify-center text-white shadow-xs shrink-0">
@@ -2235,7 +2217,7 @@
           </div>
         </div>
         
-        <!- Right Action Controls ->
+        <!-- Right Action Controls -->
         <div class="flex items-center gap-1 shrink-0">
           <button onclick="resetAICopilotChat()" title="Reset chat" class="p-1.5 rounded-lg text-[#7C7164] dark:text-slate-400 hover:text-[#2D2A26] dark:hover:text-white hover:bg-[#F0EAE1] dark:hover:bg-slate-800/80 transition cursor-pointer">
             <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
@@ -2249,24 +2231,24 @@
         </div>
       </div>
 
-      <!- Chat Messages Scroll Area ->
+      <!-- Chat Messages Scroll Area -->
       <div id="ai-modal-chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3.5 bg-[#FCFAF7] dark:bg-[#121826] text-xs sm:text-[13px] leading-relaxed">
-        <!- Rendered dynamically ->
+        <!-- Rendered dynamically -->
       </div>
 
-      <!- Bottom Capsule Input Bar ->
+      <!-- Bottom Capsule Input Bar -->
       <div class="px-3.5 pt-3 pb-2 bg-[#FAF6F0] dark:bg-[#121826] border-t border-[#ECE5DC] dark:border-slate-800/80">
         <form onsubmit="submitAICopilotChat(event)" class="relative flex items-center rounded-full bg-[#F3ECE4] dark:bg-[#1A2234] border border-[#DFD6CB] dark:border-slate-700/90 px-3.5 py-2 hover:border-[#CEC3B5] dark:hover:border-slate-600 focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-600/70 transition shadow-2xs">
-          <!- Left Menu Button ->
+          <!-- Left Menu Button -->
           <button type="button" onclick="toggleQuickPromptSuggestions()" title="Prompt Suggestions" class="text-[#7C7164] dark:text-slate-400 hover:text-[#2D2A26] dark:hover:text-white p-1 rounded-full transition cursor-pointer shrink-0">
             <i data-lucide="menu" class="w-4 h-4"></i>
           </button>
           
-          <!- Input Field ->
+          <!-- Input Field -->
           <input type="text" id="ai-modal-input" placeholder="Ask anything" autocomplete="off"
                  class="flex-1 bg-transparent border-0 px-2 py-0.5 text-xs sm:text-sm text-[#2D2A26] dark:text-white placeholder-[#8E8477] focus:outline-none focus:ring-0" />
           
-          <!- Right Send Button ->
+          <!-- Right Send Button -->
           <button type="submit" id="ai-modal-send-btn" title="Send query"
                   class="text-[#8E8477] hover:text-amber-700 dark:text-slate-400 dark:hover:text-indigo-400 p-1 rounded-full transition cursor-pointer shrink-0 active:scale-90 flex items-center justify-center">
             <i data-lucide="send" class="w-4 h-4"></i>
@@ -2279,7 +2261,6 @@
 
     </div>
   </div>
-==================== [END COMMENTED OUT: AI COPILOT FLOATING DOCK] ==================== -->
 
   <!-- ==================== FRONTEND JS MODULES ==================== -->
   <script src="/static/js/utils.js?v=20261021_2"></script>
@@ -2290,15 +2271,5 @@
   <script src="/static/js/portfolio.js?v=20261021_2"></script>
   <script src="/static/js/mutual_funds.js?v=20261021_2"></script>
   <script src="/static/js/app.js?v=20261021_2"></script>
-  <!-- Auto-activate IPO Suggester if portfolio tab is commented out -->
-  <script>
-    if (!window.location.hash || window.location.hash === '#portfolio') {
-      document.addEventListener('DOMContentLoaded', () => {
-        if (!document.getElementById('tab-portfolio') && typeof switchTab === 'function') {
-          switchTab('ipos');
-        }
-      });
-    }
-  </script>
 </body>
 </html>
