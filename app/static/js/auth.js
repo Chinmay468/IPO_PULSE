@@ -54,9 +54,41 @@ function updateAuthUI() {
   refreshLucideIcons();
 }
 
+// ==================== PASSWORD VISIBILITY TOGGLE ====================
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPassword = input.type === 'password';
+  input.type = isPassword ? 'text' : 'password';
+  if (btn) {
+    btn.innerHTML = `<i data-lucide="${isPassword ? 'eye-off' : 'eye'}" class="w-3.5 h-3.5"></i>`;
+    const label = isPassword ? 'Hide password' : 'Show password';
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    if (typeof refreshLucideIcons === 'function') {
+      refreshLucideIcons();
+    } else if (window.lucide) {
+      window.lucide.createIcons();
+    }
+  }
+}
+
+function resetPasswordVisibility() {
+  document.querySelectorAll('input[data-password-toggle="true"]').forEach(input => {
+    input.type = 'password';
+  });
+  document.querySelectorAll('.password-toggle-btn').forEach(btn => {
+    btn.innerHTML = '<i data-lucide="eye" class="w-3.5 h-3.5"></i>';
+    btn.title = 'Show password';
+    btn.setAttribute('aria-label', 'Show password');
+  });
+  if (typeof refreshLucideIcons === 'function') refreshLucideIcons();
+}
+
 let currentResetToken = null;
 
 function switchAuthTab(tab) {
+  resetPasswordVisibility();
   const signinForm = document.getElementById('login-form');
   const signupForm = document.getElementById('register-form');
   const forgotForm = document.getElementById('forgot-form');
@@ -148,6 +180,7 @@ function openLoginModal(tab = 'signin') {
 }
 
 function closeLoginModal() {
+  resetPasswordVisibility();
   const modal = document.getElementById('login-modal');
   if (modal) {
     modal.classList.add('hidden');
@@ -565,6 +598,7 @@ function openChangePasswordModal() {
 }
 
 function closeChangePasswordModal() {
+  resetPasswordVisibility();
   const modal = document.getElementById('change-password-modal');
   if (modal) {
     modal.classList.add('hidden');
