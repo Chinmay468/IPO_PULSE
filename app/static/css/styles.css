@@ -309,7 +309,7 @@ html:not(.dark) .text-gray-400 {
 }
 
 /* Form inputs & search boxes */
-html:not(.dark) input[type="text"],
+html:not(.dark) input[type="text"]:not(#ai-modal-input),
 html:not(.dark) input[type="search"],
 html:not(.dark) input[type="number"],
 html:not(.dark) input[type="date"],
@@ -319,13 +319,27 @@ html:not(.dark) select {
   color: var(--warm-text-primary) !important;
 }
 
-html:not(.dark) input[type="text"]:focus,
+html:not(.dark) input[type="text"]:not(#ai-modal-input):focus,
 html:not(.dark) input[type="search"]:focus,
 html:not(.dark) input[type="number"]:focus,
 html:not(.dark) input[type="date"]:focus,
 html:not(.dark) select:focus {
   background-color: #FFFFFF !important;
   border-color: #10B981 !important;
+}
+
+/* AI Copilot & transparent capsule inputs */
+#ai-modal-input,
+#ai-modal-input:focus,
+input#ai-modal-input,
+input#ai-modal-input:focus,
+html:not(.dark) input#ai-modal-input,
+html:not(.dark) input#ai-modal-input:focus {
+  background-color: transparent !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 /* Dropdown buttons & filters */
