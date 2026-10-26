@@ -906,10 +906,13 @@ function renderIpoAnalysisCharts(detailIpo) {
       Object.values(sourcesData).forEach(arr => arr.forEach(item => allTimestampsSet.add(item.recorded_at)));
       consensusLine.forEach(item => allTimestampsSet.add(item.recorded_at));
       const sortedTimestamps = Array.from(allTimestampsSet).sort();
+      const rawTimestamps = sortedTimestamps;
 
+      // Clean X-axis date labels (e.g. "19 Oct") without micro-timestamps crowding the axis
       const labels = sortedTimestamps.map(ts => {
         const d = new Date(ts);
-        return !isNaN(d.getTime()) ? `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ts;
+        if (isNaN(d.getTime())) return ts;
+        return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
       });
 
       const colorPalette = {
@@ -921,7 +924,30 @@ function renderIpoAnalysisCharts(detailIpo) {
 
       const datasets = [];
 
-      // Source lines
+      // Consensus line (Primary Hero)
+      const consMap = {};
+      consensusLine.forEach(item => { consMap[item.recorded_at] = item.gmp_percentage; });
+      const consValues = sortedTimestamps.map(ts => consMap[ts] != null ? consMap[ts] : null);
+
+      datasets.push({
+        label: 'Consensus Median',
+        data: consValues,
+        borderColor: '#10b981',
+        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
+        fill: true,
+        tension: 0.35,
+        borderWidth: 2.5,
+        pointRadius: sortedTimestamps.length <= 2 ? 4 : 0,
+        pointHoverRadius: 6,
+        pointHitRadius: 14,
+        pointBackgroundColor: '#10b981',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 1.5,
+        order: 1,
+        spanGaps: true
+      });
+
+      // Individual Source comparison lines (Dashed, subtle secondary guides)
       Object.keys(sourcesData).forEach(src => {
         const srcMap = {};
         sourcesData[src].forEach(item => { srcMap[item.recorded_at] = item.gmp_percentage; });
@@ -934,30 +960,15 @@ function renderIpoAnalysisCharts(detailIpo) {
           borderColor: col,
           backgroundColor: col,
           fill: false,
-          tension: 0.2,
+          tension: 0.3,
           borderWidth: 1.5,
-          pointRadius: sortedTimestamps.length === 1 ? 5 : 3,
-          pointHoverRadius: 6,
+          borderDash: [3, 3],
+          pointRadius: sortedTimestamps.length <= 2 ? 3 : 0,
+          pointHoverRadius: 5,
+          pointHitRadius: 10,
+          order: 2,
           spanGaps: true
         });
-      });
-
-      // Consensus line
-      const consMap = {};
-      consensusLine.forEach(item => { consMap[item.recorded_at] = item.gmp_percentage; });
-      const consValues = sortedTimestamps.map(ts => consMap[ts] != null ? consMap[ts] : null);
-
-      datasets.push({
-        label: 'Consensus Median',
-        data: consValues,
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-        fill: false,
-        tension: 0.2,
-        borderWidth: 2.5,
-        pointRadius: sortedTimestamps.length === 1 ? 6 : 4,
-        pointHoverRadius: 8,
-        spanGaps: true
       });
 
       const ctx = gmpCanvas.getContext('2d');
@@ -970,33 +981,86 @@ function renderIpoAnalysisCharts(detailIpo) {
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
           plugins: {
             legend: {
               display: true,
               position: 'top',
+              align: 'end',
               labels: {
-                boxWidth: 8,
-                font: { size: 9 },
+                usePointStyle: true,
+                pointStyle: 'circle',
+                boxWidth: 6,
+                boxHeight: 6,
+                padding: 10,
+                font: { size: 9, weight: '600' },
                 color: isDark ? '#94a3b8' : '#64748b'
               }
             },
             tooltip: {
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+              titleColor: isDark ? '#f8fafc' : '#0f172a',
+              bodyColor: isDark ? '#cbd5e1' : '#334155',
+              borderColor: isDark ? '#334155' : '#e2e8f0',
+              borderWidth: 1,
+              padding: 10,
+              cornerRadius: 8,
+              boxPadding: 4,
+              usePointStyle: true,
               callbacks: {
-                label: ctx => `${ctx.dataset.label}: +${ctx.raw}%`
+                title: function(items) {
+                  if (!items || !items.length) return '';
+                  const idx = items[0].dataIndex;
+                  const rawTs = rawTimestamps[idx];
+                  if (!rawTs) return items[0].label;
+                  const d = new Date(rawTs);
+                  if (isNaN(d.getTime())) return rawTs;
+                  return d.toLocaleString('default', {
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                  });
+                },
+                label: function(ctx) {
+                  const val = ctx.raw;
+                  if (val == null) return `${ctx.dataset.label}: N/A`;
+                  const sign = val > 0 ? '+' : '';
+                  return `${ctx.dataset.label}: ${sign}${Number(val).toFixed(1)}%`;
+                }
               }
             }
           },
           scales: {
             x: {
-              grid: { color: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(241, 245, 249, 0.8)' },
-              ticks: { color: isDark ? '#94a3b8' : '#64748b', font: { size: 9 } }
+              grid: {
+                display: false
+              },
+              ticks: {
+                color: isDark ? '#94a3b8' : '#64748b',
+                font: { size: 9, weight: '500' },
+                maxTicksLimit: 6,
+                maxRotation: 0,
+                autoSkip: true
+              }
             },
             y: {
-              grid: { color: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(241, 245, 249, 0.8)' },
+              grid: {
+                color: isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(241, 245, 249, 0.9)',
+                borderDash: [3, 3]
+              },
               ticks: {
                 color: isDark ? '#94a3b8' : '#64748b',
                 font: { size: 9 },
-                callback: v => `+${v}%`
+                maxTicksLimit: 5,
+                callback: function(v) {
+                  const sign = v > 0 ? '+' : '';
+                  return `${sign}${v}%`;
+                }
               }
             }
           }
