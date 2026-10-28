@@ -2145,15 +2145,28 @@
           <h5 class="font-bold text-slate-800 dark:text-slate-200 text-xs">Market Dynamics & Demand Trends</h5>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <!-- GMP Trend Chart -->
-            <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-2 flex flex-col justify-between">
+            <div id="modal-gmp-card" class="group relative p-3 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-2 flex flex-col justify-between">
               <div class="flex items-center justify-between">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">GMP Trend (% Gain)</span>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">GMP Trend (% Gain)</span>
+                  <button type="button" onclick="openGmpPreviewModal()" class="text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition p-0.5 rounded hover:bg-slate-200/60 dark:hover:bg-slate-800 cursor-pointer" title="Expand Fullscreen Preview">
+                    <i data-lucide="maximize-2" class="w-3 h-3"></i>
+                  </button>
+                </div>
                 <span id="modal-gmp-chart-latest" class="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">—</span>
               </div>
-              <div class="relative w-full h-44 sm:h-48 flex items-center justify-center">
+              <div class="relative w-full h-44 sm:h-48 flex items-center justify-center overflow-hidden rounded-lg">
                 <div id="modal-gmp-empty" class="text-[11px] text-slate-400 text-center py-6">No data yet</div>
-                <div id="modal-gmp-chart-container" class="w-full h-full hidden">
+                <div id="modal-gmp-chart-container" class="w-full h-full hidden relative">
                   <canvas id="modal-gmp-chart" aria-label="Line chart showing Grey Market Premium percentage trend over time" role="img"></canvas>
+                  
+                  <!-- Hover Preview Overlay Button -->
+                  <div class="absolute inset-0 bg-slate-900/15 dark:bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center pointer-events-none rounded-lg backdrop-blur-[1px]">
+                    <button type="button" onclick="openGmpPreviewModal()" class="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 hover:bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-semibold shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer">
+                      <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+                      <span>Preview Full Graph</span>
+                    </button>
+                  </div>
                 </div>
               </div>
               <p id="modal-gmp-text-summary" class="sr-only">GMP percentage history over time.</p>
@@ -2246,6 +2259,83 @@
       <div class="p-3.5 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between rounded-b-2xl">
         <span class="text-[11px] text-slate-400">Participate in this IPO</span>
         <a id="modal-angelone-btn" href="#" target="_blank" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs">Apply via Angel One ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== GMP TREND FULL GRAPH PREVIEW MODAL ==================== -->
+  <div id="gmp-preview-modal" role="dialog" aria-modal="true" aria-labelledby="gmp-preview-ipo-name" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-3 sm:p-6" onclick="if(event.target === this) closeGmpPreviewModal()">
+    <div class="bg-white dark:bg-[#121826] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Modal Header -->
+      <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900/90">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20">
+            <i data-lucide="trending-up" class="w-5 h-5"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <h3 id="gmp-preview-ipo-name" class="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">IPO Name</h3>
+              <span id="gmp-preview-ipo-symbol" class="text-xs text-slate-500 dark:text-slate-400 font-mono hidden sm:inline"></span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Detailed Grey Market Premium (GMP) Track & Consensus Trend</p>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+          <span id="gmp-preview-current-badge" class="px-3 py-1 rounded-full text-xs font-bold font-mono bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">—</span>
+          <button type="button" onclick="closeGmpPreviewModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition cursor-pointer" aria-label="Close Preview">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Metrics Strip -->
+      <div class="px-5 py-3 bg-slate-50/40 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800/60 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-xs">
+        <div class="p-2.5 rounded-lg bg-white dark:bg-[#151D2C] border border-slate-200/70 dark:border-slate-800 shadow-2xs">
+          <span class="text-[10px] uppercase tracking-wider text-slate-400 block font-semibold">Current GMP</span>
+          <strong id="gmp-preview-stat-current" class="font-mono text-sm text-emerald-600 dark:text-emerald-400 font-bold">—</strong>
+        </div>
+        <div class="p-2.5 rounded-lg bg-white dark:bg-[#151D2C] border border-slate-200/70 dark:border-slate-800 shadow-2xs">
+          <span class="text-[10px] uppercase tracking-wider text-slate-400 block font-semibold">Peak GMP</span>
+          <strong id="gmp-preview-stat-peak" class="font-mono text-sm text-slate-900 dark:text-white font-bold">—</strong>
+        </div>
+        <div class="p-2.5 rounded-lg bg-white dark:bg-[#151D2C] border border-slate-200/70 dark:border-slate-800 shadow-2xs">
+          <span class="text-[10px] uppercase tracking-wider text-slate-400 block font-semibold">Lowest GMP</span>
+          <strong id="gmp-preview-stat-trough" class="font-mono text-sm text-slate-900 dark:text-white font-bold">—</strong>
+        </div>
+        <div class="p-2.5 rounded-lg bg-white dark:bg-[#151D2C] border border-slate-200/70 dark:border-slate-800 shadow-2xs">
+          <span class="text-[10px] uppercase tracking-wider text-slate-400 block font-semibold">Tracked Sources</span>
+          <strong id="gmp-preview-stat-sources" class="font-mono text-sm text-indigo-600 dark:text-indigo-400 font-bold">—</strong>
+        </div>
+      </div>
+
+      <!-- Graph Container -->
+      <div class="p-4 sm:p-5 flex-1 flex flex-col min-h-0">
+        <div class="relative w-full h-[320px] sm:h-[380px] md:h-[420px] bg-slate-50/60 dark:bg-slate-950/40 rounded-xl p-3 border border-slate-100 dark:border-slate-800/80">
+          <canvas id="gmp-preview-chart" aria-label="Expanded Grey Market Premium trend graph" role="img"></canvas>
+        </div>
+        
+        <!-- Legend & Helper Note -->
+        <div class="mt-3 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-400 gap-2">
+          <div class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Solid line: <strong>Consensus Median</strong></span>
+            <span class="text-slate-300 dark:text-slate-700">•</span>
+            <span>Dashed lines: <strong>Individual Trackers</strong> (Click legend items above to toggle)</span>
+          </div>
+          <div class="text-[10px] text-slate-400 font-mono">
+            Press <kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Esc</kbd> or click outside to close
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Bar -->
+      <div class="px-5 py-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+        <span class="text-xs text-slate-500 dark:text-slate-400">Real-time aggregation from InvestorGain, IPOWatch, Chittorgarh</span>
+        <button type="button" onclick="closeGmpPreviewModal()" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer">
+          Close Preview
+        </button>
       </div>
     </div>
   </div>

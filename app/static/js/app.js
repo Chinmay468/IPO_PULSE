@@ -136,10 +136,18 @@ document.addEventListener('click', (e) => {
   if (e.target === telegramModal && typeof closeTelegramModal === 'function') {
     closeTelegramModal();
   }
+  const gmpPreviewModal = document.getElementById('gmp-preview-modal');
+  if (e.target === gmpPreviewModal && typeof closeGmpPreviewModal === 'function') {
+    closeGmpPreviewModal();
+  }
 });
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    if (typeof isGmpPreviewOpen === 'function' && isGmpPreviewOpen()) {
+      closeGmpPreviewModal();
+      return;
+    }
     if (typeof closeAICopilotModal === 'function') closeAICopilotModal();
     if (typeof closeModal === 'function') closeModal();
     if (typeof closeAddHoldingModal === 'function') closeAddHoldingModal();

@@ -808,6 +808,7 @@ function renderSubscriptionChart(detailIpo, mode) {
 }
 
 function renderIpoAnalysisCharts(detailIpo) {
+  currentGmpDetailIpo = detailIpo;
   const gmpEmpty = document.getElementById('modal-gmp-empty');
   const gmpBox = document.getElementById('modal-gmp-chart-container');
   const gmpLatest = document.getElementById('modal-gmp-chart-latest');
@@ -846,6 +847,10 @@ function renderIpoAnalysisCharts(detailIpo) {
   fetch(`/api/v1/ipos/${detailIpo.id}/gmp/trend`)
     .then(r => r.ok ? r.json() : null)
     .then(trend => {
+      currentGmpTrendData = trend;
+      if (isGmpPreviewOpen()) {
+        renderGmpPreviewChart(trend, detailIpo);
+      }
       const totalReadings = (trend && trend.total_readings) || (detailIpo.gmp_records && detailIpo.gmp_records.length) || 0;
       if (totalReadings === 0) {
         if (gmpEmpty) gmpEmpty.classList.remove('hidden');
@@ -1074,6 +1079,329 @@ function renderIpoAnalysisCharts(detailIpo) {
   // 3. Subscription Multiples Chart
   currentSubIpoData = detailIpo;
   renderSubscriptionChart(detailIpo, currentSubViewMode);
+}
+
+// ── GMP Trend Full Graph Preview Modal Controllers ──
+function isGmpPreviewOpen() {
+  const modal = document.getElementById('gmp-preview-modal');
+  return modal && !modal.classList.contains('hidden');
+}
+
+function closeGmpPreviewModal() {
+  const modal = document.getElementById('gmp-preview-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+  if (gmpPreviewChart) {
+    gmpPreviewChart.destroy();
+    gmpPreviewChart = null;
+  }
+}
+
+function openGmpPreviewModal() {
+  const modal = document.getElementById('gmp-preview-modal');
+  if (!modal) return;
+
+  const detailIpo = currentGmpDetailIpo || {};
+  const trend = currentGmpTrendData;
+
+  const nameEl = document.getElementById('gmp-preview-ipo-name');
+  const symbolEl = document.getElementById('gmp-preview-ipo-symbol');
+  const badgeEl = document.getElementById('gmp-preview-current-badge');
+
+  if (nameEl) nameEl.textContent = detailIpo.company_name || detailIpo.name || 'IPO GMP Analytics';
+  if (symbolEl) symbolEl.textContent = detailIpo.symbol ? `NSE/BSE: ${detailIpo.symbol}` : (detailIpo.ipo_type || 'Mainboard');
+
+  const cons = detailIpo.consensus_gmp || {};
+  if (badgeEl) {
+    if (cons.status === 'fresh' && cons.gmp_amount != null) {
+      badgeEl.textContent = `+${cons.gmp_percentage}% (₹${cons.gmp_amount})`;
+      badgeEl.className = 'px-3 py-1 rounded-full text-xs font-bold font-mono bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800';
+    } else if (cons.last_known && cons.last_known.gmp_amount != null) {
+      badgeEl.textContent = `Last: +${cons.last_known.gmp_percentage}% (₹${cons.last_known.gmp_amount})`;
+      badgeEl.className = 'px-3 py-1 rounded-full text-xs font-bold font-mono bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800';
+    } else {
+      badgeEl.textContent = 'No active GMP';
+      badgeEl.className = 'px-3 py-1 rounded-full text-xs font-medium font-mono bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
+    }
+  }
+
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  if (window.lucide) window.lucide.createIcons();
+
+  renderGmpPreviewChart(trend, detailIpo);
+}
+
+function renderGmpPreviewChart(trend, detailIpo) {
+  const canvas = document.getElementById('gmp-preview-chart');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  if (gmpPreviewChart) {
+    gmpPreviewChart.destroy();
+    gmpPreviewChart = null;
+  }
+
+  const isDark = document.documentElement.classList.contains('dark');
+  const statCurrent = document.getElementById('gmp-preview-stat-current');
+  const statPeak = document.getElementById('gmp-preview-stat-peak');
+  const statTrough = document.getElementById('gmp-preview-stat-trough');
+  const statSources = document.getElementById('gmp-preview-stat-sources');
+
+  const sourcesData = (trend && trend.sources) || {};
+  const consensusLine = (trend && trend.consensus) || [];
+
+  // Fallback to detailIpo.gmp_records if backend trend series are absent
+  if (Object.keys(sourcesData).length === 0 && (!consensusLine || consensusLine.length === 0)) {
+    const records = (detailIpo && detailIpo.gmp_records ? detailIpo.gmp_records.slice() : []).sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
+    if (records.length === 0) {
+      if (statCurrent) statCurrent.textContent = '—';
+      if (statPeak) statPeak.textContent = '—';
+      if (statTrough) statTrough.textContent = '—';
+      if (statSources) statSources.textContent = '0 Sources';
+      return;
+    }
+
+    const labels = records.map(r => {
+      const d = new Date(r.recorded_at);
+      return isNaN(d.getTime()) ? r.recorded_at : `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
+    });
+    const values = records.map(r => r.gmp_percentage);
+
+    const maxVal = Math.max(...values);
+    const minVal = Math.min(...values);
+    const latestVal = values[values.length - 1];
+
+    if (statCurrent) statCurrent.textContent = `+${Number(latestVal).toFixed(1)}%`;
+    if (statPeak) statPeak.textContent = `+${Number(maxVal).toFixed(1)}%`;
+    if (statTrough) statTrough.textContent = `+${Number(minVal).toFixed(1)}%`;
+    if (statSources) statSources.textContent = `1 Source · ${records.length} pts`;
+
+    const ctx = canvas.getContext('2d');
+    gmpPreviewChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Consensus GMP (%)',
+          data: values,
+          borderColor: '#10b981',
+          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.08)',
+          fill: true,
+          tension: 0.3,
+          borderWidth: 3,
+          pointRadius: records.length <= 15 ? 4 : 2,
+          pointHoverRadius: 7,
+          pointBackgroundColor: '#10b981',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 1.5
+        }]
+      },
+      options: getGmpPreviewChartOptions(isDark, records.map(r => r.recorded_at))
+    });
+    return;
+  }
+
+  // Collect unique timestamps across all series
+  const allTimestampsSet = new Set();
+  Object.values(sourcesData).forEach(arr => arr.forEach(item => allTimestampsSet.add(item.recorded_at)));
+  consensusLine.forEach(item => allTimestampsSet.add(item.recorded_at));
+  const sortedTimestamps = Array.from(allTimestampsSet).sort();
+
+  const labels = sortedTimestamps.map(ts => {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ts;
+    return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
+  });
+
+  const colorPalette = {
+    'investorgain': { border: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)' },
+    'ipowatch': { border: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)' },
+    'chittorgarh': { border: '#06b6d4', bg: 'rgba(6, 182, 212, 0.12)' },
+    'consensus': { border: '#10b981', bg: isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.09)' }
+  };
+
+  const datasets = [];
+  const allNumericValues = [];
+
+  // Consensus line (Hero)
+  const consMap = {};
+  consensusLine.forEach(item => { consMap[item.recorded_at] = item.gmp_percentage; });
+  const consValues = sortedTimestamps.map(ts => consMap[ts] != null ? consMap[ts] : null);
+  consValues.forEach(v => { if (v != null) allNumericValues.push(v); });
+
+  datasets.push({
+    label: 'Consensus Median',
+    data: consValues,
+    borderColor: '#10b981',
+    backgroundColor: colorPalette.consensus.bg,
+    fill: true,
+    tension: 0.32,
+    borderWidth: 3,
+    pointRadius: sortedTimestamps.length <= 15 ? 4 : 2,
+    pointHoverRadius: 7,
+    pointHitRadius: 14,
+    pointBackgroundColor: '#10b981',
+    pointBorderColor: '#ffffff',
+    pointBorderWidth: 2,
+    order: 1,
+    spanGaps: true
+  });
+
+  // Tracked sources
+  const sourcesKeys = Object.keys(sourcesData);
+  sourcesKeys.forEach(src => {
+    const srcMap = {};
+    sourcesData[src].forEach(item => { srcMap[item.recorded_at] = item.gmp_percentage; });
+    const dataValues = sortedTimestamps.map(ts => srcMap[ts] != null ? srcMap[ts] : null);
+    dataValues.forEach(v => { if (v != null) allNumericValues.push(v); });
+
+    const key = src.toLowerCase();
+    const col = colorPalette[key] ? colorPalette[key].border : '#8b5cf6';
+
+    datasets.push({
+      label: src.charAt(0).toUpperCase() + src.slice(1),
+      data: dataValues,
+      borderColor: col,
+      backgroundColor: col,
+      fill: false,
+      tension: 0.28,
+      borderWidth: 2,
+      borderDash: [4, 4],
+      pointRadius: sortedTimestamps.length <= 15 ? 3 : 1,
+      pointHoverRadius: 6,
+      pointHitRadius: 12,
+      pointBackgroundColor: col,
+      order: 2,
+      spanGaps: true
+    });
+  });
+
+  // Update statistics
+  if (allNumericValues.length > 0) {
+    const maxVal = Math.max(...allNumericValues);
+    const minVal = Math.min(...allNumericValues);
+    const latestCons = consValues.slice().reverse().find(v => v != null);
+    const currentVal = latestCons != null ? latestCons : allNumericValues[allNumericValues.length - 1];
+
+    if (statCurrent) statCurrent.textContent = `+${Number(currentVal).toFixed(1)}%`;
+    if (statPeak) statPeak.textContent = `+${Number(maxVal).toFixed(1)}%`;
+    if (statTrough) statTrough.textContent = `+${Number(minVal).toFixed(1)}%`;
+  } else {
+    if (statCurrent) statCurrent.textContent = '—';
+    if (statPeak) statPeak.textContent = '—';
+    if (statTrough) statTrough.textContent = '—';
+  }
+
+  const numSources = sourcesKeys.length || (consensusLine.length > 0 ? 1 : 0);
+  if (statSources) {
+    statSources.textContent = `${numSources} ${numSources === 1 ? 'Source' : 'Sources'} · ${sortedTimestamps.length} pts`;
+  }
+
+  const ctx = canvas.getContext('2d');
+  gmpPreviewChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: datasets
+    },
+    options: getGmpPreviewChartOptions(isDark, sortedTimestamps)
+  });
+}
+
+function getGmpPreviewChartOptions(isDark, rawTimestamps) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false
+    },
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+        align: 'end',
+        labels: {
+          usePointStyle: true,
+          pointStyle: 'circle',
+          boxWidth: 8,
+          boxHeight: 8,
+          padding: 14,
+          font: { size: 11, weight: '600' },
+          color: isDark ? '#cbd5e1' : '#475569'
+        }
+      },
+      tooltip: {
+        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+        titleColor: isDark ? '#f8fafc' : '#0f172a',
+        bodyColor: isDark ? '#cbd5e1' : '#334155',
+        borderColor: isDark ? '#334155' : '#e2e8f0',
+        borderWidth: 1,
+        padding: 12,
+        cornerRadius: 10,
+        boxPadding: 6,
+        usePointStyle: true,
+        callbacks: {
+          title: function(items) {
+            if (!items || !items.length) return '';
+            const idx = items[0].dataIndex;
+            const rawTs = rawTimestamps ? rawTimestamps[idx] : null;
+            if (!rawTs) return items[0].label;
+            const d = new Date(rawTs);
+            if (isNaN(d.getTime())) return rawTs;
+            return d.toLocaleString('default', {
+              weekday: 'short',
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            });
+          },
+          label: function(ctx) {
+            const val = ctx.raw;
+            if (val == null) return `${ctx.dataset.label}: N/A`;
+            const sign = val > 0 ? '+' : '';
+            return `${ctx.dataset.label}: ${sign}${Number(val).toFixed(1)}%`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          color: isDark ? 'rgba(51, 65, 85, 0.25)' : 'rgba(241, 245, 249, 0.8)',
+          drawBorder: false
+        },
+        ticks: {
+          color: isDark ? '#94a3b8' : '#64748b',
+          font: { size: 11, weight: '500' },
+          maxTicksLimit: 8,
+          maxRotation: 0,
+          autoSkip: true
+        }
+      },
+      y: {
+        grid: {
+          color: isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(241, 245, 249, 0.9)',
+          borderDash: [3, 3],
+          drawBorder: false
+        },
+        ticks: {
+          color: isDark ? '#94a3b8' : '#64748b',
+          font: { size: 11, weight: '500' },
+          maxTicksLimit: 6,
+          callback: function(v) {
+            const sign = v > 0 ? '+' : '';
+            return `${sign}${v}%`;
+          }
+        }
+      }
+    }
+  };
 }
 
 // ── Render Portfolio Allocation Donut Chart (SVG) ──

@@ -760,6 +760,9 @@ function openModal(ipoId) {
 }
 
 function closeModal() {
+  if (typeof closeGmpPreviewModal === 'function') {
+    closeGmpPreviewModal();
+  }
   document.getElementById('score-modal').classList.add('hidden');
   if (typeof ipoGmpChart !== 'undefined' && ipoGmpChart) {
     ipoGmpChart.destroy();
