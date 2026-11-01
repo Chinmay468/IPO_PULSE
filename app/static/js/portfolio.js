@@ -1369,3 +1369,214 @@ async function loadCombinedNetWorth() {
     console.warn('Failed to load combined net worth:', err);
   }
 }
+
+
+// ==================== DATA QUALITY & COVERAGE MODAL ====================
+let currentDataQualityTab = 'issues';
+
+function openDataQualityModal() {
+  const modal = document.getElementById('data-quality-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  switchDataQualityTab(currentDataQualityTab);
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function closeDataQualityModal() {
+  const modal = document.getElementById('data-quality-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+}
+
+function switchDataQualityTab(tab) {
+  currentDataQualityTab = tab;
+  const issuesBtn = document.getElementById('dq-tab-issues-btn');
+  const coverageBtn = document.getElementById('dq-tab-coverage-btn');
+  const issuesPanel = document.getElementById('dq-panel-issues');
+  const coveragePanel = document.getElementById('dq-panel-coverage');
+
+  if (tab === 'issues') {
+    if (issuesBtn) issuesBtn.className = 'py-2.5 border-b-2 border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold';
+    if (coverageBtn) coverageBtn.className = 'py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white';
+    if (issuesPanel) issuesPanel.classList.remove('hidden');
+    if (coveragePanel) coveragePanel.classList.add('hidden');
+    loadDataQualityIssues();
+  } else {
+    if (coverageBtn) coverageBtn.className = 'py-2.5 border-b-2 border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold';
+    if (issuesBtn) issuesBtn.className = 'py-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white';
+    if (coveragePanel) coveragePanel.classList.remove('hidden');
+    if (issuesPanel) issuesPanel.classList.add('hidden');
+    loadDataQualityCoverage();
+  }
+  if (window.lucide) window.lucide.createIcons();
+}
+
+async function loadDataQualityIssues() {
+  const loading = document.getElementById('dq-issues-loading');
+  const empty = document.getElementById('dq-issues-empty');
+  const list = document.getElementById('dq-issues-list');
+  const countEl = document.getElementById('dq-issues-count');
+
+  if (loading) loading.classList.remove('hidden');
+  if (empty) empty.classList.add('hidden');
+  if (list) list.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/v1/data/quality/issues?unresolved_only=true', {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const issues = await res.json();
+
+    if (countEl) countEl.textContent = issues.length;
+    if (loading) loading.classList.add('hidden');
+
+    if (!issues || issues.length === 0) {
+      if (empty) empty.classList.remove('hidden');
+      return;
+    }
+
+    if (list) {
+      list.innerHTML = issues.map(iss => {
+        const isError = iss.severity === 'ERROR';
+        const badgeColor = isError ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300';
+        return `
+          <div class="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800 flex items-start justify-between gap-3 text-xs">
+            <div class="space-y-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-bold text-slate-900 dark:text-white font-mono">${iss.symbol}</span>
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono border ${badgeColor}">${iss.issue_type}</span>
+                <span class="text-[11px] text-slate-400">${iss.date}</span>
+              </div>
+              <p class="text-[11px] text-slate-600 dark:text-slate-300">${iss.details || 'Integrity anomaly detected.'}</p>
+            </div>
+            <button onclick="resolveDataQualityIssue(${iss.id})" class="px-2.5 py-1 rounded bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold transition shrink-0 cursor-pointer">
+              Resolve
+            </button>
+          </div>
+        `;
+      }).join('');
+      list.classList.remove('hidden');
+    }
+  } catch (err) {
+    if (loading) loading.classList.add('hidden');
+    console.warn('Failed to load data issues:', err);
+  }
+}
+
+async function resolveDataQualityIssue(issueId) {
+  try {
+    const res = await fetch(`/api/v1/data/quality/issues/${issueId}/resolve`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      loadDataQualityIssues();
+    }
+  } catch (err) {
+    console.error('Failed to resolve issue:', err);
+  }
+}
+
+async function loadDataQualityCoverage() {
+  const loading = document.getElementById('dq-coverage-loading');
+  const container = document.getElementById('dq-coverage-table-container');
+  const tbody = document.getElementById('dq-coverage-tbody');
+  const countEl = document.getElementById('dq-coverage-count');
+
+  if (loading) loading.classList.remove('hidden');
+  if (container) container.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/v1/data/quality/coverage', {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const coverage = await res.json();
+
+    if (countEl) countEl.textContent = coverage.length;
+    if (loading) loading.classList.add('hidden');
+
+    if (tbody) {
+      tbody.innerHTML = coverage.map(c => `
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+          <td class="py-2.5 px-3 font-bold text-slate-900 dark:text-white">${c.symbol}</td>
+          <td class="py-2.5 px-3 text-slate-600 dark:text-slate-400">${c.first_date || '—'}</td>
+          <td class="py-2.5 px-3 text-slate-600 dark:text-slate-400">${c.last_date || '—'}</td>
+          <td class="py-2.5 px-3 text-right font-bold text-slate-800 dark:text-slate-200">${c.row_count}</td>
+          <td class="py-2.5 px-3 text-right ${c.missing_trading_days > 0 ? 'text-amber-600 font-bold' : 'text-emerald-600'}">${c.missing_trading_days}</td>
+          <td class="py-2.5 px-3 text-center">
+            <div class="inline-flex items-center gap-1 text-[10px]">
+              <button onclick="downloadPriceExport('${c.symbol}', 'csv')" class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 cursor-pointer">CSV</button>
+              <button onclick="downloadPriceExport('${c.symbol}', 'xlsx')" class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 cursor-pointer">XLSX</button>
+              <button onclick="downloadPriceExport('${c.symbol}', 'parquet')" class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 cursor-pointer">Parquet</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      if (container) container.classList.remove('hidden');
+    }
+  } catch (err) {
+    if (loading) loading.classList.add('hidden');
+    console.warn('Failed to load coverage:', err);
+  }
+}
+
+async function triggerDataBackfill() {
+  const btn = document.getElementById('dq-backfill-btn');
+  if (!confirm('Run 5-year price history backfill for all tracked portfolio holdings and watchlist symbols?')) {
+    return;
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Backfilling...</span>';
+    if (window.lucide) window.lucide.createIcons();
+  }
+  try {
+    const res = await fetch('/api/v1/data/prices/backfill?years=5&sleep_sec=0.4', {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      const data = await res.json();
+      alert(`Backfill Complete! ${data.symbols_processed} symbols processed, ${data.total_upserted} rows stored.`);
+      loadDataQualityIssues();
+      loadDataQualityCoverage();
+    } else {
+      alert(`Backfill failed (HTTP ${res.status}).`);
+    }
+  } catch (err) {
+    alert(`Backfill error: ${err.message}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="database" class="w-3.5 h-3.5"></i><span>Run 5Y Backfill</span>';
+      if (window.lucide) window.lucide.createIcons();
+    }
+  }
+}
+
+function downloadPriceExport(symbol, format) {
+  const url = `/api/v1/data/prices/export?symbol=${encodeURIComponent(symbol)}&format=${format}`;
+  fetch(url, { headers: getAuthHeaders() })
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.blob();
+    })
+    .then(blob => {
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `prices_${symbol}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    })
+    .catch(err => {
+      alert(`Download failed: ${err.message}`);
+    });
+}

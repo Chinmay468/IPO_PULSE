@@ -140,12 +140,21 @@ document.addEventListener('click', (e) => {
   if (e.target === gmpPreviewModal && typeof closeGmpPreviewModal === 'function') {
     closeGmpPreviewModal();
   }
+  const dqModal = document.getElementById('data-quality-modal');
+  if (e.target === dqModal && typeof closeDataQualityModal === 'function') {
+    closeDataQualityModal();
+  }
 });
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (typeof isGmpPreviewOpen === 'function' && isGmpPreviewOpen()) {
       closeGmpPreviewModal();
+      return;
+    }
+    const dqModal = document.getElementById('data-quality-modal');
+    if (dqModal && !dqModal.classList.contains('hidden') && typeof closeDataQualityModal === 'function') {
+      closeDataQualityModal();
       return;
     }
     if (typeof closeAICopilotModal === 'function') closeAICopilotModal();

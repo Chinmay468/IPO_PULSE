@@ -27,3 +27,5 @@ pyjwt>=2.8.0
 slowapi>=0.1.9
 scikit-learn>=1.4.0
 casparser>=1.4.1
+pyarrow>=15.0.0
+

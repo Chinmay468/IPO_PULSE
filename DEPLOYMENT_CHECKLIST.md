@@ -21,6 +21,9 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 # Execute pg_dump with blob and verbose logging
 pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -F c -b -v -f "enquirer_backup_${TIMESTAMP}.dump"
 
+# Note: The database dump encompasses all schemas, tables, and views without exclusion,
+# including the price history data layer (`price_history`, `data_issues`, and view `data_coverage`).
+
 # Verify dump file was generated and non-empty
 ls -lh "enquirer_backup_${TIMESTAMP}.dump"
 ```

@@ -255,6 +255,22 @@ async def scheduled_ipo_status_correction():
         logger.error("Error during scheduled IPO status correction: %s", exc, exc_info=True)
 
 
+async def scheduled_daily_price_sync():
+    """
+    Daily scheduled job after market close (~6 PM IST / 12:30 UTC) on trading days only.
+    Fetches the latest daily candles for all tracked portfolio holdings and watchlist symbols.
+    Never writes zeros or copies previous day; retries on failure.
+    """
+    logger.info("Executing scheduled daily price sync after market close (18:00 IST)...")
+    try:
+        from app.services.price_history_service import daily_market_close_sync
+        async with AsyncSessionLocal() as session:
+            result = await daily_market_close_sync(session)
+            logger.info("Scheduled daily price sync result: %s", result)
+    except Exception as exc:
+        logger.error("Error during scheduled daily price sync: %s", exc, exc_info=True)
+
+
 last_unmatched_linkintime_companies: List[Dict[str, str]] = []
 
 
@@ -409,6 +425,13 @@ def start_scheduler():
             trigger=CronTrigger(hour=1, minute=0),  # 06:30 IST / 01:00 UTC (daily morning)
             id="daily_linkintime_company_sync",
             name="Daily Link Intime Company Mapping to IPOs",
+            replace_existing=True
+        )
+        scheduler.add_job(
+            scheduled_daily_price_sync,
+            trigger=CronTrigger(hour=12, minute=30),  # 18:00 IST / 12:30 UTC (post-market close, trading days)
+            id="daily_price_history_sync",
+            name="Daily Price History Sync (18:00 IST on trading days)",
             replace_existing=True
         )
         scheduler.start()

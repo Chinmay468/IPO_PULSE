@@ -117,10 +117,20 @@ class IndicatorPoint(BaseModel):
     value: float
 
 
+class ChartMarker(BaseModel):
+    time: str
+    position: str = "belowBar"
+    color: str = "#10b981"
+    shape: str = "arrowUp"
+    text: str
+
+
 class HoldingHistoryResponse(BaseModel):
     symbol: str
     range: str
+    adjusted: bool = True
     candles: list[OHLCVItem] = []
+    markers: list[ChartMarker] = []
     ema20: list[IndicatorPoint] = []
     ema50: list[IndicatorPoint] = []
     rsi14: list[IndicatorPoint] = []
@@ -134,6 +144,35 @@ class HoldingHistoryResponse(BaseModel):
     disclaimer: Optional[str] = "Mechanical technical levels, not a forecast or investment advice."
     insufficient_history: bool = False
     message: Optional[str] = None
+
+
+class DataCoverageItem(BaseModel):
+    symbol: str
+    first_date: Optional[str] = None
+    last_date: Optional[str] = None
+    row_count: int
+    missing_trading_days: int
+
+
+class DataIssueItem(BaseModel):
+    id: int
+    symbol: str
+    exchange: str
+    date: str
+    issue_type: str
+    details: Optional[str] = None
+    severity: str
+    resolved: bool
+    created_at: Optional[str] = None
+
+
+class BackfillResponse(BaseModel):
+    symbols_processed: int
+    total_upserted: int
+    total_rejected: int
+    total_issues: int
+    details: list[dict] = []
+
 
 
 # ── Angel One Diagnostic Schemas ─────────────────────────────────────────────

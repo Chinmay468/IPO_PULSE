@@ -13,6 +13,7 @@ from app.schemas.portfolio import (
 )
 from app.schemas.mutual_fund import CombinedNetWorthResponse
 import app.services.portfolio_service as svc
+import app.services.price_history_service as ph_svc
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/portfolio", tags=["Portfolio"], dependencies=[Depends(require_auth)])
@@ -99,11 +100,26 @@ async def delete_holding(
 async def get_holding_history(
     request: Request,
     symbol: str,
-    range: str = Query("3m", pattern="^(1m|3m|6m|1y)$", description="History range: 1m, 3m, 6m, 1y"),
+    range: str = Query("3m", pattern="^(1m|3m|6m|1y|5y)$", description="History range: 1m, 3m, 6m, 1y, 5y"),
+    adjusted: bool = Query(True, description="Whether to return split/bonus adjusted series"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Daily OHLCV candlestick history from yfinance with EMA20, EMA50, RSI14, avg cost, and advisory levels."""
-    return await svc.get_holding_history(symbol=symbol, range_str=range, db=db)
+    """Daily OHLCV candlestick history from price_history first with fallback to yfinance, plus markers, EMA20, EMA50, RSI14, avg cost, and advisory levels."""
+    return await ph_svc.get_price_history_with_fallback(symbol=symbol, range_str=range, adjusted=adjusted, db=db)
+
+
+@router.get("/history", response_model=list[dict])
+@limiter.limit("60/minute")
+async def get_portfolio_history(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = Depends(get_current_user_id)
+):
+    """
+    Builds chronological portfolio value over time using price_history and transactions
+    (units held on each date x close), excluding and marking days where a holding has no price.
+    """
+    return await ph_svc.compute_portfolio_history_over_time(db, user_id=user_id)
 
 
 @router.get("/snapshots", response_model=list[PortfolioSnapshotResponse])

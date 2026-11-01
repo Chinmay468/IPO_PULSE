@@ -212,6 +212,15 @@ async function renderHoldingChart(symbol) {
       })));
     }
 
+    // Buy & Sell markers from transactions
+    if (data.markers && data.markers.length && typeof priceSeries.setMarkers === 'function') {
+      try {
+        priceSeries.setMarkers(data.markers);
+      } catch (err) {
+        console.warn('Could not set transaction markers on chart:', err);
+      }
+    }
+
     // EMA 20 line
     if (data.ema20 && data.ema20.length) {
       const ema20 = chart.addLineSeries({
