@@ -1,41 +1,21 @@
 // ==================== SHARED APPLICATION STATE & CONSTANTS ====================
 let allIpos = [];
-let currentPortfolioHoldings = [];
-let previousHoldingsPrices = {};
-let currentActiveTab = 'portfolio';
+let currentActiveTab = 'ipos';
 let liveSyncInterval = null;
 let liveSyncEnabled = true;
-let globalAdvisoryData = null;
-let expandedRowSymbol = null;
-let currentSortCol = 'current_value';
-let currentSortAsc = false;
 let aiChatHistory = [];
-let activeHoldingCharts = {};
-let holdingChartRange = {};
-let holdingChartType = {};
-let portfolioSnapshotsChart = null;
-let pnlByStockChart = null;
 let ipoGmpChart = null;
 let ipoSubChart = null;
 let gmpPreviewChart = null;
 let currentGmpDetailIpo = null;
 let currentGmpTrendData = null;
-let currentMFHoldings = [];
-let currentMFSortCol = 'current_value';
-let currentMFSortAsc = false;
-let mfCategoryChart = null;
-let mfAmcChart = null;
-let mfHistoryLineChart = null;
-let activeMFSchemeId = null;
-const API = '/api/v1/portfolio';
 
 // ==================== THEME MANAGEMENT ====================
 function initTheme() {
   const urlParams = new URLSearchParams(window.location.search);
   const queryParam = urlParams.get('theme');
   const saved = localStorage.getItem('ipo_theme');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  
+
   let isDark = true;
   if (queryParam) {
     isDark = (queryParam === 'dark');
@@ -60,9 +40,6 @@ function toggleTheme() {
   document.documentElement.classList.toggle('light', !isDark);
   localStorage.setItem('ipo_theme', isDark ? 'dark' : 'light');
   refreshLucideIcons();
-  if (typeof portfolioSnapshotsChart !== 'undefined' && portfolioSnapshotsChart) renderPortfolioSnapshotsChart();
-  if (typeof pnlByStockChart !== 'undefined' && pnlByStockChart) renderPnlByStockChart(currentPortfolioHoldings);
-  if (typeof expandedRowSymbol !== 'undefined' && expandedRowSymbol && typeof renderHoldingChart === 'function') renderHoldingChart(expandedRowSymbol);
 }
 
 function refreshLucideIcons() {
@@ -111,15 +88,4 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
-}
-
-function fmtMFDate(dateStr) {
-  if (!dateStr) return '—';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-  } catch (e) {
-    return dateStr;
-  }
 }

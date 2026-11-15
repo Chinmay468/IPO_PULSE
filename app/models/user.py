@@ -1,17 +1,13 @@
 from datetime import datetime
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional
 from sqlalchemy import String, Integer, DateTime, Boolean, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
-
-if TYPE_CHECKING:
-    from app.models.portfolio import Holding, PortfolioSnapshot
-    from app.models.mutual_fund import MFHolding
 
 
 class User(Base):
     """
-    User account model for encrypted authentication and user-scoped portfolio management.
+    User account model for encrypted authentication and user-scoped access.
     Passwords are encrypted using salted PBKDF2-HMAC-SHA256 (100,000 iterations).
     """
     __tablename__ = "users"
@@ -29,15 +25,4 @@ class User(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-
-    # Relationships
-    holdings: Mapped[List["Holding"]] = relationship(
-        "Holding", back_populates="user", cascade="all, delete-orphan"
-    )
-    mf_holdings: Mapped[List["MFHolding"]] = relationship(
-        "MFHolding", back_populates="user", cascade="all, delete-orphan"
-    )
-    snapshots: Mapped[List["PortfolioSnapshot"]] = relationship(
-        "PortfolioSnapshot", back_populates="user", cascade="all, delete-orphan"
     )

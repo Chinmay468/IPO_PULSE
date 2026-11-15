@@ -438,116 +438,7 @@ async def test_webhook_start_command(client, db_session, monkeypatch):
         assert "Welcome to IPO Pulse AI Bot" in mock_send.call_args[0][0]
 
 
-@pytest.mark.asyncio
-async def test_webhook_shares_command(client, db_session, monkeypatch):
-    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_bot_token")
-    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
-    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
 
-    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send, \
-         patch.object(TelegramService, "send_chat_action", new_callable=AsyncMock):
-        mock_send.return_value = (True, None)
-
-        payload = {
-            "update_id": 102,
-            "message": {
-                "message_id": 3,
-                "chat": {"id": 123456789},
-                "text": "/shares"
-            }
-        }
-        resp = await client.post("/api/v1/telegram/webhook", json=payload)
-        assert resp.status_code == 200
-        assert resp.json()["action"] == "shares_suggested"
-        mock_send.assert_called_once()
-        sent_text = mock_send.call_args[0][0]
-        assert "TECHNICAL SWING CANDIDATES" in sent_text
-        assert "HDFCBANK" in sent_text
-        assert "NTPC" in sent_text
-        assert "Target" in sent_text
-        assert "Stop-Loss" in sent_text
-
-
-@pytest.mark.asyncio
-async def test_webhook_suggest_me_a_share_text(client, db_session, monkeypatch):
-    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_bot_token")
-    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
-    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
-
-    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send, \
-         patch.object(TelegramService, "send_chat_action", new_callable=AsyncMock):
-        mock_send.return_value = (True, None)
-
-        payload = {
-            "update_id": 103,
-            "message": {
-                "message_id": 4,
-                "chat": {"id": 123456789},
-                "text": "suggest me a share to buy for 2-3 months"
-            }
-        }
-        resp = await client.post("/api/v1/telegram/webhook", json=payload)
-        assert resp.status_code == 200
-        assert resp.json()["action"] == "shares_suggested"
-        mock_send.assert_called_once()
-        sent_text = mock_send.call_args[0][0]
-        assert "TECHNICAL SWING CANDIDATES" in sent_text
-
-
-def test_answer_portfolio_query_suggests_market_share():
-    from app.services.portfolio_advisor_service import answer_portfolio_query
-    res = answer_portfolio_query("suggest me a share in the market to buy", {"holdings": []})
-    assert "Technical Market Swing Candidates" in res
-    assert "HDFC Bank (HDFCBANK)" in res
-    assert "NTPC" in res
-    assert "Not investment advice, GMP/technical levels are estimates" in res
-
-
-def test_swing_pick_card_contains_disclaimer():
-    from app.services.market_shares_service import format_shares_summary_card, TECHNICAL_SWING_CANDIDATES
-    mock_shares = [
-        {
-            "symbol": "NTPC",
-            "company_name": "NTPC Ltd",
-            "sector": "Power",
-            "current_price": 315.0,
-            "entry_range": "₹310 - ₹318",
-            "target_price": 365.0,
-            "stop_loss": 294.0,
-            "upside_pct": 15.8,
-            "downside_pct": 6.7,
-            "thesis": "Capacity expansion",
-            "catalyst": "Earnings"
-        }
-    ]
-    card = format_shares_summary_card(mock_shares)
-    assert "Not investment advice, GMP/technical levels are estimates" in card
-
-
-@pytest.mark.asyncio
-async def test_webhook_scorecard_command(client, db_session, monkeypatch):
-    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "mock_bot_token")
-    monkeypatch.setattr(settings, "TELEGRAM_CHAT_ID", "123456789")
-    monkeypatch.setattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True)
-
-    with patch.object(TelegramService, "send_message", new_callable=AsyncMock) as mock_send, \
-         patch.object(TelegramService, "send_chat_action", new_callable=AsyncMock):
-        mock_send.return_value = (True, None)
-
-        payload = {
-            "update_id": 104,
-            "message": {
-                "message_id": 5,
-                "chat": {"id": 123456789},
-                "text": "/scorecard"
-            }
-        }
-        resp = await client.post("/api/v1/telegram/webhook", json=payload)
-        assert resp.status_code == 200
-        assert resp.json()["action"] == "scorecard"
-        mock_send.assert_called_once()
-        sent_text = mock_send.call_args[0][0]
-        assert "SWING STRATEGY SCORECARD" in sent_text
 
 
 def test_log_sanitizer_masks_sensitive_patterns():
@@ -618,20 +509,5 @@ async def test_webhook_secret_token_correct(client, monkeypatch):
         resp = await client.post("/api/v1/telegram/webhook", json=payload, headers=headers)
         assert resp.status_code == 200
         assert resp.json()["action"] == "help"
-
-
-def test_answer_portfolio_query_unheld_stock():
-    from app.services.portfolio_advisor_service import answer_portfolio_query
-    # Mock portfolio with only TATAPOWER and ARMEE
-    advisory_data = {
-        "holdings": [
-            {"symbol": "TATAPOWER", "company_name": "Tata Power", "quantity": 10, "avg_buy_price": 385.0, "live_price": 410.0, "unrealized_pnl": 250.0},
-            {"symbol": "ARMEE", "company_name": "Armee Infotech", "quantity": 1000, "avg_buy_price": 428.02, "live_price": 428.02, "unrealized_pnl": 0.0}
-        ]
-    }
-    res = answer_portfolio_query("What is my P&L in Reliance?", advisory_data)
-    assert "Position Not Found" in res
-    assert "do not currently hold" in res
-    assert "RELIANCE" in res
 
 

@@ -237,7 +237,7 @@ async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends
 async def register(request: Request, body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """
     Register a new user with encrypted password storage (PBKDF2-HMAC-SHA256, 100k iterations).
-    Provides scoped portfolio and mutual fund data isolation.
+    Provides scoped user account authentication.
     """
     clean_user = body.username.strip()
 

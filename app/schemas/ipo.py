@@ -314,3 +314,15 @@ class AllotmentIPOsResponse(BaseModel):
     ipos: List[AllotmentIPOItem]
     total: int
     message: Optional[str] = None
+
+
+class IPOAskRequest(BaseModel):
+    query: str = Field(..., description="User query about IPOs, listing dates, GMP, scoring, or allotment")
+
+
+class IPOAskResponse(BaseModel):
+    reply: str
+    model: Optional[str] = None
+    provider: Optional[str] = None
+    tokens_used: Optional[int] = 0
+

@@ -57,14 +57,6 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 1440  # 24 hours
 
-    # ── Angel One SmartAPI (optional — for portfolio sync) ───────────────────
-    # Get your API key from https://smartapi.angelbroking.com
-    ANGELONE_API_KEY: Optional[str] = None
-    ANGELONE_CLIENT_ID: Optional[str] = None   # Your Angel One login ID (e.g. A123456)
-    ANGELONE_PASSWORD: Optional[str] = None    # Your Angel One MPIN (4-digit)
-    ANGELONE_TOTP_SECRET: Optional[str] = None # Base32 TOTP secret from 2FA setup
-    ANGELONE_PAN: Optional[str] = None         # PAN number for decrypting Excel statement exports
-
     # ── Telegram Bot Notifications ──────────────────────────────────────────
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_CHAT_ID: Optional[str] = None

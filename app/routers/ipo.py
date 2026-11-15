@@ -17,8 +17,11 @@ from app.schemas.ipo import (
     SubscriptionResponse,
     GMPCreate,
     GMPResponse,
-    ScoreResponse
+    ScoreResponse,
+    IPOAskRequest,
+    IPOAskResponse,
 )
+from app.services.ipo_assistant_service import groq_answer_ipo_query
 from app.services.ipo_service import IPOService
 from app.services.scoring_service import ScoringService
 from app.services.consensus_gmp import ConsensusGmpService
@@ -438,5 +441,24 @@ async def redirect_angelone_apply_by_symbol(symbol: str, db: AsyncSession = Depe
 
     target_url = _get_angelone_target_url(ipo.company_name)
     return RedirectResponse(url=target_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+
+@router.post("/ask", response_model=IPOAskResponse, summary="Ask IPO AI Assistant (Gemini / Groq)")
+async def ask_ipo_assistant(
+    request: IPOAskRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    IPO-only AI assistant with smart failover across Gemini and Groq.
+    Answers queries about IPO dates, GMP trends, subscription, scoring, and analysis.
+    """
+    if not request.query or not request.query.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Query cannot be empty"
+        )
+    result = await groq_answer_ipo_query(request.query.strip(), db=db)
+    return IPOAskResponse(**result)
+
 
 

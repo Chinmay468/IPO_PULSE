@@ -27,19 +27,10 @@ async function capture() {
 
   // Switch to IPO tab and populate sample stat counters
   await page.evaluate(() => {
-    // Hide portfolio tab, show ipos tab
-    const pf = document.getElementById('tab-portfolio');
     const ipos = document.getElementById('tab-ipos');
-    if (pf) pf.classList.add('hidden');
     if (ipos) ipos.classList.remove('hidden');
 
-    // Update active nav styling
-    const navPf = document.getElementById('nav-portfolio');
     const navIpos = document.getElementById('nav-ipos');
-    if (navPf) {
-      navPf.classList.remove('text-emerald-600', 'border-emerald-500', 'font-bold');
-      navPf.classList.add('text-slate-600', 'border-transparent', 'font-semibold');
-    }
     if (navIpos) {
       navIpos.classList.add('text-emerald-600', 'border-emerald-500', 'font-bold');
       navIpos.classList.remove('text-slate-600', 'border-transparent', 'font-semibold');

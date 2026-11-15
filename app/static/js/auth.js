@@ -117,7 +117,7 @@ function switchAuthTab(tab) {
     if (forgotForm) forgotForm.classList.add('hidden');
     if (signupForm) signupForm.classList.remove('hidden');
     if (modalTitle) modalTitle.textContent = 'Create New Account';
-    if (modalSub) modalSub.textContent = 'Sign up to build and manage your portfolio';
+    if (modalSub) modalSub.textContent = 'Sign up to access IPO Pulse intelligence';
 
     if (signupBtn) {
       signupBtn.classList.remove(...inactiveClasses);
@@ -155,7 +155,7 @@ function switchAuthTab(tab) {
     if (forgotForm) forgotForm.classList.add('hidden');
     if (signinForm) signinForm.classList.remove('hidden');
     if (modalTitle) modalTitle.textContent = 'Account Access';
-    if (modalSub) modalSub.textContent = 'Sign in to manage your portfolio';
+    if (modalSub) modalSub.textContent = 'Sign in to access IPO Pulse intelligence';
 
     if (signinBtn) {
       signinBtn.classList.remove(...inactiveClasses);
@@ -193,9 +193,7 @@ function handleAuthButtonClick() {
     const user = getAuthUser();
     if (confirm(`Log out from ${user}'s session?`)) {
       setAuthToken(null);
-      if (typeof resetPortfolioUI === 'function') resetPortfolioUI(true);
-      if (typeof resetMFUI === 'function') resetMFUI();
-      if (typeof resetCombinedNetWorthUI === 'function') resetCombinedNetWorthUI(true);
+      if (typeof loadIpos === 'function') loadIpos();
     }
   } else {
     openLoginModal('signin');
@@ -233,8 +231,7 @@ async function submitLogin(e) {
     setAuthToken(data.access_token, data.username || user);
     closeLoginModal();
     document.getElementById('login-password').value = '';
-    if (typeof loadPortfolio === 'function') await loadPortfolio();
-    if (typeof loadMFSummary === 'function') await loadMFSummary();
+    if (typeof loadIpos === 'function') await loadIpos();
   } catch (err) {
     errEl.textContent = err.message;
     errEl.classList.remove('hidden');
@@ -403,8 +400,7 @@ async function submitRegister(e) {
       closeLoginModal();
       document.getElementById('register-password').value = '';
       document.getElementById('register-confirm-password').value = '';
-      if (typeof loadPortfolio === 'function') await loadPortfolio();
-      if (typeof loadMFSummary === 'function') await loadMFSummary();
+      if (typeof loadIpos === 'function') await loadIpos();
     }, 700);
   } catch (err) {
     errEl.textContent = err.message;
@@ -555,8 +551,7 @@ async function submitForgotReset() {
       document.getElementById('forgot-new-password').value = '';
       document.getElementById('forgot-confirm-password').value = '';
       currentResetToken = null;
-      if (typeof loadPortfolio === 'function') await loadPortfolio();
-      if (typeof loadMFSummary === 'function') await loadMFSummary();
+      if (typeof loadIpos === 'function') await loadIpos();
     }, 800);
   } catch (err) {
     if (errEl) {
@@ -723,7 +718,7 @@ async function fetchTelegramStatus() {
     const res = await fetch('/api/v1/telegram/status', { headers: getAuthHeaders() });
     if (res.status === 401) {
       setAuthToken(null);
-      if (typeof resetPortfolioUI === 'function') resetPortfolioUI(true);
+      if (typeof loadIpos === 'function') loadIpos();
       closeTelegramModal();
       openLoginModal();
       return;

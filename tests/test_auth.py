@@ -20,21 +20,21 @@ def setup_auth_env(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_portfolio_unauthorized_without_token(client: AsyncClient):
-    """Protected /portfolio routes must return 401 when accessed without token."""
-    res_summary = await client.get("/api/v1/portfolio/summary")
-    assert res_summary.status_code == 401
-    assert "detail" in res_summary.json()
+async def test_protected_unauthorized_without_token(client: AsyncClient):
+    """Protected routes must return 401 when accessed without token."""
+    res_sync = await client.post("/api/v1/scraper/sync")
+    assert res_sync.status_code == 401
+    assert "detail" in res_sync.json()
 
-    res_holdings = await client.get("/api/v1/portfolio/holdings")
-    assert res_holdings.status_code == 401
+    res_tg = await client.get("/api/v1/telegram/status")
+    assert res_tg.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_portfolio_unauthorized_with_invalid_token(client: AsyncClient):
+async def test_protected_unauthorized_with_invalid_token(client: AsyncClient):
     """Protected routes must return 401 when accessed with an invalid or tampered token."""
     headers = {"Authorization": "Bearer invalid_gibberish_token_string"}
-    res = await client.get("/api/v1/portfolio/summary", headers=headers)
+    res = await client.post("/api/v1/scraper/sync", headers=headers)
     assert res.status_code == 401
 
 
@@ -88,12 +88,9 @@ async def test_login_and_access_with_token(client: AsyncClient):
     token = login_data["access_token"]
     auth_headers = {"Authorization": f"Bearer {token}"}
 
-    # 3. Access protected portfolio route with token -> 200 OK
-    res_summary = await client.get("/api/v1/portfolio/summary", headers=auth_headers)
-    assert res_summary.status_code == 200
-
-    res_holdings = await client.get("/api/v1/portfolio/holdings", headers=auth_headers)
-    assert res_holdings.status_code == 200
+    # 3. Access protected route with token -> 200 OK
+    res_tg = await client.get("/api/v1/telegram/status", headers=auth_headers)
+    assert res_tg.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -112,27 +109,7 @@ async def test_login_rate_limiting(client: AsyncClient):
     assert 429 in responses
 
 
-@pytest.mark.asyncio
-async def test_advisory_ask_rate_limiting(client: AsyncClient, monkeypatch):
-    """POST /portfolio/advisory/ask is rate limited to 10 requests per minute per IP."""
-    token = create_access_token({"sub": "admin"})
-    auth_headers = {"Authorization": f"Bearer {token}"}
 
-    async def mock_groq(*args, **kwargs):
-        return ("Mocked advisor response.", "ai")
-    monkeypatch.setattr("app.services.portfolio_advisor_service.groq_answer_query", mock_groq)
-
-    responses = []
-    for _ in range(13):
-        r = await client.post(
-            "/api/v1/portfolio/advisory/ask",
-            headers=auth_headers,
-            json={"query": "What is my portfolio health score?"}
-        )
-        responses.append(r.status_code)
-
-    # Requests beyond 10 must receive 429 Too Many Requests
-    assert 429 in responses
 
 
 @pytest.mark.asyncio

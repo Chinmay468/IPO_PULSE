@@ -7,7 +7,7 @@ from app.services.gemini_client_service import (
     get_gemini_api_key,
     GEMINI_SEARCH_TOOLS,
 )
-from app.services.portfolio_advisor_service import groq_answer_query
+from app.services.ipo_assistant_service import groq_answer_query
 
 
 def test_get_gemini_api_key(monkeypatch):
@@ -34,7 +34,7 @@ async def test_call_gemini_direct_text(monkeypatch):
             json={
                 "candidates": [{
                     "content": {
-                        "parts": [{"text": "PRAJ INDUSTRIES is a strong green energy holding."}],
+                        "parts": [{"text": "PRAJ INDUSTRIES is a strong company."}],
                         "role": "model"
                     },
                     "finishReason": "STOP"
@@ -142,15 +142,8 @@ async def test_smart_shift_gemini_to_groq(monkeypatch):
     monkeypatch.setitem(sys.modules, "groq", mock_groq_mod)
     monkeypatch.setenv("GROQ_API_KEY", "mock-groq-key")
 
-    mock_advisory = {
-        "health_score": 75,
-        "health_verdict": "Good",
-        "holdings": []
-    }
-
     answer, source, model = await groq_answer_query(
-        query="how is my portfolio",
-        advisory_data=mock_advisory,
+        query="Which Mainboard IPO should I apply for?",
         return_model=True
     )
     assert source == "ai"
@@ -177,15 +170,8 @@ async def test_smart_shift_groq_to_gemini(monkeypatch):
 
     monkeypatch.setattr("app.services.gemini_client_service.call_gemini", mock_success_gemini)
 
-    mock_advisory = {
-        "health_score": 75,
-        "health_verdict": "Good",
-        "holdings": []
-    }
-
     answer, source, model = await groq_answer_query(
-        query="how is my portfolio",
-        advisory_data=mock_advisory,
+        query="Which Mainboard IPO should I apply for?",
         return_model=True
     )
     assert source == "ai"

@@ -440,95 +440,6 @@ class TelegramService:
         return {"success": success, "error": err, "picks_count": len(picks)}
 
     @staticmethod
-    def format_portfolio_summary_card(summary: Any) -> str:
-        """
-        Formats a clean, attractive portfolio summary card for Telegram.
-        """
-        inv = summary.total_invested or 0.0
-        cur = summary.current_value or 0.0
-        pnl = summary.total_unrealized_pnl or 0.0
-        pnl_pct = summary.total_pnl_pct or 0.0
-        day_chg = summary.day_change or 0.0
-        day_chg_pct = summary.day_change_pct or 0.0
-        count = summary.holdings_count or 0
-
-        pnl_emoji = "🟢" if pnl >= 0 else "🔴"
-        pnl_sign = "+" if pnl > 0 else ""
-        day_emoji = "▲" if day_chg >= 0 else "▼"
-        day_sign = "+" if day_chg > 0 else ""
-
-        lines = [
-            "💼 <b>IPO PULSE · PORTFOLIO SUMMARY</b>",
-            "",
-            f"💰 <b>Total Invested:</b> ₹{inv:,.2f}",
-            f"📈 <b>Current Value:</b> ₹{cur:,.2f}",
-            f"{pnl_emoji} <b>Overall P&L:</b> {pnl_sign}₹{pnl:,.2f} ({pnl_sign}{pnl_pct:.2f}%)",
-            f"📅 <b>Today's Move:</b> {day_sign}₹{day_chg:,.2f} ({day_sign}{day_chg_pct:.2f}%) {day_emoji}",
-            f"🎯 <b>Active Positions:</b> {count} stock(s)",
-        ]
-
-        if summary.holdings:
-            lines.append("")
-            lines.append("📋 <b>Top Holdings:</b>")
-            sorted_holdings = sorted(summary.holdings, key=lambda h: (h.current_value or 0.0), reverse=True)[:5]
-            for h in sorted_holdings:
-                h_pnl = h.unrealized_pnl or 0.0
-                h_pnl_pct = h.pnl_pct or 0.0
-                h_sign = "+" if h_pnl > 0 else ""
-                lines.append(f"• <b>{h.symbol}</b> ({h.quantity} sh): ₹{(h.current_value or 0.0):,.0f} | <i>{h_sign}{h_pnl_pct:.1f}%</i>")
-
-        lines.append("")
-        lines.append("💬 <i>Reply with any stock symbol for AI analysis. Type /mf for Mutual Funds.</i>")
-        return "\n".join(lines)
-
-    @staticmethod
-    def format_mf_summary_card(mf_summary: Any) -> str:
-        """
-        Formats a clean Mutual Funds summary card for Telegram with NAV as of date.
-        """
-        inv = mf_summary.total_invested or 0.0
-        cur = mf_summary.current_value or 0.0
-        pnl = mf_summary.total_pnl or 0.0
-        pnl_pct = mf_summary.total_pnl_pct or 0.0
-        xirr_str = f"{mf_summary.overall_xirr:.2f}%" if mf_summary.overall_xirr is not None else "N/A"
-        count = mf_summary.holdings_count or 0
-        nav_date = str(mf_summary.nav_as_of_date) if mf_summary.nav_as_of_date else "N/A"
-
-        pnl_emoji = "🟢" if pnl >= 0 else "🔴"
-        pnl_sign = "+" if pnl > 0 else ""
-
-        lines = [
-            "📊 <b>IPO PULSE · MUTUAL FUNDS SUMMARY</b>",
-            f"<i>NAV as of {nav_date}</i>",
-            "",
-            f"💰 <b>Total Invested:</b> ₹{inv:,.2f}",
-            f"📈 <b>Current Value:</b> ₹{cur:,.2f}",
-            f"{pnl_emoji} <b>Overall P&L:</b> {pnl_sign}₹{pnl:,.2f} ({pnl_sign}{pnl_pct:.2f}%)",
-            f"🚀 <b>Overall XIRR:</b> {xirr_str}",
-            f"🎯 <b>Active Funds:</b> {count} scheme(s)",
-        ]
-
-        if mf_summary.holdings:
-            lines.append("")
-            lines.append("📋 <b>Fund Holdings:</b>")
-            for h in mf_summary.holdings[:6]:
-                h_pnl_sign = "+" if h.pnl > 0 else ""
-                h_xirr = f"{h.xirr:.1f}%" if h.xirr is not None else "N/A"
-                stale_txt = " ⚠️(stale)" if h.is_nav_stale else ""
-                lines.append(f"• <b>{h.scheme_name}</b>{stale_txt}")
-                lines.append(f"  ₹{h.current_value:,.0f} | P&L: {h_pnl_sign}{h.pnl_pct:.1f}% | XIRR: {h_xirr} | NAV as of {h.latest_nav_date or 'N/A'}")
-
-        if mf_summary.category_allocation:
-            lines.append("")
-            lines.append("🏷️ <b>Asset Allocation:</b>")
-            for cat in mf_summary.category_allocation[:4]:
-                lines.append(f"• {cat.name}: {cat.percentage:.1f}% (₹{cat.value:,.0f})")
-
-        lines.append("")
-        lines.append("💬 <i>Reply with any mutual fund question for grounded analysis!</i>")
-        return "\n".join(lines)
-
-    @staticmethod
     def format_ipo_lookup_card(ipo: IPO) -> str:
         """
         Formats an in-depth scorecard for a specific IPO.
@@ -541,45 +452,6 @@ class TelegramService:
             card += "\n\n⚠️ <b>SME Notice:</b> This is an SME issue with large lot size requirement (typically ₹1,00,000+). Your alerts and recommendations are focused strictly on Mainboard IPOs (~₹15k)."
         return card
 
-    @staticmethod
-    def format_accuracy_card(report: Dict[str, Any]) -> str:
-        """
-        Formats a clean prediction accuracy card for Telegram bot /accuracy command.
-        Includes 95% confidence intervals, Brier score, baseline comparison, and mandatory disclaimer.
-        """
-        models = report.get("models", {})
-        lines = [
-            "🎯 <b>MODEL PREDICTION ACCURACY & EVALUATION</b>",
-            ""
-        ]
-
-        for m_name, m_data in models.items():
-            disp_name = {
-                "persistence": "Persistence Baseline",
-                "always_up": "Always UP Baseline",
-                "logistic_regression": "Logistic Regression",
-                "groq_llm": "Groq LLM"
-            }.get(m_name, m_name.replace("_", " ").title())
-
-            if m_data.get("status") == "not enough data":
-                n = m_data.get("total_predictions", 0)
-                lines.append(f"• <b>{disp_name}:</b> ⚠️ <i>Not enough data ({n}/300 minimum predictions required)</i>")
-            else:
-                acc = m_data.get("accuracy_pct", 0.0)
-                ci = m_data.get("confidence_interval_95", [0.0, 0.0])
-                brier = m_data.get("brier_score", 0.0)
-                tot = m_data.get("total_predictions", 0)
-                beats = " | 🏆 <b>BEATS BASELINES</b>" if m_data.get("beats_baselines") else ""
-
-                lines.append(
-                    f"• <b>{disp_name}:</b> <b>{acc:.1f}%</b> (95% CI: {ci[0]:.1f}% - {ci[1]:.1f}%) | "
-                    f"Brier: {brier:.3f} | N={tot}{beats}"
-                )
-
-        lines.append("")
-        lines.append("⚠️ <i>Disclaimer: Research and evaluation only, not investment or trading advice. Past model accuracy does not guarantee future results.</i>")
-        return "\n".join(lines)
-
     @classmethod
     async def answer_ai_query(
         cls,
@@ -591,98 +463,19 @@ class TelegramService:
         return_model: bool = False
     ) -> str | Tuple[str, str] | Tuple[str, str, str]:
         """
-        Uses PortfolioAdvisorService to answer investor questions with live holdings & IPO context.
-        Supports multi-turn chat_history and force_llm evaluation mode.
+        Uses IPO Assistant to answer IPO investor questions with live IPO context.
+        Supports dual Gemini and Groq failover.
         """
-        from app.services.portfolio_service import get_portfolio_summary
-        from app.services.portfolio_advisor_service import generate_portfolio_advisory, groq_answer_query
+        from app.services.ipo_assistant_service import groq_answer_ipo_query
 
-        # 1. Fetch summary & advisory data
-        summary = await get_portfolio_summary(session)
-        holdings_dict = [h.model_dump() for h in summary.holdings]
-        advisory_data = await generate_portfolio_advisory(holdings_dict)
-        advisory_data["portfolio_summary"] = summary.model_dump()
-
-        # 2. Fetch active IPOs (both Mainboard and SME for comprehensive query answering)
-        ipo_filters = [
-            IPO.status.in_([IPOStatus.LIVE, IPOStatus.UPCOMING]),
-            IPO.is_seed.is_(False)
-        ]
-
-        stmt = (
-            select(IPO)
-            .where(*ipo_filters)
-            .options(
-                selectinload(IPO.subscriptions),
-                selectinload(IPO.gmp_records),
-                selectinload(IPO.score)
-            )
-            .order_by(IPO.open_date.asc().nulls_last())
-        )
-        active_ipos_objs = (await session.execute(stmt)).scalars().all()
-        ipos_data = []
-        for ipo in active_ipos_objs:
-            latest_gmp = ipo.gmp_records[0] if ipo.gmp_records else None
-            latest_sub = ipo.subscriptions[0] if ipo.subscriptions else None
-
-            pband = f"₹{ipo.price_band_low:,.0f} - ₹{ipo.price_band_high:,.0f}" if (ipo.price_band_low and ipo.price_band_high) else (f"₹{ipo.issue_price:,.0f}" if ipo.issue_price else "TBA")
-            gmp_str = f"₹{latest_gmp.gmp_amount:,.0f} ({latest_gmp.gmp_percentage:.1f}%)" if latest_gmp else "N/A"
-            sub_str = f"{latest_sub.total_multiple:.1f}x" if latest_sub else "N/A"
-            score_str = f"{ipo.score.composite_score:.1f}/100" if ipo.score else "N/A"
-            rec_str = ipo.score.recommendation.value if ipo.score else "N/A"
-
-            open_str = ipo.open_date.strftime("%d %b %Y") if ipo.open_date else "TBA"
-            close_str = ipo.close_date.strftime("%d %b %Y") if ipo.close_date else "TBA"
-            listing_str = ipo.listing_date.strftime("%d %b %Y") if ipo.listing_date else "TBA"
-
-            ipos_data.append({
-                "symbol": ipo.symbol,
-                "company_name": ipo.company_name,
-                "ipo_type": ipo.ipo_type.value if hasattr(ipo.ipo_type, "value") else str(ipo.ipo_type),
-                "status": ipo.status.value,
-                "open_date": open_str,
-                "close_date": close_str,
-                "listing_date": listing_str,
-                "price_band": pband,
-                "gmp": gmp_str,
-                "subscription": sub_str,
-                "score": score_str,
-                "recommendation": rec_str
-            })
-
-        extra_instructions = None
-        if settings.TELEGRAM_MAINBOARD_ONLY:
-            extra_instructions = (
-                "STRICT MAINBOARD FILTER: The user's capital budget only allows investing in MAINBOARD IPOs (approx. ₹15,000 per lot), "
-                "NOT SME IPOs (which require ₹1,00,000+ per lot). "
-                "Only suggest and recommend MAINBOARD IPOs. If asked about general recommendations or which IPO to apply for, focus exclusively on Mainboard IPOs. "
-                "If the user asks specifically about an SME IPO, inform them about the high lot size requirement (₹1L+) and that their preference is set to Mainboard only."
-            )
-
-        from app.services.market_shares_service import get_technical_swing_candidates
-        market_shares = await get_technical_swing_candidates()
-
-        res = await groq_answer_query(
-            query=query,
-            advisory_data=advisory_data,
-            chat_history=chat_history or [],
-            active_ipos=ipos_data,
-            portfolio_summary=summary,
-            db=session,
-            extra_system_instructions=extra_instructions,
-            market_shares=market_shares,
-            force_llm=force_llm,
-            return_model=return_model
-        )
-        if return_model:
-            answer, source, used_model = res
-        else:
-            answer, source = res
-            used_model = "unknown"
+        res = await groq_answer_ipo_query(query=query, db=session)
+        answer = res.get("reply", "")
+        source = res.get("provider", "groq")
+        used_model = res.get("model", "unknown")
 
         logger.info(
-            "[Telegram AI Query] source=%s query=%r reply_preview=%r",
-            source, sanitize_log_text(query), sanitize_log_text(answer[:200])
+            "[Telegram AI Query] source=%s model=%s query=%r reply_preview=%r",
+            source, used_model, sanitize_log_text(query), sanitize_log_text(answer[:200])
         )
         if return_model:
             return answer, source, used_model
@@ -740,87 +533,28 @@ class TelegramService:
             best_cmd_label = "Current best Mainboard IPOs to apply for" if settings.TELEGRAM_MAINBOARD_ONLY else "Current best IPOs to apply for"
             help_text = (
                 "👋 <b>Welcome to IPO Pulse AI Bot!</b>\n\n"
-                "I am your real-time investment copilot and IPO intelligence assistant.\n\n"
+                "I am your real-time IPO intelligence assistant and investment copilot.\n\n"
                 "⚡ <b>Quick Commands:</b>\n"
                 f"• 🚀 <b>/top</b> or <b>/best</b> - {best_cmd_label}\n"
-                "• 🎯 <b>/shares</b> or <b>/picks</b> - Technical swing candidates with mechanical entry, target & SL\n"
-                "• 📈 <b>/scorecard</b> - Swing strategy performance track record vs Nifty\n"
-                "• 💼 <b>/portfolio</b> - Live portfolio summary & today's P&L\n"
-                "• 📈 <b>/mf</b> or <b>/mutualfunds</b> - Mutual Funds portfolio, XIRR & allocations\n"
-                "• 📊 <b>/accuracy</b> or <b>/eval</b> - Direction prediction accuracy & Brier evaluation score\n"
                 "• 🔍 <b>/ipo &lt;name&gt;</b> - Instant scorecard & GMP for an IPO\n"
                 "• ❓ <b>/help</b> - View this command guide\n\n"
-                "💬 <b>Ask Me Any Question Directly:</b>\n"
-                "• <i>\"Suggest me a share to buy for 2-3 months\"</i>\n"
+                "💬 <b>Ask Me Any IPO Question Directly:</b>\n"
                 "• <i>\"Which Mainboard IPO should I apply for?\"</i>\n"
-                "• <i>\"How to make my portfolio green?\"</i>\n"
-                "• <i>\"What are the stop-loss levels for my stocks?\"</i>\n"
-                "• <i>\"Tell me dividends and trailing PE of ITC\"</i>\n\n"
+                "• <i>\"What is the GMP and subscription of current IPOs?\"</i>\n"
+                "• <i>\"Tell me the listing date and price band of upcoming IPOs\"</i>\n\n"
                 "Just reply with your question and I'll analyze live market data!"
             )
             await cls.send_message(help_text, chat_id=chat_id)
             logger.info("[Telegram Handled] chat_id=%s source=system query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(help_text[:150]))
             return {"ok": True, "action": "help", "source": "system"}
 
-        # 2. /accuracy, /eval, accuracy
-        if clean_lower in ["/accuracy", "/eval", "accuracy", "model accuracy", "prediction accuracy"]:
-            from app.services.prediction_service import PredictionService
-            report = await PredictionService.get_model_performance(session)
-            card = cls.format_accuracy_card(report)
-            await cls.send_message(card, chat_id=chat_id)
-            logger.info("[Telegram Handled] chat_id=%s source=model_accuracy query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(card[:150]))
-            return {"ok": True, "action": "accuracy", "source": "model_accuracy"}
-
-        # 3. /scorecard, scorecard, trackrecord
-        if clean_lower in ["/scorecard", "scorecard", "/trackrecord", "track record", "/swingrecord"]:
-            from app.services.market_shares_service import get_suggestion_scorecard, format_scorecard_message
-            scorecard_data = await get_suggestion_scorecard(session)
-            card = format_scorecard_message(scorecard_data)
-            await cls.send_message(card, chat_id=chat_id)
-            logger.info("[Telegram Handled] chat_id=%s source=swing_scorecard query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(card[:150]))
-            return {"ok": True, "action": "scorecard", "source": "swing_scorecard"}
-
-        # 4. /shares, /picks, /stocks, or direct request for share suggestions
-        if (
-            clean_lower in ["/shares", "/picks", "/stocks", "shares", "picks", "stocks"]
-            or any(p in clean_lower for p in [
-                "suggest share", "suggest a share", "suggest me a share", "suggest me the share",
-                "which share to buy", "best share to buy", "best stock to buy", "share in the market",
-                "shares to buy", "stocks to buy", "share for 2-3 month", "share for 2-3 months"
-            ])
-        ):
-            from app.services.market_shares_service import get_technical_swing_candidates, format_shares_summary_card
-            shares = await get_technical_swing_candidates(session=session)
-            card = format_shares_summary_card(shares)
-            await cls.send_message(card, chat_id=chat_id)
-            logger.info("[Telegram Handled] chat_id=%s source=technical_swing_candidates query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(card[:150]))
-            return {"ok": True, "action": "shares_suggested", "source": "technical_swing_candidates"}
-
-        # 3. /top, /best
+        # 2. /top, /best
         if clean_lower in ["/top", "/best", "top", "best ipo", "best ipos"]:
             digest_res = await cls.send_top_picks_digest(session)
             logger.info("[Telegram Handled] chat_id=%s source=top_picks query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(str(digest_res)[:150]))
             return {"ok": True, "action": "top_picks", "source": "top_picks", "result": digest_res}
 
-        # 4. /portfolio, /pnl
-        if clean_lower in ["/portfolio", "/pnl", "portfolio", "pnl", "my portfolio"]:
-            from app.services.portfolio_service import get_portfolio_summary
-            summary = await get_portfolio_summary(session)
-            card = cls.format_portfolio_summary_card(summary)
-            await cls.send_message(card, chat_id=chat_id)
-            logger.info("[Telegram Handled] chat_id=%s source=portfolio_summary query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(card[:150]))
-            return {"ok": True, "action": "portfolio", "source": "portfolio_summary"}
-
-        # 4b. /mf, /mutualfunds
-        if clean_lower in ["/mf", "/mutualfunds", "/mutual_funds", "mf", "mutual funds", "my mutual funds", "mutual fund"]:
-            from app.services.mutual_fund_service import get_mf_summary
-            mf_summary = await get_mf_summary(session)
-            card = cls.format_mf_summary_card(mf_summary)
-            await cls.send_message(card, chat_id=chat_id)
-            logger.info("[Telegram Handled] chat_id=%s source=mf_summary query=%r reply_preview=%r", chat_id, sanitize_log_text(text), sanitize_log_text(card[:150]))
-            return {"ok": True, "action": "mutual_funds", "source": "mf_summary"}
-
-        # 5. /ipo <name or symbol>
+        # 3. /ipo <name or symbol>
         if clean_lower.startswith("/ipo "):
             search_term = text[5:].strip()
             if search_term:
@@ -864,13 +598,6 @@ class TelegramService:
             await cls.send_message(html_reply, chat_id=chat_id)
             logger.info("[Telegram Handled] chat_id=%s source=%s query=%r reply_preview=%r", chat_id, source, sanitize_log_text(text), sanitize_log_text(ai_reply[:150]))
             return {"ok": True, "action": "ai_answered", "source": source}
-        except Exception as exc:
-            logger.error(f"Error answering AI query on Telegram: {exc}", exc_info=True)
-            await cls.send_message(
-                f"⚠️ Sorry, I encountered an issue analyzing your query: {html.escape(str(exc))}",
-                chat_id=chat_id
-            )
-            return {"ok": False, "error": str(exc)}
         except Exception as exc:
             logger.error(f"Error answering AI query on Telegram: {exc}", exc_info=True)
             await cls.send_message(

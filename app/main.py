@@ -9,23 +9,15 @@ from app.routers import (
     ipo_router,
     allotment_router,
     scraper_router,
-    portfolio_router,
     auth_router,
     telegram_router,
-    predictions_router,
     scoring_router,
-    mutual_fund_router,
-    data_router,
 )
 from app.services.scheduler import start_scheduler, stop_scheduler
 from app.services.scraper_service import ScraperService
 from app.auth import limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
-import app.models.portfolio  # ensure portfolio tables are registered with Base
-import app.models.prediction  # ensure prediction tables are registered with Base
-import app.models.mutual_fund  # ensure mutual fund tables are registered with Base
-import app.models.price_history  # ensure price history tables are registered with Base
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,12 +76,8 @@ app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(ipo_router, prefix=settings.API_V1_PREFIX)
 app.include_router(allotment_router, prefix=settings.API_V1_PREFIX)
 app.include_router(scraper_router, prefix=settings.API_V1_PREFIX)
-app.include_router(portfolio_router, prefix=settings.API_V1_PREFIX)
 app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
-app.include_router(predictions_router, prefix=settings.API_V1_PREFIX)
 app.include_router(scoring_router, prefix=settings.API_V1_PREFIX)
-app.include_router(mutual_fund_router, prefix=settings.API_V1_PREFIX)
-app.include_router(data_router, prefix=settings.API_V1_PREFIX)
 
 
 from pathlib import Path
