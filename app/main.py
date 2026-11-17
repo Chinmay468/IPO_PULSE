@@ -81,7 +81,7 @@ app.include_router(scoring_router, prefix=settings.API_V1_PREFIX)
 
 
 from pathlib import Path
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -93,8 +93,22 @@ if STATIC_DIR.exists():
 async def dashboard():
     index_file = STATIC_DIR / "index.html"
     if index_file.exists():
-        return HTMLResponse(content=index_file.read_text(encoding="utf-8"))
+        return HTMLResponse(
+            content=index_file.read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
     return HTMLResponse("<h1>IPO Pulse Service Online</h1><p><a href='/docs'>View API Docs</a></p>")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+        '<rect width="32" height="32" rx="8" fill="#10b981"/>'
+        '<path d="M8 22l5-5 4 4 7-9" stroke="white" stroke-width="2.5" '
+        'fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    )
+    return Response(content=svg, media_type="image/svg+xml")
 
 
 @app.get("/health", tags=["Health"])
