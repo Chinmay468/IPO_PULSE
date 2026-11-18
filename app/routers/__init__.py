@@ -4,6 +4,7 @@ from app.routers.scraper import router as scraper_router
 from app.routers.auth import router as auth_router
 from app.routers.telegram import router as telegram_router
 from app.routers.scoring import router as scoring_router
+from app.routers.applications import router as applications_router
 
 __all__ = [
     "ipo_router",
@@ -12,4 +13,5 @@ __all__ = [
     "auth_router",
     "telegram_router",
     "scoring_router",
+    "applications_router",
 ]

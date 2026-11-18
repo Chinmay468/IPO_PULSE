@@ -359,3 +359,44 @@ class IPOPreListingGmp(Base):
     issue_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
 
+class IPOApplication(Base):
+    """
+    User-scoped IPO application tracker for logging bids, allotment outcomes,
+    hit ratios, and realized/unrealized listing gains.
+    """
+    __tablename__ = "ipo_applications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    ipo_id: Mapped[int] = mapped_column(Integer, ForeignKey("ipos.id", ondelete="CASCADE"), index=True, nullable=False)
+
+    applicant_name: Mapped[str] = mapped_column(String(100), default="Self", nullable=False)
+    category: Mapped[str] = mapped_column(String(50), default="RETAIL", nullable=False)  # RETAIL, SHNI, BHNI, EMPLOYEE, SHAREHOLDER
+    lots_applied: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    shares_applied: Mapped[int] = mapped_column(Integer, nullable=False)
+    bid_price: Mapped[float] = mapped_column(Float, nullable=False)
+    amount_blocked: Mapped[float] = mapped_column(Float, nullable=False)
+
+    status: Mapped[str] = mapped_column(String(30), default="APPLIED", index=True, nullable=False)  # APPLIED, ALLOTTED, NOT_ALLOTTED, SOLD
+    lots_allotted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    shares_allotted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    selling_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    realized_profit: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    applied_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
+
+    ipo: Mapped["IPO"] = relationship("IPO")
+
+
+

@@ -8,7 +8,7 @@ function switchTab(tabId) {
   if (activeSection) activeSection.classList.remove('hidden');
 
   // Update Desktop and Mobile Tabs
-  ['ipos', 'allotment', 'methodology'].forEach(t => {
+  ['ipos', 'allotment', 'applications', 'methodology'].forEach(t => {
     const btn = document.getElementById('nav-' + t);
     const mBtn = document.getElementById('mobile-nav-' + t);
     if (t === tabId) {
@@ -21,6 +21,7 @@ function switchTab(tabId) {
   });
 
   if (tabId === 'allotment') loadRegistrarCompanies();
+  if (tabId === 'applications') loadMyApplications();
   if (tabId === 'methodology') loadScoringMethodology();
   if (tabId === 'ipos') loadIpos();
   refreshLucideIcons();
@@ -361,6 +362,10 @@ document.addEventListener('click', (e) => {
   if (e.target === gmpPreviewModal && typeof closeGmpPreviewModal === 'function') {
     closeGmpPreviewModal();
   }
+  const appModal = document.getElementById('application-modal');
+  if (e.target === appModal && typeof closeApplicationModal === 'function') {
+    closeApplicationModal();
+  }
 });
 
 document.addEventListener('keydown', (e) => {
@@ -373,16 +378,399 @@ document.addEventListener('keydown', (e) => {
     if (typeof closeModal === 'function') closeModal();
     if (typeof closeLoginModal === 'function') closeLoginModal();
     if (typeof closeTelegramModal === 'function') closeTelegramModal();
+    if (typeof closeApplicationModal === 'function') closeApplicationModal();
     if (typeof closeAllDropdowns === 'function') closeAllDropdowns();
   }
 });
+
+// ==================== IPO APPLICATION TRACKER CONTROLLER ====================
+let userApplications = [];
+let userApplicationsSummary = null;
+let currentAppFilter = 'ALL';
+
+function isIpoTracked(ipoId) {
+  return userApplications.some(a => a.ipo_id === ipoId);
+}
+
+async function loadMyApplications() {
+  const token = getAuthToken();
+  const signedOutEl = document.getElementById('applications-signed-out');
+  const signedInEl = document.getElementById('applications-signed-in');
+  const navBadge = document.getElementById('nav-apps-badge');
+
+  if (!token) {
+    userApplications = [];
+    userApplicationsSummary = null;
+    if (signedOutEl) signedOutEl.classList.remove('hidden');
+    if (signedInEl) signedInEl.classList.add('hidden');
+    if (navBadge) navBadge.classList.add('hidden');
+    if (typeof renderIpos === 'function' && Array.isArray(allIpos) && allIpos.length > 0) {
+      renderIpos();
+    }
+    refreshLucideIcons();
+    return;
+  }
+
+  if (signedOutEl) signedOutEl.classList.add('hidden');
+  if (signedInEl) signedInEl.classList.remove('hidden');
+
+  try {
+    const res = await fetch('/api/v1/applications', {
+      headers: getAuthHeaders()
+    });
+    if (res.status === 401) {
+      setAuthToken(null);
+      return;
+    }
+    if (!res.ok) return;
+    const data = await res.json();
+    userApplications = data.items || [];
+    userApplicationsSummary = data.summary || {};
+
+    if (navBadge) {
+      if (userApplications.length > 0) {
+        navBadge.textContent = userApplications.length;
+        navBadge.classList.remove('hidden');
+      } else {
+        navBadge.classList.add('hidden');
+      }
+    }
+
+    renderApplicationsSummary(userApplicationsSummary);
+    renderApplicationsList();
+    if (typeof renderIpos === 'function' && Array.isArray(allIpos) && allIpos.length > 0) {
+      renderIpos();
+    }
+  } catch (err) {
+    console.warn('Failed to load user applications:', err);
+  }
+}
+
+function formatInrCompact(val) {
+  const n = Number(val || 0);
+  const sign = n < 0 ? '-' : '';
+  return sign + '₹' + Math.abs(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+
+function renderApplicationsSummary(s) {
+  if (!s) return;
+  const blockedEl = document.getElementById('app-stat-blocked');
+  const activeSubEl = document.getElementById('app-stat-active-sub');
+  const hitRatioEl = document.getElementById('app-stat-hit-ratio');
+  const hitSubEl = document.getElementById('app-stat-hit-sub');
+  const realizedEl = document.getElementById('app-stat-realized');
+  const expectedEl = document.getElementById('app-stat-expected');
+
+  if (blockedEl) blockedEl.textContent = formatInrCompact(s.active_blocked_capital);
+  if (activeSubEl) activeSubEl.textContent = `${s.active_applications || 0} active bid${s.active_applications === 1 ? '' : 's'} · ${s.total_applications || 0} total`;
+  if (hitRatioEl) hitRatioEl.textContent = `${Number(s.hit_ratio_pct || 0).toFixed(1)}%`;
+  if (hitSubEl) hitSubEl.textContent = `${s.allotted_count || 0} / ${s.decided_count || 0} allotted`;
+
+  if (realizedEl) {
+    const r = Number(s.total_realized_profit || 0);
+    realizedEl.textContent = (r > 0 ? '+' : '') + formatInrCompact(r);
+    realizedEl.className = `text-xl sm:text-2xl font-bold font-mono mt-0.5 tabular-nums ${r > 0 ? 'text-emerald-600 dark:text-emerald-400' : r < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`;
+  }
+  if (expectedEl) {
+    const e = Number(s.expected_gmp_profit || 0);
+    expectedEl.textContent = (e > 0 ? '+' : '') + formatInrCompact(e);
+  }
+}
+
+function filterApplications(filter) {
+  currentAppFilter = filter;
+  ['ALL', 'APPLIED', 'ALLOTTED', 'NOT_ALLOTTED', 'SOLD'].forEach(f => {
+    const btn = document.getElementById('app-filter-' + f);
+    if (!btn) return;
+    if (f === filter) {
+      btn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white transition cursor-pointer';
+    } else {
+      btn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer';
+    }
+  });
+  renderApplicationsList();
+}
+
+function renderApplicationsList() {
+  const container = document.getElementById('applications-list-container');
+  if (!container) return;
+
+  const filtered = currentAppFilter === 'ALL'
+    ? userApplications
+    : userApplications.filter(a => a.status === currentAppFilter);
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="bg-white dark:bg-[#121826] p-8 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] text-center space-y-2">
+        <p class="text-sm font-bold text-slate-700 dark:text-slate-300">No IPO applications logged yet</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">Click <strong>+ Track</strong> on any IPO card or click <strong>Log IPO Application</strong> above to start tracking your bids and listing gains.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = filtered.map(item => {
+    let statusBadge = '';
+    if (item.status === 'APPLIED') {
+      statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">APPLIED</span>';
+    } else if (item.status === 'ALLOTTED') {
+      statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">ALLOTTED</span>';
+    } else if (item.status === 'SOLD') {
+      statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">SOLD</span>';
+    } else {
+      statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">NOT ALLOTTED</span>';
+    }
+
+    const profitVal = item.realized_profit !== null && item.realized_profit !== undefined ? item.realized_profit : item.estimated_profit;
+    const isRealized = item.realized_profit !== null && item.realized_profit !== undefined;
+    const profitColor = profitVal > 0 ? 'text-emerald-600 dark:text-emerald-400' : profitVal < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400';
+    const profitLabel = item.status === 'NOT_ALLOTTED'
+      ? '₹0 (Refunded)'
+      : `${profitVal > 0 ? '+' : ''}${formatInrCompact(profitVal)} (${item.profit_pct > 0 ? '+' : ''}${Number(item.profit_pct || 0).toFixed(1)}%) ${isRealized ? '· Realized' : '· Est. GMP'}`;
+
+    const quickActions = item.status === 'APPLIED'
+      ? `
+        <button onclick="quickUpdateApplicationStatus(${item.id}, 'ALLOTTED')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition cursor-pointer">✓ Mark Allotted</button>
+        <button onclick="quickUpdateApplicationStatus(${item.id}, 'NOT_ALLOTTED')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition cursor-pointer">✕ Not Allotted</button>
+      `
+      : '';
+
+    return `
+      <div class="bg-white dark:bg-[#121826] p-4 rounded-xl border border-[#E8EAEE] dark:border-[#1F2937] shadow-soft flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">${escapeHtml(item.symbol)}</span>
+            <h4 class="text-sm font-bold text-slate-900 dark:text-white">${escapeHtml(item.company_name)}</h4>
+            ${statusBadge}
+            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">${escapeHtml(item.applicant_name)} · ${escapeHtml(item.category)}</span>
+          </div>
+          <div class="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 flex-wrap font-mono">
+            <span>Lots: <strong>${item.lots_applied}</strong> (${item.shares_applied} sh @ ₹${item.bid_price})</span>
+            <span>Blocked: <strong class="text-slate-800 dark:text-slate-200">${formatInrCompact(item.amount_blocked)}</strong></span>
+            ${item.selling_price ? `<span>Exit: <strong>₹${item.selling_price}</strong></span>` : ''}
+            <span class="font-bold ${profitColor}">${profitLabel}</span>
+          </div>
+          ${item.notes ? `<p class="text-[11px] text-slate-400 italic">${escapeHtml(item.notes)}</p>` : ''}
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0 flex-wrap">
+          ${quickActions}
+          <button onclick="openApplicationModal(${item.id})" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">Edit</button>
+          <button onclick="deleteUserApplication(${item.id})" class="px-2 py-1 rounded-lg text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition cursor-pointer">Delete</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  refreshLucideIcons();
+}
+
+function openTrackApplicationForIpo(ipoId) {
+  if (!getAuthToken()) {
+    openLoginModal('signin');
+    return;
+  }
+  openApplicationModal(null, ipoId);
+}
+
+function openApplicationModal(editAppId = null, prefillIpoId = null) {
+  if (!getAuthToken()) {
+    openLoginModal('signin');
+    return;
+  }
+  const modal = document.getElementById('application-modal');
+  const titleEl = document.getElementById('app-modal-title');
+  const idInput = document.getElementById('app-form-id');
+  const ipoSelect = document.getElementById('app-form-ipo');
+  const applicantInput = document.getElementById('app-form-applicant');
+  const catSelect = document.getElementById('app-form-category');
+  const lotsInput = document.getElementById('app-form-lots');
+  const priceInput = document.getElementById('app-form-price');
+  const statusSelect = document.getElementById('app-form-status');
+  const lotsAllottedInput = document.getElementById('app-form-lots-allotted');
+  const sellingPriceInput = document.getElementById('app-form-selling-price');
+  const notesInput = document.getElementById('app-form-notes');
+  const errEl = document.getElementById('app-form-error');
+
+  if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+
+  // Populate IPO dropdown
+  if (ipoSelect && Array.isArray(allIpos)) {
+    ipoSelect.innerHTML = allIpos.map(i => {
+      const p = i.issue_price || i.price_band_high || i.price_band_low || 100;
+      return `<option value="${i.id}" data-price="${p}" data-lot="${i.lot_size || 1}">${escapeHtml(i.company_name)} (${escapeHtml(i.symbol)} · ${i.status})</option>`;
+    }).join('');
+  }
+
+  if (editAppId) {
+    const existing = userApplications.find(a => a.id === editAppId);
+    if (!existing) return;
+    if (titleEl) titleEl.textContent = 'Edit IPO Application';
+    idInput.value = String(existing.id);
+    if (ipoSelect) {
+      ipoSelect.value = String(existing.ipo_id);
+      ipoSelect.disabled = true;
+    }
+    applicantInput.value = existing.applicant_name || 'Self';
+    catSelect.value = existing.category || 'RETAIL';
+    lotsInput.value = existing.lots_applied || 1;
+    priceInput.value = existing.bid_price || 100;
+    statusSelect.value = existing.status || 'APPLIED';
+    lotsAllottedInput.value = existing.lots_allotted || 1;
+    sellingPriceInput.value = existing.selling_price || '';
+    notesInput.value = existing.notes || '';
+  } else {
+    if (titleEl) titleEl.textContent = 'Log IPO Application';
+    idInput.value = '';
+    if (ipoSelect) {
+      ipoSelect.disabled = false;
+      if (prefillIpoId) ipoSelect.value = String(prefillIpoId);
+    }
+    applicantInput.value = 'Self';
+    catSelect.value = 'RETAIL';
+    lotsInput.value = 1;
+    statusSelect.value = 'APPLIED';
+    lotsAllottedInput.value = 1;
+    sellingPriceInput.value = '';
+    notesInput.value = '';
+    onAppModalIpoChange();
+  }
+
+  onAppModalStatusChange();
+  updateAppModalBlockedPreview();
+  if (modal) modal.classList.remove('hidden');
+  refreshLucideIcons();
+}
+
+function closeApplicationModal() {
+  const modal = document.getElementById('application-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function onAppModalIpoChange() {
+  const ipoSelect = document.getElementById('app-form-ipo');
+  const priceInput = document.getElementById('app-form-price');
+  if (!ipoSelect || !priceInput) return;
+  const opt = ipoSelect.options[ipoSelect.selectedIndex];
+  if (opt) {
+    priceInput.value = opt.getAttribute('data-price') || 100;
+  }
+  updateAppModalBlockedPreview();
+}
+
+function onAppModalStatusChange() {
+  const statusSelect = document.getElementById('app-form-status');
+  const allottedWrap = document.getElementById('app-form-allotted-wrap');
+  const exitWrap = document.getElementById('app-form-exit-wrap');
+  if (!statusSelect) return;
+  const st = statusSelect.value;
+  if (st === 'ALLOTTED' || st === 'SOLD') {
+    if (allottedWrap) allottedWrap.classList.remove('hidden');
+    if (exitWrap) exitWrap.classList.remove('hidden');
+  } else {
+    if (allottedWrap) allottedWrap.classList.add('hidden');
+    if (exitWrap) exitWrap.classList.add('hidden');
+  }
+}
+
+function updateAppModalBlockedPreview() {
+  const ipoSelect = document.getElementById('app-form-ipo');
+  const lotsInput = document.getElementById('app-form-lots');
+  const priceInput = document.getElementById('app-form-price');
+  const previewEl = document.getElementById('app-form-blocked-preview');
+  if (!ipoSelect || !lotsInput || !priceInput || !previewEl) return;
+
+  const opt = ipoSelect.options[ipoSelect.selectedIndex];
+  const lotSize = opt ? Number(opt.getAttribute('data-lot') || 1) : 1;
+  const lots = Number(lotsInput.value || 1);
+  const price = Number(priceInput.value || 0);
+  const shares = lots * lotSize;
+  const blocked = shares * price;
+  previewEl.textContent = `${formatInrCompact(blocked)} (${shares} shares)`;
+}
+
+async function submitApplicationForm(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const idVal = document.getElementById('app-form-id').value;
+  const ipoId = Number(document.getElementById('app-form-ipo').value);
+  const applicant = document.getElementById('app-form-applicant').value.trim() || 'Self';
+  const category = document.getElementById('app-form-category').value;
+  const lots = Number(document.getElementById('app-form-lots').value || 1);
+  const price = Number(document.getElementById('app-form-price').value || 0);
+  const statusVal = document.getElementById('app-form-status').value;
+  const lotsAllotted = Number(document.getElementById('app-form-lots-allotted').value || 0);
+  const sellingPriceRaw = document.getElementById('app-form-selling-price').value;
+  const sellingPrice = sellingPriceRaw ? Number(sellingPriceRaw) : null;
+  const notes = document.getElementById('app-form-notes').value.trim();
+  const errEl = document.getElementById('app-form-error');
+
+  const payload = {
+    ipo_id: ipoId,
+    applicant_name: applicant,
+    category: category,
+    lots_applied: lots,
+    bid_price: price,
+    status: statusVal,
+    lots_allotted: (statusVal === 'ALLOTTED' || statusVal === 'SOLD') ? Math.max(1, lotsAllotted) : 0,
+    selling_price: sellingPrice,
+    notes: notes || null
+  };
+
+  try {
+    const url = idVal ? `/api/v1/applications/${idVal}` : '/api/v1/applications';
+    const method = idVal ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method: method,
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to save application');
+    }
+    closeApplicationModal();
+    await loadMyApplications();
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+    }
+  }
+}
+
+async function quickUpdateApplicationStatus(appId, newStatus) {
+  try {
+    const res = await fetch(`/api/v1/applications/${appId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (res.ok) {
+      await loadMyApplications();
+    }
+  } catch (err) {
+    console.warn('Quick status update error:', err);
+  }
+}
+
+async function deleteUserApplication(appId) {
+  try {
+    const res = await fetch(`/api/v1/applications/${appId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      await loadMyApplications();
+    }
+  } catch (err) {
+    console.warn('Delete application error:', err);
+  }
+}
 
 // App Bootstrap
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   updateAuthUI();
   const hash = window.location.hash.replace('#', '');
-  if (['ipos', 'allotment', 'methodology'].includes(hash)) {
+  if (['ipos', 'allotment', 'applications', 'methodology'].includes(hash)) {
     switchTab(hash);
   } else {
     switchTab('ipos');
@@ -390,6 +778,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadRegistrarCompanies();
   loadScoringMethodology();
   loadIpos();
+  loadMyApplications();
   initLiveSync();
   refreshLucideIcons();
 });

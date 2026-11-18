@@ -10,6 +10,7 @@ from app.models.ipo import (
     IPOAnchor,
     IPOReviewsSummary,
     IPOListing,
+    IPOApplication,
 )
 from app.models.user import User
 
@@ -26,4 +27,5 @@ __all__ = [
     "IPOAnchor",
     "IPOReviewsSummary",
     "IPOListing",
+    "IPOApplication",
 ]

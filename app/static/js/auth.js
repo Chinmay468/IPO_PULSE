@@ -51,6 +51,9 @@ function updateAuthUI() {
     if (btn) btn.classList.remove('border-emerald-500/50', 'text-emerald-600', 'dark:text-emerald-400');
     if (changePassBtn) changePassBtn.classList.add('hidden');
   }
+  if (typeof loadMyApplications === 'function') {
+    loadMyApplications();
+  }
   refreshLucideIcons();
 }
 

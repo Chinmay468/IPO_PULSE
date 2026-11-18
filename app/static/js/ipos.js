@@ -402,9 +402,15 @@ function renderIpos(items) {
           </div>
         </div>
 
-        <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
           <button onclick="openModal(${ipo.id})" class="text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer">Analysis ➔</button>
-          ${applyBtn}
+          <div class="flex items-center gap-1.5">
+            ${(typeof isIpoTracked === 'function' && isIpoTracked(ipo.id))
+              ? `<button onclick="switchTab('applications')" class="px-2 py-1 rounded text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/70 hover:bg-indigo-100 transition cursor-pointer">✓ Tracked</button>`
+              : `<button onclick="openTrackApplicationForIpo(${ipo.id})" class="px-2 py-1 rounded text-[11px] font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer">+ Track</button>`
+            }
+            ${applyBtn}
+          </div>
         </div>
       </div>
     `;
